@@ -41,8 +41,12 @@ export default function ReportsClient({
   }, [enrollmentData, selectedDept])
 
   const deptoList = useMemo(() => {
-    return [...new Set(attendanceData.map(a => a.dept_name))].sort()
-  }, [attendanceData])
+    const depts = [
+      ...attendanceData.map(a => a.dept_name),
+      ...enrollmentData.map(e => e.dept_name)
+    ]
+    return [...new Set(depts.filter(Boolean))].sort()
+  }, [attendanceData, enrollmentData])
 
   // --- CALCULOS DE KPIS ---
   const stats = useMemo(() => {

@@ -33,22 +33,23 @@ export default async function ReportesPage({
 
   const { data: attendanceData } = await attendanceQuery.order('dia', { ascending: true })
 
-  // 3. Fetch enrollment data
+  // 3. Fetch enrollment data starting from groups to see everything
   let enrollmentQuery = supabase
-    .from('inscripciones_resumen')
+    .from('grupos')
     .select(`
-      total_inscritos, total_confirmados,
-      grupos!inner (
-        name,
-        departamento_id,
-        departamentos (name)
+      name,
+      departamento_id,
+      departamentos (name),
+      inscripciones_resumen (
+        total_inscritos,
+        total_confirmados
       )
     `)
 
   if (profile?.departamento_id) {
-    enrollmentQuery = enrollmentQuery.eq('grupos.departamento_id', profile.departamento_id)
+    enrollmentQuery = enrollmentQuery.eq('departamento_id', profile.departamento_id)
   }
-  const { data: enrollmentData } = await enrollmentQuery
+  const { data: groupsWithEnrollment } = await enrollmentQuery.order('name')
 
   const flattenedAttendance = attendanceData?.map(a => ({
     dia: a.dia,
@@ -60,12 +61,15 @@ export default async function ReportesPage({
     dept_name: (a.grupos as any)?.departamentos?.name,
   })) || []
 
-  const flattenedEnrollment = enrollmentData?.map(e => ({
-    total_inscritos: e.total_inscritos,
-    total_confirmados: e.total_confirmados,
-    group_name: (e.grupos as any)?.name,
-    dept_name: (e.grupos as any)?.departamentos?.name,
-  })) || []
+  const flattenedEnrollment = groupsWithEnrollment?.map(g => {
+    const res = (g.inscripciones_resumen as any)?.[0] || { total_inscritos: 0, total_confirmados: 0 }
+    return {
+      total_inscritos: res.total_inscritos,
+      total_confirmados: res.total_confirmados,
+      group_name: g.name,
+      dept_name: (g.departamentos as any)?.name,
+    }
+  }) || []
 
   return (
     <div>
