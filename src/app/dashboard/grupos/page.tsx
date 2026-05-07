@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { createGrupo, deleteGrupo } from './actions'
 import { Plus, Trash2 } from 'lucide-react'
+import { naturalSort } from '@/utils/sort'
 
 export default async function GruposPage() {
   const supabase = await createClient()
@@ -18,7 +19,9 @@ export default async function GruposPage() {
     deptoQuery = deptoQuery.eq('id', profile.departamento_id)
   }
 
-  const { data: grupos } = await groupsQuery.order('name')
+  // Supabase ordena lexicográfico: G10 < G2. Aplicamos natural sort en servidor.
+  const { data: gruposRaw } = await groupsQuery
+  const grupos = (gruposRaw ?? []).sort((a, b) => naturalSort(a.name ?? '', b.name ?? ''))
   const { data: departamentos } = await deptoQuery.order('name')
 
   return (

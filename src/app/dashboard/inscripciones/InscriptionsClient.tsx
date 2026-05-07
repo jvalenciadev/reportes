@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Save, Search, Edit3, Users, CheckCircle, TrendingUp, LayoutGrid, AlertCircle } from 'lucide-react'
 
-export default function InscriptionsClient({ 
-  departamentos, 
-  userDeptId 
-}: { 
+export default function InscriptionsClient({
+  departamentos,
+  userDeptId
+}: {
   departamentos: any[],
   userDeptId?: string
 }) {
@@ -18,7 +18,7 @@ export default function InscriptionsClient({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   const [data, setData] = useState({
     total_inscritos: 0,
     total_confirmados: 0
@@ -30,10 +30,10 @@ export default function InscriptionsClient({
       setGroups([])
       return
     }
-    
+
     setLoading(true)
     setError(null)
-    
+
     try {
       console.log('--- AUDITORIA DE CARGA ---')
       console.log('Buscando grupos para departamento ID:', selectedDepto)
@@ -43,10 +43,9 @@ export default function InscriptionsClient({
         .from('grupos')
         .select('id, name, code')
         .eq('departamento_id', selectedDepto)
-        .order('name')
 
       if (gruposError) throw gruposError
-      
+
       console.log('Grupos encontrados:', gruposData?.length || 0)
 
       // 2. Traer los resúmenes de inscripción por separado
@@ -54,17 +53,19 @@ export default function InscriptionsClient({
         .from('inscripciones_resumen')
         .select('*')
 
-      // 3. Unir los datos en memoria (Frontend Join)
-      const mergedGroups = (gruposData || []).map(g => {
-        const resumen = (resumenData || []).find(r => r.grupo_id === g.id)
-        return {
-          ...g,
-          resumen: resumen || { total_inscritos: 0, total_confirmados: 0 }
-        }
-      })
+      // Natural sort: BNI-G1, BNI-G2, ..., BNI-G10
+      const mergedGroups = (gruposData || [])
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+        .map(g => {
+          const resumen = (resumenData || []).find(r => r.grupo_id === g.id)
+          return {
+            ...g,
+            resumen: resumen || { total_inscritos: 0, total_confirmados: 0 }
+          }
+        })
 
       setGroups(mergedGroups)
-      
+
     } catch (err: any) {
       console.error('Error en auditoria:', err)
       setError(err.message || 'Error al conectar con la base de datos')
@@ -91,7 +92,7 @@ export default function InscriptionsClient({
   const handleSave = async () => {
     if (!selectedGroup) return
     setSaving(true)
-    
+
     try {
       const { error } = await supabase
         .from('inscripciones_resumen')
@@ -102,10 +103,10 @@ export default function InscriptionsClient({
         }, { onConflict: 'grupo_id' })
 
       if (error) throw error
-      
+
       await fetchGroupsAndTotals() // Recargar todo
       setSelectedGroup('')
-      
+
     } catch (err: any) {
       alert('Error al guardar: ' + err.message)
     } finally {
@@ -115,15 +116,15 @@ export default function InscriptionsClient({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} suppressHydrationWarning>
-      
+
       {/* Selector de Departamento */}
       <div className="card glass" style={{ maxWidth: '400px' }} suppressHydrationWarning>
         <div className="form-group" style={{ marginBottom: 0 }} suppressHydrationWarning>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <TrendingUp size={16} color="var(--primary)" /> Seleccionar Departamento
           </label>
-          <select 
-            value={selectedDepto} 
+          <select
+            value={selectedDepto}
             onChange={(e) => setSelectedDepto(e.target.value)}
             disabled={!!userDeptId}
           >
@@ -141,7 +142,7 @@ export default function InscriptionsClient({
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: selectedGroup ? '1fr 1fr' : '1fr', gap: '2rem', transition: 'all 0.3s ease' }} suppressHydrationWarning>
-        
+
         {/* Listado Principal de Grupos */}
         <div className="card glass" style={{ borderTop: '4px solid var(--primary)' }} suppressHydrationWarning>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -194,25 +195,25 @@ export default function InscriptionsClient({
 
         {/* Panel de Edición Lateral */}
         {selectedGroup && (
-          <div className="card glass" style={{ 
-            borderTop: '4px solid #10b981', 
-            position: 'sticky', 
-            top: '2rem', 
+          <div className="card glass" style={{
+            borderTop: '4px solid #10b981',
+            position: 'sticky',
+            top: '2rem',
             height: 'fit-content',
-            animation: 'fadeIn 0.3s ease-out' 
+            animation: 'fadeIn 0.3s ease-out'
           }} suppressHydrationWarning>
             <h3 style={{ marginBottom: '2rem' }}>Actualizar Grupo: {groups.find(g => g.id === selectedGroup)?.name}</h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div className="form-group" style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                   <Users size={16} /> Total Inscritos
                 </label>
-                <input 
-                  type="number" 
-                  min="0" 
-                  value={data.total_inscritos} 
-                  onChange={(e) => setData({ ...data, total_inscritos: parseInt(e.target.value) || 0 })} 
+                <input
+                  type="number"
+                  min="0"
+                  value={data.total_inscritos}
+                  onChange={(e) => setData({ ...data, total_inscritos: parseInt(e.target.value) || 0 })}
                   style={{ fontSize: '2rem', fontWeight: '800', background: 'transparent', border: 'none', textAlign: 'center' }}
                 />
               </div>
@@ -221,11 +222,11 @@ export default function InscriptionsClient({
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: '#10b981' }}>
                   <CheckCircle size={16} /> Total Confirmados
                 </label>
-                <input 
-                  type="number" 
-                  min="0" 
-                  value={data.total_confirmados} 
-                  onChange={(e) => setData({ ...data, total_confirmados: parseInt(e.target.value) || 0 })} 
+                <input
+                  type="number"
+                  min="0"
+                  value={data.total_confirmados}
+                  onChange={(e) => setData({ ...data, total_confirmados: parseInt(e.target.value) || 0 })}
                   style={{ fontSize: '2rem', fontWeight: '800', background: 'transparent', border: 'none', textAlign: 'center', color: '#10b981' }}
                 />
               </div>

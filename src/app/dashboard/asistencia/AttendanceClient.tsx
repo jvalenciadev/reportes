@@ -41,8 +41,12 @@ export default function AttendanceClient({
       return
     }
     const fetchGroups = async () => {
-      const { data } = await supabase.from('grupos').select('*').eq('departamento_id', selectedDepto).order('name')
-      setGroups(data || [])
+      const { data: raw } = await supabase.from('grupos').select('*').eq('departamento_id', selectedDepto)
+      // Natural sort: G1, G2, ..., G10 (no G10 antes de G2)
+      const sorted = (raw || []).sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+      )
+      setGroups(sorted)
     }
     fetchGroups()
   }, [selectedDepto])
