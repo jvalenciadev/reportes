@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Save, Search, Edit3, Users, CheckCircle, TrendingUp, LayoutGrid, AlertCircle } from 'lucide-react'
+import {
+  Save, Search, UserPlus, CheckCircle, LayoutGrid,
+  AlertCircle, Contact, Mail, Phone, MapPin,
+  Calendar, Trash2, UserCheck
+} from 'lucide-react'
+import StatusModal, { StatusType } from '../components/StatusModal'
 
 export default function InscriptionsClient({
   departamentos,
@@ -12,236 +17,297 @@ export default function InscriptionsClient({
   userDeptId?: string
 }) {
   const supabase = createClient()
+
+  // Notification State
+  const [notif, setNotif] = useState({ show: false, type: 'info' as StatusType, title: '', message: '' })
+  const showNotif = (type: StatusType, title: string, message: string) => {
+    setNotif({ show: true, type, title, message })
+  }
+
+  // State
   const [selectedDepto, setSelectedDepto] = useState(userDeptId || '')
   const [selectedGroup, setSelectedGroup] = useState('')
+  const [selectedProgram, setSelectedProgram] = useState('')
   const [groups, setGroups] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
+  const [enrolledParticipants, setEnrolledParticipants] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [view, setView] = useState<'list' | 'add'>('list')
 
-  const [data, setData] = useState({
-    total_inscritos: 0,
-    total_confirmados: 0
+  // Form State for New Participant
+  const [form, setForm] = useState({
+    nombre: '',
+    apellido: '',
+    ci: '',
+    correo: '',
+    celular: '',
+    fecha_nacimiento: '',
+    localidad_vive: '',
+    estado_inscripcion: 'inscrito'
   })
 
-  // SOLUCIÓN DEFINITIVA: Carga de datos simplificada para evitar bloqueos de RLS/Joins
-  const fetchGroupsAndTotals = async () => {
-    if (!selectedDepto) {
-      setGroups([])
-      return
+  // Load Initial Data
+  useEffect(() => {
+    const fetchBaseData = async () => {
+      const { data: prog } = await supabase.from('programas').select('*').eq('estado', 'activo')
+      setPrograms(prog || [])
+      if (prog && prog.length > 0) setSelectedProgram(prog[0].id)
     }
+    fetchBaseData()
+  }, [])
 
+  // Load Groups when Depto changes
+  useEffect(() => {
+    if (!selectedDepto) return
+    const fetchGroups = async () => {
+      const { data } = await supabase.from('grupos').select('*').eq('departamento_id', selectedDepto)
+      setGroups(data || [])
+    }
+    fetchGroups()
+  }, [selectedDepto])
+
+  // Load Enrolled Participants when Group/Program changes
+  const loadParticipants = async () => {
+    if (!selectedGroup || !selectedProgram) return
     setLoading(true)
-    setError(null)
-
-    try {
-      console.log('--- AUDITORIA DE CARGA ---')
-      console.log('Buscando grupos para departamento ID:', selectedDepto)
-
-      // 1. Traer solo los grupos (Consulta Directa)
-      const { data: gruposData, error: gruposError } = await supabase
-        .from('grupos')
-        .select('id, name, code')
-        .eq('departamento_id', selectedDepto)
-
-      if (gruposError) throw gruposError
-
-      console.log('Grupos encontrados:', gruposData?.length || 0)
-
-      // 2. Traer los resúmenes de inscripción por separado
-      const { data: resumenData, error: resumenError } = await supabase
-        .from('inscripciones_resumen')
-        .select('*')
-
-      // Natural sort: BNI-G1, BNI-G2, ..., BNI-G10
-      const mergedGroups = (gruposData || [])
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
-        .map(g => {
-          const resumen = (resumenData || []).find(r => r.grupo_id === g.id)
-          return {
-            ...g,
-            resumen: resumen || { total_inscritos: 0, total_confirmados: 0 }
-          }
-        })
-
-      setGroups(mergedGroups)
-
-    } catch (err: any) {
-      console.error('Error en auditoria:', err)
-      setError(err.message || 'Error al conectar con la base de datos')
-    } finally {
-      setLoading(false)
-    }
+    const { data } = await supabase
+      .from('inscripciones')
+      .select('*, participantes(*)')
+      .eq('grupo_id', selectedGroup)
+      .eq('programa_id', selectedProgram)
+    setEnrolledParticipants(data || [])
+    setLoading(false)
   }
 
   useEffect(() => {
-    fetchGroupsAndTotals()
-  }, [selectedDepto])
+    loadParticipants()
+  }, [selectedGroup, selectedProgram])
 
-  const loadData = async (groupId: string) => {
-    setSelectedGroup(groupId)
-    const currentGroup = groups.find(g => g.id === groupId)
-    if (currentGroup) {
-      setData({
-        total_inscritos: currentGroup.resumen.total_inscritos,
-        total_confirmados: currentGroup.resumen.total_confirmados
-      })
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedGroup || !selectedProgram) {
+      alert('Selecciona programa y grupo primero')
+      return
     }
-  }
-
-  const handleSave = async () => {
-    if (!selectedGroup) return
     setSaving(true)
 
     try {
-      const { error } = await supabase
-        .from('inscripciones_resumen')
+      // 1. Create or Get Participant (Upsert by CI)
+      const { data: part, error: pErr } = await supabase
+        .from('participantes')
         .upsert({
+          nombre: form.nombre,
+          apellido: form.apellido,
+          ci: form.ci,
+          correo: form.correo,
+          celular: form.celular,
+          fecha_nacimiento: form.fecha_nacimiento || null,
+          localidad_vive: form.localidad_vive
+        }, { onConflict: 'ci' })
+        .select()
+        .single()
+
+      if (pErr) throw pErr
+
+      // 2. Create Enrollment
+      const { error: iErr } = await supabase
+        .from('inscripciones')
+        .upsert({
+          participante_id: part.id,
           grupo_id: selectedGroup,
-          ...data,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'grupo_id' })
+          programa_id: selectedProgram,
+          estado: form.estado_inscripcion
+        }, { onConflict: 'participante_id,programa_id' })
 
-      if (error) throw error
+      if (iErr) throw iErr
 
-      await fetchGroupsAndTotals() // Recargar todo
-      setSelectedGroup('')
-
+      // Success
+      setForm({ nombre: '', apellido: '', ci: '', correo: '', celular: '', fecha_nacimiento: '', localidad_vive: '', estado_inscripcion: 'inscrito' })
+      setView('list')
+      loadParticipants()
+      showNotif('success', '¡Registro Exitoso!', `${form.nombre} ha sido inscrito correctamente en el programa.`)
     } catch (err: any) {
-      alert('Error al guardar: ' + err.message)
+      showNotif('error', 'Error en el Proceso', `No se pudo completar la inscripción: ${err.message}`)
     } finally {
       setSaving(false)
     }
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} suppressHydrationWarning>
+  const deleteEnrollment = async (id: string) => {
+    if (!confirm('¿Seguro que deseas eliminar esta inscripción?')) return
+    await supabase.from('inscripciones').delete().eq('id', id)
+    loadParticipants()
+  }
 
-      {/* Selector de Departamento */}
-      <div className="card glass" style={{ maxWidth: '400px' }} suppressHydrationWarning>
-        <div className="form-group" style={{ marginBottom: 0 }} suppressHydrationWarning>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <TrendingUp size={16} color="var(--primary)" /> Seleccionar Departamento
-          </label>
-          <select
-            value={selectedDepto}
-            onChange={(e) => setSelectedDepto(e.target.value)}
-            disabled={!!userDeptId}
-          >
+  return (
+    <>
+    <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+
+      {/* Global Selectors */}
+      <div className="card glass" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+        <div className="form-group">
+          <label>Programa Académico</label>
+          <select value={selectedProgram} onChange={(e) => setSelectedProgram(e.target.value)}>
+            {programs.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Departamento</label>
+          <select value={selectedDepto} onChange={(e) => setSelectedDepto(e.target.value)} disabled={!!userDeptId}>
             <option value="">Seleccionar...</option>
             {departamentos.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
+        <div className="form-group">
+          <label>Grupo</label>
+          <select value={selectedGroup} onChange={(e) => setSelectedGroup(e.target.value)} disabled={!selectedDepto}>
+            <option value="">Seleccionar Grupo</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
       </div>
 
-      {error && (
-        <div className="card" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <AlertCircle size={20} />
-          <span><b>Error de Base de Datos:</b> {error}</span>
-        </div>
-      )}
+      {selectedGroup && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-      <div style={{ display: 'grid', gridTemplateColumns: selectedGroup ? '1fr 1fr' : '1fr', gap: '2rem', transition: 'all 0.3s ease' }} suppressHydrationWarning>
-
-        {/* Listado Principal de Grupos */}
-        <div className="card glass" style={{ borderTop: '4px solid var(--primary)' }} suppressHydrationWarning>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <LayoutGrid size={20} color="var(--primary)" /> Grupos en {departamentos.find(d => d.id === selectedDepto)?.name || '...'}
-            </h3>
-            {loading && <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Cargando datos...</span>}
-          </div>
-
-          <div className="table-container" suppressHydrationWarning>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nombre del Grupo</th>
-                  <th>Inscritos</th>
-                  <th>Confirmados</th>
-                  <th style={{ textAlign: 'right' }}>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groups.length > 0 ? groups.map((g) => (
-                  <tr key={g.id} style={{ background: selectedGroup === g.id ? 'rgba(59, 130, 246, 0.05)' : 'transparent' }}>
-                    <td>
-                      <div style={{ fontWeight: '700' }}>{g.name}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>{g.code || 'SIN CÓDIGO'}</div>
-                    </td>
-                    <td style={{ fontSize: '1.1rem', fontWeight: '600' }}>{g.resumen.total_inscritos}</td>
-                    <td>
-                      <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-                        {g.resumen.total_confirmados}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button className="btn btn-outline" onClick={() => loadData(g.id)}>
-                        <Edit3 size={16} /> <span>Editar</span>
-                      </button>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                      {loading ? 'Consultando base de datos...' : (selectedDepto ? 'No se encontraron grupos. Verifica si están asignados a este departamento.' : 'Selecciona un departamento arriba.')}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Panel de Edición Lateral */}
-        {selectedGroup && (
-          <div className="card glass" style={{
-            borderTop: '4px solid #10b981',
-            position: 'sticky',
-            top: '2rem',
-            height: 'fit-content',
-            animation: 'fadeIn 0.3s ease-out'
-          }} suppressHydrationWarning>
-            <h3 style={{ marginBottom: '2rem' }}>Actualizar Grupo: {groups.find(g => g.id === selectedGroup)?.name}</h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div className="form-group" style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid var(--border)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <Users size={16} /> Total Inscritos
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={data.total_inscritos}
-                  onChange={(e) => setData({ ...data, total_inscritos: parseInt(e.target.value) || 0 })}
-                  style={{ fontSize: '2rem', fontWeight: '800', background: 'transparent', border: 'none', textAlign: 'center' }}
-                />
-              </div>
-
-              <div className="form-group" style={{ background: 'rgba(16, 185, 129, 0.02)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: '#10b981' }}>
-                  <CheckCircle size={16} /> Total Confirmados
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={data.total_confirmados}
-                  onChange={(e) => setData({ ...data, total_confirmados: parseInt(e.target.value) || 0 })}
-                  style={{ fontSize: '2rem', fontWeight: '800', background: 'transparent', border: 'none', textAlign: 'center', color: '#10b981' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '2.5rem' }}>
-              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setSelectedGroup('')}>Cancelar</button>
-              <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSave} disabled={saving}>
-                <Save size={18} /> {saving ? 'Guardando...' : 'Guardar Cambios'}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '1rem', background: 'var(--surface)', padding: '0.4rem', borderRadius: '0.75rem' }}>
+              <button
+                className={`btn ${view === 'list' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setView('list')}
+                style={{ padding: '0.5rem 1.5rem' }}
+              >
+                <LayoutGrid size={18} /> Lista de Inscritos
+              </button>
+              <button
+                className={`btn ${view === 'add' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setView('add')}
+                style={{ padding: '0.5rem 1.5rem' }}
+              >
+                <UserPlus size={18} /> Nuevo Participante
               </button>
             </div>
+            <div className="badge" style={{ padding: '0.75rem 1.25rem', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 800 }}>
+              {enrolledParticipants.length} INSCRITOS EN TOTAL
+            </div>
           </div>
-        )}
 
-      </div>
+          {view === 'add' ? (
+            <div className="card glass animate-slide-in" style={{ borderTop: '4px solid var(--primary)' }}>
+              <h3 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Contact color="var(--primary)" /> Registro de Nuevo Participante
+              </h3>
+              <form onSubmit={handleRegister} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                <div className="form-group">
+                  <label>Nombre(s)</label>
+                  <input required value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Juan" />
+                </div>
+                <div className="form-group">
+                  <label>Apellido(s)</label>
+                  <input required value={form.apellido} onChange={e => setForm({ ...form, apellido: e.target.value })} placeholder="Ej: Pérez" />
+                </div>
+                <div className="form-group">
+                  <label>Cédula de Identidad (CI)</label>
+                  <input required value={form.ci} onChange={e => setForm({ ...form, ci: e.target.value })} placeholder="Ej: 1234567 LP" />
+                </div>
+                <div className="form-group">
+                  <label>Correo Electrónico</label>
+                  <input type="email" value={form.correo} onChange={e => setForm({ ...form, correo: e.target.value })} placeholder="correo@ejemplo.com" />
+                </div>
+                <div className="form-group">
+                  <label>Celular</label>
+                  <input value={form.celular} onChange={e => setForm({ ...form, celular: e.target.value })} placeholder="70000000" />
+                </div>
+                <div className="form-group">
+                  <label>Fecha de Nacimiento</label>
+                  <input type="date" value={form.fecha_nacimiento} onChange={e => setForm({ ...form, fecha_nacimiento: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Localidad donde vive</label>
+                  <input value={form.localidad_vive} onChange={e => setForm({ ...form, localidad_vive: e.target.value })} placeholder="Ej: El Alto" />
+                </div>
+                <div className="form-group">
+                  <label>Estado Inicial</label>
+                  <select value={form.estado_inscripcion} onChange={e => setForm({ ...form, estado_inscripcion: e.target.value })}>
+                    <option value="inscrito">Inscrito (Pendiente)</option>
+                    <option value="confirmado">Confirmado (Activo)</option>
+                    <option value="baja">Baja</option>
+                  </select>
+                </div>
+                <div style={{ gridColumn: 'span 2', marginTop: '1rem' }}>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '1rem' }} disabled={saving}>
+                    {saving ? 'Procesando...' : <><Save size={20} /> Finalizar Inscripción</>}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="card glass animate-fade-in" style={{ borderTop: '4px solid var(--success)' }}>
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Participante</th>
+                      <th>Identidad</th>
+                      <th>Contacto</th>
+                      <th>Estado</th>
+                      <th style={{ textAlign: 'right' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enrolledParticipants.length > 0 ? enrolledParticipants.map((i) => (
+                      <tr key={i.id}>
+                        <td>
+                          <div style={{ fontWeight: 800 }}>{i.participantes.nombre} {i.participantes.apellido}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <MapPin size={10} /> {i.participantes.localidad_vive || 'Sin localidad'}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{i.participantes.ci}</div>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '0.8rem' }}><Mail size={12} style={{ verticalAlign: 'middle' }} /> {i.participantes.correo || '-'}</div>
+                          <div style={{ fontSize: '0.8rem' }}><Phone size={12} style={{ verticalAlign: 'middle' }} /> {i.participantes.celular || '-'}</div>
+                        </td>
+                        <td>
+                          <span className="badge" style={{
+                            background: i.estado === 'confirmado' ? 'rgba(16, 217, 139, 0.1)' : 'rgba(255,255,255,0.05)',
+                            color: i.estado === 'confirmado' ? 'var(--success)' : 'var(--foreground-2)'
+                          }}>
+                            {i.estado.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button className="btn btn-outline" onClick={() => deleteEnrollment(i.id)} style={{ color: 'var(--danger)', borderColor: 'var(--danger-light)' }}>
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                          <Search size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                          <div>No hay participantes inscritos en este grupo</div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
+    <StatusModal
+        show={notif.show}
+        type={notif.type}
+        title={notif.title}
+        message={notif.message}
+        onClose={() => setNotif({ ...notif, show: false })}
+      />
+    </>
   )
 }

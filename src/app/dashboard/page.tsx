@@ -1,24 +1,35 @@
 import { createClient } from '@/utils/supabase/server'
-import { Users, Building2, UserSquare2, CheckCircle2, LayoutGrid, ArrowRight, Activity, Calendar } from 'lucide-react'
+import { 
+  Users, Building2, UserSquare2, CheckCircle2, 
+  LayoutGrid, ArrowRight, Activity, Calendar,
+  GraduationCap, UserCheck, Zap, Clock
+} from 'lucide-react'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  // Fetch some basic counts
-  const { count: deptCount } = await supabase.from('departamentos').select('*', { count: 'exact', head: true })
-  const { count: groupCount } = await supabase.from('grupos').select('*', { count: 'exact', head: true })
+  // 1. Fetch Real-time Metrics from Granular Tables
+  const { count: participantCount } = await supabase.from('participantes').select('*', { count: 'exact', head: true })
+  const { count: programCount } = await supabase.from('programas').select('*', { count: 'exact', head: true })
+  const { count: facilitatorCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'facilitador')
   
-  // Inscripciones total
-  const { data: enrData } = await supabase.from('inscripciones_resumen').select('total_inscritos, total_confirmados')
-  const totalInscritos = enrData?.reduce((acc, curr) => acc + (curr.total_inscritos || 0), 0) || 0
-  const totalConfirmados = enrData?.reduce((acc, curr) => acc + (curr.total_confirmados || 0), 0) || 0
+  // Attendance Today
+  const today = new Date().toISOString().split('T')[0]
+  const { count: attendanceToday } = await supabase.from('asistencias').select('*', { count: 'exact', head: true }).eq('fecha', today)
+
+  // 2. Recent Activity: Last 5 Enrollments
+  const { data: recentInscriptions } = await supabase
+    .from('inscripciones')
+    .select('id, created_at, participantes(nombre, apellido), grupos(name)')
+    .order('created_at', { ascending: false })
+    .limit(5)
 
   const stats = [
-    { label: 'Departamentos', value: deptCount || 0, icon: Building2, color: '#4f8ef7', subtitle: 'Sedes operativas' },
-    { label: 'Grupos Activos', value: groupCount || 0, icon: UserSquare2, color: '#a78bfa', subtitle: 'Equipos de trabajo' },
-    { label: 'Total Inscritos', value: totalInscritos, icon: Users, color: '#10d98b', subtitle: 'Población captada' },
-    { label: 'Confirmados', value: totalConfirmados, icon: CheckCircle2, color: '#f5a623', subtitle: 'Registros validados' },
+    { label: 'Participantes', value: participantCount || 0, icon: Users, color: '#10d98b', subtitle: 'Registros individuales' },
+    { label: 'Programas', value: programCount || 0, icon: GraduationCap, color: '#4f8ef7', subtitle: 'Oferta académica' },
+    { label: 'Facilitadores', value: facilitatorCount || 0, icon: Zap, color: '#f5a623', subtitle: 'Personal asignado' },
+    { label: 'Asistencias Hoy', value: attendanceToday || 0, icon: UserCheck, color: '#a78bfa', subtitle: 'Registros de hoy' },
   ]
 
   return (
@@ -28,9 +39,9 @@ export default async function DashboardPage() {
           <div style={{ padding: '0.5rem', borderRadius: '0.75rem', background: 'var(--primary-light)', color: 'var(--primary)' }}>
             <LayoutGrid size={20} />
           </div>
-          <h1 style={{ margin: 0 }}>Panel de Control</h1>
+          <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 900 }}>Panel de Control BI</h1>
         </div>
-        <p style={{ color: 'var(--foreground-3)', fontSize: '0.95rem' }}>Resumen ejecutivo del sistema administrativo PROFE</p>
+        <p style={{ color: 'var(--foreground-3)', fontSize: '0.95rem' }}>Visualización de métricas granulares y estado operativo v2.1</p>
       </header>
 
       {/* Stats Grid */}
@@ -38,22 +49,22 @@ export default async function DashboardPage() {
         {stats.map((stat, i) => {
           const Icon = stat.icon
           return (
-            <div key={i} className="glass card" style={{ position: 'relative', overflow: 'hidden', borderBottom: `3px solid ${stat.color}` }}>
+            <div key={i} className="glass card" style={{ position: 'relative', overflow: 'hidden', borderBottom: `4px solid ${stat.color}` }}>
               <div style={{ position: 'absolute', right: '-10px', top: '-10px', opacity: 0.05, color: stat.color }}>
                 <Icon size={80} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--foreground-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {stat.label}
                 </span>
                 <div style={{ padding: '0.4rem', borderRadius: '0.5rem', background: `${stat.color}15`, color: stat.color }}>
                   <Icon size={16} />
                 </div>
               </div>
-              <div style={{ fontSize: '2.25rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.25rem' }}>
+              <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.25rem', letterSpacing: '-0.02em' }}>
                 {stat.value}
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--foreground-3)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--foreground-3)', fontWeight: 600 }}>
                 {stat.subtitle}
               </div>
             </div>
@@ -61,45 +72,60 @@ export default async function DashboardPage() {
         })}
       </div>
 
-      {/* Main Content Area */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', marginTop: '2.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem', marginTop: '2.5rem' }}>
         
-        {/* Quick Actions Card */}
+        {/* Recent Inscriptions */}
         <div className="glass card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
             <div style={{ padding: '0.5rem', borderRadius: '0.6rem', background: 'var(--surface)', color: 'var(--primary)' }}>
-              <Activity size={18} />
+              <Clock size={18} />
             </div>
-            <h3 style={{ margin: 0 }}>Accesos Directos</h3>
-          </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <QuickLink href="/dashboard/reportes" label="Ver Reportes Detallados" description="Gráficos, exportaciones y métricas" />
-            <QuickLink href="/dashboard/asistencia" label="Registrar Asistencia" description="Control diario de jornadas" />
-            <QuickLink href="/dashboard/inscripciones" label="Gestionar Inscripciones" description="Validación y seguimiento" />
-          </div>
-        </div>
-
-        {/* Welcome / Info Card */}
-        <div className="glass card" style={{ background: 'linear-gradient(135deg, var(--card), var(--primary-light))' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
-            <div style={{ padding: '0.5rem', borderRadius: '0.6rem', background: 'var(--card-solid)', color: 'var(--primary)' }}>
-              <Calendar size={18} />
-            </div>
-            <h3 style={{ margin: 0 }}>Estado del Sistema</h3>
+            <h3 style={{ margin: 0 }}>Inscripciones Recientes</h3>
           </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'var(--card-solid)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--foreground-3)', marginBottom: '0.25rem' }}>Última Actualización</div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
-            </div>
-            
-            <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'var(--card-solid)', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--foreground-3)', marginBottom: '0.25rem' }}>Integridad de Datos</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontWeight: 700, fontSize: '0.9rem' }}>
-                <CheckCircle2 size={16} /> Base de datos sincronizada
+            {recentInscriptions?.map((ins: any) => (
+              <div key={ins.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '1rem', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                    {ins.participantes.nombre[0]}{ins.participantes.apellido[0]}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{ins.participantes.nombre} {ins.participantes.apellido}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>Asignado a: {ins.grupos.name}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textAlign: 'right' }}>
+                   {new Date(ins.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                   <br />
+                   {new Date(ins.created_at).toLocaleDateString()}
+                </div>
               </div>
+            ))}
+            {(!recentInscriptions || recentInscriptions.length === 0) && (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                No hay inscripciones recientes registradas.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Links & Info */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="glass card" style={{ background: 'linear-gradient(135deg, var(--card), var(--primary-light))' }}>
+            <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Activity size={18} /> Acciones</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <QuickLink href="/dashboard/programas" label="Gestionar Programas" icon={GraduationCap} />
+              <QuickLink href="/dashboard/facilitadores" label="Asignar Facilitadores" icon={Zap} />
+              <QuickLink href="/dashboard/reportes" label="Analítica Estratégica" icon={Activity} />
+            </div>
+          </div>
+
+          <div className="glass card">
+            <h3 style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--muted)', textTransform: 'uppercase' }}>Estado de Red</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: 'var(--surface)', borderRadius: '1rem' }}>
+               <div className="animate-pulse" style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10d98b' }}></div>
+               <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Supabase v2 Conectado</span>
             </div>
           </div>
         </div>
@@ -109,23 +135,23 @@ export default async function DashboardPage() {
   )
 }
 
-function QuickLink({ href, label, description }: { href: string; label: string; description: string }) {
+function QuickLink({ href, label, icon: Icon }: { href: string; label: string; icon: any }) {
   return (
     <Link href={href} style={{ textDecoration: 'none' }}>
       <div className="nav-link" style={{ 
         display: 'flex', 
-        justifyContent: 'space-between', 
         alignItems: 'center', 
-        padding: '1rem', 
-        background: 'var(--surface)',
-        border: '1px solid var(--border)'
+        gap: '1rem',
+        padding: '0.85rem 1rem', 
+        background: 'var(--card-solid)',
+        border: '1px solid var(--border)',
+        borderRadius: '0.75rem'
       }}>
-        <div>
-          <div style={{ fontWeight: 700, color: 'var(--foreground)', fontSize: '0.9rem' }}>{label}</div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--foreground-3)' }}>{description}</div>
-        </div>
-        <ArrowRight size={16} color="var(--primary)" />
+        <Icon size={16} color="var(--primary)" />
+        <span style={{ fontWeight: 700, color: 'var(--foreground)', fontSize: '0.85rem' }}>{label}</span>
+        <ArrowRight size={14} style={{ marginLeft: 'auto' }} />
       </div>
     </Link>
   )
 }
+

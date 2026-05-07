@@ -117,11 +117,11 @@ export default function ReportsClient({
     const total_confirmados = enr.reduce((acc, curr) => acc + (curr.total_confirmados || 0), 0)
 
     const total_asistieron = att.reduce((acc, curr) => acc + (curr.asistieron || 0), 0)
-    const total_retrasos = att.reduce((acc, curr) => acc + (curr.retraso || 0), 0)
+    const total_atrasos = att.reduce((acc, curr) => acc + (curr.atraso || 0), 0)
     const total_faltas = att.reduce((acc, curr) => acc + (curr.falta || 0), 0)
     const total_permisos = att.reduce((acc, curr) => acc + (curr.permiso || 0), 0)
 
-    const total_esperado = total_asistieron + total_retrasos + total_faltas + total_permisos
+    const total_esperado = total_asistieron + total_atrasos + total_faltas + total_permisos
     const attendance_rate = total_esperado > 0 ? (total_asistieron / total_esperado) * 100 : 0
     const confirmation_rate = total_inscritos > 0 ? (total_confirmados / total_inscritos) * 100 : 0
 
@@ -132,7 +132,7 @@ export default function ReportsClient({
       total_inscritos,
       total_confirmados,
       total_asistieron,
-      total_retrasos,
+      total_atrasos,
       total_faltas,
       total_permisos,
       attendance_rate: attendance_rate.toFixed(1),
@@ -150,7 +150,7 @@ export default function ReportsClient({
   // 1. Attendance Distribution (Pie)
   const attendanceDistribution = useMemo(() => [
     { name: 'Asistencias', value: metrics.total_asistieron },
-    { name: 'Retrasos', value: metrics.total_retrasos },
+    { name: 'Atrasos', value: metrics.total_atrasos },
     { name: 'Faltas', value: metrics.total_faltas },
     { name: 'Permisos', value: metrics.total_permisos }
   ].filter(i => i.value > 0), [metrics])
@@ -177,8 +177,8 @@ export default function ReportsClient({
       return {
         name: `Día ${dia}`,
         Asistieron: dayData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
-        Retrasos: dayData.reduce((acc, curr) => acc + (curr.retraso || 0), 0),
-        Total: dayData.reduce((acc, curr) => acc + (curr.asistieron + curr.retraso + curr.falta + curr.permiso), 0)
+        Atrasos: dayData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
+        Total: dayData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
       }
     })
   }, [filteredAttendance])
@@ -207,7 +207,7 @@ export default function ReportsClient({
     return filteredEnrollment.map(g => {
       const gAtt = filteredAttendance.filter(a => a.group_name === g.group_name)
       const ok = gAtt.reduce((acc, curr) => acc + curr.asistieron, 0)
-      const total = gAtt.reduce((acc, curr) => acc + (curr.asistieron + curr.retraso + curr.falta + curr.permiso), 0)
+      const total = gAtt.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
       return {
         name: g.group_name,
         confirmacion: g.total_inscritos > 0 ? Math.min((g.total_confirmados / g.total_inscritos) * 100, 100) : 0,
@@ -323,7 +323,7 @@ export default function ReportsClient({
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="Total" fill={COLORS.primary} fillOpacity={0.05} stroke="transparent" />
                 <Bar dataKey="Asistieron" fill={COLORS.success} radius={[4, 4, 0, 0]} barSize={30} />
-                <Line type="monotone" dataKey="Retrasos" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="Atrasos" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 4 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -424,7 +424,7 @@ export default function ReportsClient({
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" opacity={0.4} />
                   <XAxis type="number" dataKey="confirmacion" name="Confirmación" unit="%" domain={[0, 100]} stroke="var(--chart-text)" fontSize={12} />
                   <YAxis type="number" dataKey="asistencia" name="Asistencia" unit="%" domain={[0, 100]} stroke="var(--chart-text)" fontSize={12} />
-                  <ZAxis type="number" dataKey="size" range={[15, 200]} name="Población" />
+                  <ZAxis type="number" dataKey="size" range={[30, 400]} name="Población" />
 
                   {/* Strategic Quadrants */}
                   <ReferenceArea x1={75} x2={100} y1={75} y2={100} fill="rgba(16, 217, 139, 0.05)" />
@@ -475,10 +475,6 @@ export default function ReportsClient({
 
             {/* Improved Legend Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '2rem' }}>
-              <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.success}44`, background: `${COLORS.success}11` }}>
-                <div style={{ fontWeight: 900, color: COLORS.success, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA A: LÍDERES</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Alta Confirmación + Alta Asistencia. Grupos modelo.</div>
-              </div>
               <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.danger}44`, background: `${COLORS.danger}11` }}>
                 <div style={{ fontWeight: 900, color: COLORS.danger, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA D: CRÍTICA</div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Baja asistencia general. Requiere intervención urgente.</div>
@@ -490,6 +486,10 @@ export default function ReportsClient({
               <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.info}44`, background: `${COLORS.info}11` }}>
                 <div style={{ fontWeight: 900, color: COLORS.info, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA C: COMPROMISO</div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Pocos inscritos pero con asistencia perfecta.</div>
+              </div>
+              <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.success}44`, background: `${COLORS.success}11` }}>
+                <div style={{ fontWeight: 900, color: COLORS.success, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA A: LÍDERES</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Alta Confirmación + Alta Asistencia. Grupos modelo.</div>
               </div>
             </div>
           </ChartCard>

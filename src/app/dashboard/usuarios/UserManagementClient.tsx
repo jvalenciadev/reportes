@@ -1,8 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { UserPlus, Trash2, Shield, Building, Mail, Lock, User as UserIcon } from 'lucide-react'
-import { createSystemUser, deleteSystemUser } from './actions'
+import { 
+  UserPlus, Trash2, Shield, Building, Mail, 
+  Lock, User as UserIcon, Edit2, X, Save 
+} from 'lucide-react'
+import { createSystemUser, deleteSystemUser, updateSystemUser } from './actions'
+import StatusModal, { StatusType } from '../components/StatusModal'
 
 export default function UserManagementClient({ 
   users = [], 
@@ -14,6 +18,8 @@ export default function UserManagementClient({
   departamentos: any[] 
 }) {
   const [loading, setLoading] = useState(false)
+  const [editingUser, setEditingUser] = useState<any>(null)
+  const [notif, setNotif] = useState({ show: false, type: 'info' as StatusType, title: '', message: '' })
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -21,11 +27,17 @@ export default function UserManagementClient({
     const formData = new FormData(e.currentTarget)
     
     try {
-      await createSystemUser(formData)
-      alert('¡Usuario creado con éxito!')
+      if (editingUser) {
+        await updateSystemUser(editingUser.id, formData)
+        setNotif({ show: true, type: 'success', title: 'Actualizado', message: 'Los datos del usuario han sido actualizados.' })
+        setEditingUser(null)
+      } else {
+        await createSystemUser(formData)
+        setNotif({ show: true, type: 'success', title: 'Creado', message: 'La cuenta ha sido creada exitosamente.' })
+      }
       ;(e.target as HTMLFormElement).reset()
     } catch (err: any) {
-      alert('Error: ' + err.message)
+      setNotif({ show: true, type: 'error', title: 'Error', message: err.message })
     } finally {
       setLoading(false)
     }
@@ -36,76 +48,122 @@ export default function UserManagementClient({
     
     try {
       await deleteSystemUser(userId)
+      setNotif({ show: true, type: 'success', title: 'Eliminado', message: 'El usuario ha sido removido del sistema.' })
     } catch (err: any) {
-      alert('Error: ' + err.message)
+      setNotif({ show: true, type: 'error', title: 'Error', message: err.message })
     }
   }
 
+  const startEdit = (user: any) => {
+    setEditingUser(user)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
-      {/* Formulario de Creación */}
-      <div className="card glass" style={{ height: 'fit-content', borderTop: '4px solid var(--primary)' }}>
-        <div style={{ marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '0.75rem', color: 'var(--primary)' }}>
-              <UserPlus size={24} />
-            </div>
-            Registrar Usuario
-          </h2>
-          <p style={{ color: 'var(--muted)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-            Crea una nueva cuenta administrativa para un encargado de departamento.
-          </p>
+    <div className="animate-fade-up" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
+      
+      {/* Formulario Dinámico */}
+      <div className="card glass" style={{ height: 'fit-content', borderTop: `4px solid ${editingUser ? 'var(--warning)' : 'var(--primary)'}` }}>
+        <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2 style={{ fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ 
+                padding: '0.5rem', 
+                background: editingUser ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)', 
+                borderRadius: '0.75rem', 
+                color: editingUser ? 'var(--warning)' : 'var(--primary)' 
+              }}>
+                {editingUser ? <Edit2 size={24} /> : <UserPlus size={24} />}
+              </div>
+              {editingUser ? 'Editar Usuario' : 'Registrar Usuario'}
+            </h2>
+            <p style={{ color: 'var(--muted)', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+              {editingUser ? `Modificando acceso de ${editingUser.email}` : 'Crea una nueva cuenta administrativa.'}
+            </p>
+          </div>
+          {editingUser && (
+            <button 
+              className="btn btn-outline" 
+              onClick={() => setEditingUser(null)}
+              style={{ padding: '0.5rem', borderRadius: '50%' }}
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div className="form-group">
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><UserIcon size={14} /> Nombre Completo</label>
-            <input name="full_name" type="text" required placeholder="Nombre del encargado" />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><UserIcon size={14} /> Nombre(s)</label>
+              <input 
+                name="nombre" type="text" required placeholder="Ej: Juan" 
+                defaultValue={editingUser?.nombre || ''}
+              />
+            </div>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><UserIcon size={14} /> Apellido(s)</label>
+              <input 
+                name="apellidos" type="text" required placeholder="Ej: Perez" 
+                defaultValue={editingUser?.apellidos || ''}
+              />
+            </div>
           </div>
-          <div className="form-group">
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Mail size={14} /> Correo Institucional</label>
-            <input name="email" type="email" required placeholder="ejemplo@profe.gob.bo" />
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1rem' }}>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Shield size={14} /> CI</label>
+              <input 
+                name="ci" type="text" required placeholder="1234567 LP" 
+                defaultValue={editingUser?.ci || ''}
+              />
+            </div>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Mail size={14} /> Correo</label>
+              <input 
+                name="email" type="email" required placeholder="ejemplo@profe.gob.bo" 
+                defaultValue={editingUser?.email || ''}
+                disabled={!!editingUser}
+                style={{ opacity: editingUser ? 0.6 : 1 }}
+              />
+            </div>
           </div>
-          <div className="form-group">
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Lock size={14} /> Contraseña Inicial</label>
-            <input name="password" type="password" required minLength={6} placeholder="Mínimo 6 caracteres" />
-          </div>
+
+          {!editingUser && (
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Lock size={14} /> Contraseña Inicial</label>
+              <input name="password" type="password" required minLength={6} placeholder="Mínimo 6 caracteres" />
+            </div>
+          )}
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Building size={14} /> Departamento</label>
-              <select name="departamento_id" required>
-                <option value="">Seleccionar Departamento...</option>
-                {departamentos && departamentos.length > 0 ? (
-                  departamentos.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>No hay departamentos</option>
-                )}
+              <select name="departamento_id" required defaultValue={editingUser?.departamento_id || ''}>
+                <option value="">Seleccionar...</option>
+                {departamentos?.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
               </select>
             </div>
             <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Shield size={14} /> Rol Asignado</label>
-              <select name="role" required>
-                <option value="">Seleccionar Rol...</option>
-                {roles && roles.length > 0 ? (
-                  roles.map(r => (
-                    <option key={r.id} value={r.name}>
-                      {r.name.toUpperCase()}
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>No hay roles en DB (Ejecutar SQL)</option>
-                )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Shield size={14} /> Rol</label>
+              <select name="role" required defaultValue={editingUser?.roles?.name || ''}>
+                <option value="">Seleccionar...</option>
+                {roles?.map(r => (
+                  <option key={r.id} value={r.name}>{r.name.toUpperCase()}</option>
+                ))}
               </select>
             </div>
           </div>
 
-          <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', padding: '1rem', marginTop: '1rem' }}>
-            {loading ? 'Procesando...' : 'Crear Cuenta de Usuario'}
+          <button 
+            className={`btn ${editingUser ? 'btn-warning' : 'btn-primary'}`} 
+            type="submit" disabled={loading} 
+            style={{ width: '100%', padding: '1rem', marginTop: '1rem' }}
+          >
+            {loading ? <Loader2 className="animate-spin" size={18} /> : (editingUser ? <Save size={18} /> : <UserPlus size={18} />)}
+            {loading ? 'Procesando...' : (editingUser ? 'Guardar Cambios' : 'Crear Cuenta de Usuario')}
           </button>
         </form>
       </div>
@@ -144,8 +202,8 @@ export default function UserManagementClient({
                       fontWeight: '800', 
                       padding: '0.25rem 0.6rem',
                       borderRadius: '2rem',
-                      background: u.roles?.name === 'administrador' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(161, 161, 170, 0.1)',
-                      color: u.roles?.name === 'administrador' ? 'var(--primary)' : 'var(--muted)'
+                      background: u.roles?.name === 'administrador' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                      color: u.roles?.name === 'administrador' ? 'var(--primary)' : 'var(--success)'
                     }}>
                       <Shield size={12} /> {u.roles?.name?.toUpperCase()}
                     </div>
@@ -154,13 +212,24 @@ export default function UserManagementClient({
                     </div>
                   </td>
                   <td style={{ borderRadius: '0 0.75rem 0.75rem 0', textAlign: 'right', padding: '1rem' }}>
-                    <button 
-                      onClick={() => handleDelete(u.id, u.email)}
-                      className="btn btn-outline"
-                      style={{ padding: '0.5rem', color: '#ef4444', borderColor: 'transparent' }}
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      <button 
+                        onClick={() => startEdit(u)}
+                        className="btn btn-outline"
+                        style={{ padding: '0.5rem', color: 'var(--primary)', borderColor: 'transparent' }}
+                        title="Editar Usuario"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(u.id, u.email)}
+                        className="btn btn-outline"
+                        style={{ padding: '0.5rem', color: '#ef4444', borderColor: 'transparent' }}
+                        title="Eliminar Usuario"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -168,6 +237,20 @@ export default function UserManagementClient({
           </table>
         </div>
       </div>
+
+      <StatusModal 
+        show={notif.show}
+        type={notif.type}
+        title={notif.title}
+        message={notif.message}
+        onClose={() => setNotif({ ...notif, show: false })}
+      />
     </div>
   )
 }
+
+const Loader2 = ({ className, size }: any) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+  </svg>
+)

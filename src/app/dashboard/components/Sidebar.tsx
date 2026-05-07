@@ -4,18 +4,22 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Building2, UserSquare2,
-  CheckSquare, BarChart3, LogOut, UserCog, GraduationCap
+  CheckSquare, BarChart3, LogOut, UserCog, GraduationCap,
+  UserPlus, Database
 } from 'lucide-react'
 import { signOut } from '@/app/login/actions'
 
 const navItems = [
-  { href: '/dashboard',                  label: 'Dashboard',     icon: LayoutDashboard },
-  { href: '/dashboard/departamentos',    label: 'Departamentos', icon: Building2 },
-  { href: '/dashboard/grupos',           label: 'Grupos',        icon: UserSquare2 },
-  { href: '/dashboard/inscripciones',    label: 'Inscripciones', icon: Users },
-  { href: '/dashboard/asistencia',       label: 'Asistencia',    icon: CheckSquare },
-  { href: '/dashboard/reportes',         label: 'Reportes',      icon: BarChart3 },
-  { href: '/dashboard/usuarios',         label: 'Usuarios',      icon: UserCog, adminOnly: true },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/programas', label: 'Programas', icon: GraduationCap },
+  { href: '/dashboard/departamentos', label: 'Departamentos', icon: Building2 },
+  { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2 },
+  { href: '/dashboard/inscripciones', label: 'Inscripciones', icon: Users },
+  { href: '/dashboard/asistencia', label: 'Asistencia', icon: CheckSquare },
+  { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3 },
+  { href: '/dashboard/facilitadores', label: 'Facilitadores', icon: UserPlus, adminOnly: true },
+  { href: '/dashboard/usuarios', label: 'Usuarios', icon: UserCog, adminOnly: true },
+  { href: '/dashboard/migracion', label: 'Migración', icon: Database, adminOnly: true },
 ]
 
 export default function Sidebar({ role, departamentoId }: { role?: string; departamentoId?: string }) {

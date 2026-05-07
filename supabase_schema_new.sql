@@ -12,7 +12,7 @@ CREATE TABLE public.asistencia_diaria (
     grupo_id UUID REFERENCES public.grupos(id) ON DELETE CASCADE,
     fecha DATE NOT NULL DEFAULT CURRENT_DATE,
     asistieron INTEGER DEFAULT 0,
-    retraso INTEGER DEFAULT 0,
+    atraso INTEGER DEFAULT 0,
     falta INTEGER DEFAULT 0,
     permiso INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,

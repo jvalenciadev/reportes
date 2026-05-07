@@ -15,58 +15,73 @@ export default async function ReportesPage({
 
   console.log('--- AUDITORIA DE REPORTES (SERVER) ---')
 
-  // 2. Cargar Asistencia
-  let attendanceQuery = supabase
-    .from('asistencia_diaria')
+  // 2. Cargar Datos Granulares de Asistencia (PROFE v2.0)
+  const { data: attendanceData, error: attError } = await supabase
+    .from('asistencias')
     .select(`
-      dia, asistieron, retraso, falta, permiso,
-      grupos!inner (
-        name,
-        departamento_id,
-        departamentos (name)
+      dia, estado,
+      participantes (
+        inscripciones (
+          grupos (
+            name,
+            departamentos (name)
+          )
+        )
       )
     `)
 
-  const { data: attendanceData, error: attError } = await attendanceQuery.order('dia', { ascending: true })
-  if (attError) console.error('Error Asistencia:', attError)
+  if (attError) console.error('Error Asistencia Granular:', attError)
 
-  // 3. Cargar Inscripciones (CONSULTA DEFINITIVA: Empezar desde Grupos)
-  const { data: groupsWithEnrollment, error: enrError } = await supabase
+  // 3. Cargar Datos Granulares de Inscripciones
+  const { data: enrollmentData, error: enrError } = await supabase
     .from('grupos')
     .select(`
       name,
       departamentos (name),
-      inscripciones_resumen!inscripciones_resumen_grupo_id_fkey (
-        total_inscritos,
-        total_confirmados
+      inscripciones (
+        estado
       )
     `)
     .order('name')
 
-  if (enrError) console.error('Error Inscripciones:', enrError)
+  if (enrError) console.error('Error Inscripciones Granulares:', enrError)
 
+  // 4. Mapeo y Consolidación Dinámica (BI Engine)
+  // Agrupamos asistencias individuales por día y grupo para mantener compatibilidad con el dashboard
+  const attendanceMap: Record<string, any> = {}
+  
+  attendanceData?.forEach((a: any) => {
+    const group = a.participantes?.inscripciones?.[0]?.grupos
+    if (!group) return
 
-  // 4. Mapeo Seguro de Datos
-  const flattenedAttendance = attendanceData?.map(a => ({
-    dia: (a as any).dia,
-    asistieron: a.asistieron || 0,
-    retraso: a.retraso || 0,
-    falta: a.falta || 0,
-    permiso: a.permiso || 0,
-    group_name: (a.grupos as any)?.name || 'Sin Nombre',
-    dept_name: (a.grupos as any)?.departamentos?.name || 'S/D',
-  })) || []
+    const key = `${a.dia}-${group.name}`
+    if (!attendanceMap[key]) {
+      attendanceMap[key] = {
+        dia: a.dia,
+        asistieron: 0, atraso: 0, falta: 0, permiso: 0,
+        group_name: group.name,
+        dept_name: group.departamentos?.name || 'S/D'
+      }
+    }
+    
+    // Normalización de estados al esquema del dashboard
+    if (a.estado === 'asistio') attendanceMap[key].asistieron++
+    else if (a.estado === 'atraso') attendanceMap[key].atraso++
+    else if (a.estado === 'falta') attendanceMap[key].falta++
+    else if (a.estado === 'permiso') attendanceMap[key].permiso++
+  })
 
-  const flattenedEnrollment = groupsWithEnrollment?.map(g => {
-    // inscripciones_resumen es relación 1:1 (objeto, no array)
-    const res = (g.inscripciones_resumen as any) || { total_inscritos: 0, total_confirmados: 0 }
-    // Supabase puede devolver array o null si no hay registro
-    const resData = Array.isArray(res) ? (res[0] || { total_inscritos: 0, total_confirmados: 0 }) : res
+  const flattenedAttendance = Object.values(attendanceMap).sort((a, b) => a.dia - b.dia)
+
+  const flattenedEnrollment = enrollmentData?.map(g => {
+    const total_inscritos = g.inscripciones?.length || 0
+    const total_confirmados = g.inscripciones?.filter((i: any) => i.estado === 'confirmado').length || 0
+    
     return {
-      total_inscritos: resData.total_inscritos || 0,
-      total_confirmados: resData.total_confirmados || 0,
       group_name: g.name || 'Grupo sin nombre',
       dept_name: (g.departamentos as any)?.name || 'S/D',
+      total_inscritos,
+      total_confirmados
     }
   }) || []
 
