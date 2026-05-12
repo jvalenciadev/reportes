@@ -65,8 +65,8 @@ export default function Navbar({ profile }: { profile: any }) {
       <div style={{ width: 1, height: 24, background: 'var(--border-strong)', margin: '0 0.25rem' }} />
 
       {/* User Info */}
-      <div style={{ textAlign: 'right', paddingRight: '0.5rem' }}>
-        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--foreground)', letterSpacing: '-0.02em' }}>
+      <div style={{ textAlign: 'right', paddingRight: '0.5rem' }} suppressHydrationWarning>
+        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--foreground)', letterSpacing: '-0.02em' }} suppressHydrationWarning>
           {profile?.full_name || 'Usuario'}
         </div>
         <div style={{
@@ -80,7 +80,7 @@ export default function Navbar({ profile }: { profile: any }) {
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
           marginTop: '0.1rem'
-        }}>
+        }} suppressHydrationWarning>
           <Shield size={10} />
           {(profile?.roles?.name || 'Invitado')}
         </div>
@@ -103,7 +103,7 @@ export default function Navbar({ profile }: { profile: any }) {
         flexShrink: 0,
         userSelect: 'none',
         border: '2px solid rgba(255,255,255,0.1)'
-      }}>
+      }} suppressHydrationWarning>
         {initials}
       </div>
     </header>

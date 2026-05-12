@@ -65,20 +65,57 @@ export default function MigrationClient({
     setResults([])
 
     try {
-      const rawText = await file.text()
-      const cleanText = rawText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
-      const lines = cleanText.split('\n').filter(line => line.trim() !== '')
+      // 1. Robust encoding detection (UTF-8 vs Windows-1252)
+      const arrayBuffer = await file.arrayBuffer()
+      let cleanText = ''
       
-      if (lines.length < 2) throw new Error('El archivo CSV está vacío.')
+      try {
+        const utf8Decoder = new TextDecoder('utf-8', { fatal: true })
+        cleanText = utf8Decoder.decode(arrayBuffer)
+      } catch (e) {
+        // If UTF-8 fails, try Windows-1252 (Common in Excel Spanish exports)
+        const winDecoder = new TextDecoder('windows-1252')
+        cleanText = winDecoder.decode(arrayBuffer)
+      }
 
-      const delimiter = lines[0].includes(';') ? ';' : ','
-      const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase())
-      const dataRows = lines.slice(1)
+      cleanText = cleanText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+      
+      // 2. Robust CSV Parser for quoted fields
+      const parseCSVLine = (line: string, delimiter: string) => {
+        const result = []
+        let current = ''
+        let inQuotes = false
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i]
+          if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"'
+              i++
+            } else {
+              inQuotes = !inQuotes
+            }
+          } else if (char === delimiter && !inQuotes) {
+            result.push(current.trim())
+            current = ''
+          } else {
+            current += char
+          }
+        }
+        result.push(current.trim())
+        return result
+      }
+
+      const allLines = cleanText.split('\n').filter(l => l.trim() !== '')
+      if (allLines.length < 2) throw new Error('El archivo CSV está vacío.')
+
+      const delimiter = allLines[0].includes(';') ? ';' : ','
+      const headers = parseCSVLine(allLines[0], delimiter).map(h => h.trim().toLowerCase())
+      const dataRows = allLines.slice(1)
 
       const newResults: typeof results = []
 
       for (const row of dataRows) {
-        const values = row.split(delimiter).map(v => v.trim())
+        const values = parseCSVLine(row, delimiter)
         const rowData: any = {}
         headers.forEach((header, i) => {
           rowData[header] = values[i]

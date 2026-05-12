@@ -1,5 +1,6 @@
 'use server'
 
+import { createClient as createBaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
@@ -34,42 +35,55 @@ export async function toggleConfirmation(id: string, currentStatus: boolean) {
 }
 
 export async function migrateParticipant(data: any) {
-  const supabase = await createClient()
+  // Use Service Role Key for administrative migration (bypasses RLS)
+  const supabaseAdmin = createBaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
-  // 1. Resolve ids
-  const { data: group } = await supabase.from('grupos').select('id').eq('name', data.grupo_nombre).single()
-  const { data: program } = await supabase.from('programas').select('id').eq('titulo', data.programa_titulo).single()
+  try {
+    // 1. Resolve ids
+    const grupo_nombre = data.grupo_nombre?.trim()
+    const programa_titulo = data.programa_titulo?.trim()
 
-  if (!group) throw new Error(`Grupo "${data.grupo_nombre}" no encontrado.`)
-  if (!program) throw new Error(`Programa "${data.programa_titulo}" no encontrado.`)
+    const { data: group, error: gErr } = await supabaseAdmin.from('grupos').select('id').eq('name', grupo_nombre).single()
+    const { data: program, error: prErr } = await supabaseAdmin.from('programas').select('id').eq('titulo', programa_titulo).single()
 
-  // 2. Insert/Get Participant
-  const { data: participant, error: pError } = await supabase
-    .from('participantes')
-    .upsert({
-      nombre: data.nombre,
-      apellido: data.apellido,
-      ci: data.ci,
-      correo: data.correo,
-      celular: data.celular
-    }, { onConflict: 'ci' })
-    .select()
-    .single()
+    if (gErr || !group) throw new Error(`Grupo "${grupo_nombre}" no encontrado.`)
+    if (prErr || !program) throw new Error(`Programa "${programa_titulo}" no encontrado.`)
 
-  if (pError) throw pError
+    // 2. Insert/Get Participant
+    const { data: participant, error: pError } = await supabaseAdmin
+      .from('participantes')
+      .upsert({
+        nombre: data.nombre,
+        apellido: data.apellido,
+        ci: data.ci,
+        correo: data.correo,
+        celular: data.celular
+      }, { onConflict: 'ci' })
+      .select()
+      .single()
 
-  // 3. Register Inscription
-  const { error: iError } = await supabase
-    .from('inscripciones')
-    .upsert({
-      participante_id: participant.id,
-      grupo_id: group.id,
-      programa_id: program.id,
-      estado: 'inscrito'
-    }, { onConflict: 'participante_id,programa_id' })
+    if (pError) throw pError
 
-  if (iError) throw iError
+    // 3. Register Inscription
+    const { error: iError } = await supabaseAdmin
+      .from('inscripciones')
+      .upsert({
+        participante_id: participant.id,
+        grupo_id: group.id,
+        programa_id: program.id,
+        estado: data.estado || 'inscrito',
+        observacion: data.observacion || null
+      }, { onConflict: 'participante_id,programa_id' })
 
-  revalidatePath('/dashboard/inscripciones')
-  return { success: true }
+    if (iError) throw iError
+
+    revalidatePath('/dashboard/inscripciones')
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error en migración:', error.message)
+    throw error
+  }
 }

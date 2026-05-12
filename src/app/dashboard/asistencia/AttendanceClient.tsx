@@ -10,6 +10,8 @@ import {
   UserMinus
 } from 'lucide-react'
 import StatusModal, { StatusType } from '../components/StatusModal'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 export default function AttendanceClient({
   departamentos,
@@ -41,6 +43,7 @@ export default function AttendanceClient({
   const [programs, setPrograms] = useState<any[]>([])
   const [modules, setModules] = useState<any[]>([])
   const [participants, setParticipants] = useState<any[]>([])
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
 
   // UI State
   const [dayNumber, setDayNumber] = useState(1)
@@ -57,6 +60,18 @@ export default function AttendanceClient({
     }
     fetchPrograms()
   }, [])
+
+  // Auto-select for facilitadores: dept + group from their assigned groups
+  useEffect(() => {
+    if (userRole === 'facilitador' && facilitadorGroups.length > 0) {
+      const firstGroup = facilitadorGroups[0]
+      setGroups(facilitadorGroups)
+      setSelectedGroup(firstGroup.id)
+      if (firstGroup.departamento_id) {
+        setSelectedDepto(firstGroup.departamento_id)
+      }
+    }
+  }, [userRole, JSON.stringify(facilitadorGroups)])
 
   // 2. Load Modules when Program changes
   useEffect(() => {
@@ -84,20 +99,28 @@ export default function AttendanceClient({
     if (!selectedGroup || !selectedModule) return
     setLoading(true)
 
-    // A. Fetch Participants enrolled in this group/program
-    const { data: enrolled } = await supabase
+    // A. Fetch Participants enrolled in this group/program (Only active 'inscritos')
+    const { data: enrolled, error: pErr } = await supabase
       .from('inscripciones')
       .select('*, participantes(*)')
       .eq('grupo_id', selectedGroup)
       .eq('programa_id', selectedProgram)
-      .eq('estado', 'confirmado')
+      .eq('estado', 'inscrito')
 
-    // B. Fetch Existing Attendance for this specific module/day
+    if (pErr) {
+      console.error('Error cargando participantes:', pErr)
+      showNotif('error', 'Error de Carga', pErr.message)
+      setLoading(false)
+      return
+    }
+
+    // B. Fetch Existing Attendance for this specific module/day/date
     const { data: existing } = await supabase
       .from('asistencias')
       .select('*')
       .eq('modulo_id', selectedModule)
       .eq('dia', dayNumber)
+      .eq('fecha', selectedDate)
 
     // Map existing attendance to state
     const attMap: Record<string, string> = {}
@@ -112,7 +135,7 @@ export default function AttendanceClient({
 
   useEffect(() => {
     loadAttendanceSession()
-  }, [selectedGroup, selectedModule, dayNumber])
+  }, [selectedGroup, selectedModule, dayNumber, selectedDate])
 
   const handleStatusChange = (participantId: string, status: string) => {
     setAttendanceData(prev => ({ ...prev, [participantId]: status }))
@@ -127,7 +150,7 @@ export default function AttendanceClient({
       modulo_id: selectedModule,
       dia: dayNumber,
       estado,
-      fecha: new Date().toISOString().split('T')[0]
+      fecha: selectedDate
     }))
 
     const { error } = await supabase
@@ -145,10 +168,86 @@ export default function AttendanceClient({
 
   // Stats for current session
   const stats = {
-    asistieron: Object.values(attendanceData).filter(s => s === 'asistio').length,
-    atrasos: Object.values(attendanceData).filter(s => s === 'atraso').length,
-    faltas: Object.values(attendanceData).filter(s => s === 'falta').length,
-    permisos: Object.values(attendanceData).filter(s => s === 'permiso').length,
+    asistieron: participants.filter(p => attendanceData[p.participante_id] === 'asistio').length,
+    atrasos: participants.filter(p => attendanceData[p.participante_id] === 'atraso').length,
+    faltas: participants.filter(p => attendanceData[p.participante_id] === 'falta').length,
+    permisos: participants.filter(p => attendanceData[p.participante_id] === 'permiso').length,
+  }
+
+  const generatePDF = () => {
+    const doc: any = new jsPDF()
+    const groupName = groups.find(g => g.id === selectedGroup)?.name || 'Sin Grupo'
+    const programName = programs.find(p => p.id === selectedProgram)?.titulo || 'Sin Programa'
+    const moduleName = modules.find(m => m.id === selectedModule)?.titulo_modulo || 'Sin Módulo'
+
+    // Header
+    doc.setFontSize(20)
+    doc.setTextColor(44, 62, 80)
+    doc.text('REGISTRO DE ASISTENCIA', 105, 20, { align: 'center' })
+
+    doc.setFontSize(10)
+    doc.setTextColor(100)
+    doc.text(`Generado el: ${new Date().toLocaleString()}`, 105, 27, { align: 'center' })
+
+    // Details Box
+    doc.setDrawColor(200)
+    doc.setFillColor(248, 249, 250)
+    doc.rect(14, 35, 182, 35, 'FD')
+
+    doc.setFontSize(10)
+    doc.setTextColor(0)
+    doc.setFont(undefined, 'bold')
+    doc.text('PROGRAMA:', 20, 45)
+    doc.text('MÓDULO:', 20, 52)
+    doc.text('GRUPO:', 20, 59)
+    doc.text('FECHA:', 120, 45)
+    doc.text('JORNADA:', 120, 52)
+
+    doc.setFont(undefined, 'normal')
+    doc.text(programName, 45, 45)
+    doc.text(moduleName, 45, 52)
+    doc.text(groupName, 45, 59)
+    doc.text(selectedDate, 140, 45)
+    doc.text(`Día ${dayNumber}`, 140, 52)
+
+    // Table
+    const tableRows = participants.map((p, index) => [
+      index + 1,
+      `${p.participantes.nombre} ${p.participantes.apellido}`,
+      p.participantes.ci,
+      (attendanceData[p.participante_id] || 'Pte.').toUpperCase(),
+      '________________'
+    ])
+
+    autoTable(doc, {
+      startY: 75,
+      head: [['#', 'Participante', 'Identidad', 'Estado', 'Firma']],
+      body: tableRows,
+      headStyles: { fillColor: [52, 73, 94], halign: 'center' },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 10 },
+        2: { halign: 'center', cellWidth: 30 },
+        3: { halign: 'center', cellWidth: 30 },
+        4: { halign: 'center', cellWidth: 40 }
+      },
+      theme: 'grid'
+    })
+
+    // Summary
+    const finalY = (doc as any).lastAutoTable.finalY + 15
+    doc.setFontSize(12)
+    doc.setFont(undefined, 'bold')
+    doc.text('RESUMEN DE JORNADA', 14, finalY)
+
+    doc.setFontSize(10)
+    doc.setFont(undefined, 'normal')
+    doc.text(`Asistencias: ${stats.asistieron}`, 14, finalY + 7)
+    doc.text(`Faltas: ${stats.faltas}`, 60, finalY + 7)
+    doc.text(`Atrasos: ${stats.atrasos}`, 100, finalY + 7)
+    doc.text(`Permisos: ${stats.permisos}`, 140, finalY + 7)
+    doc.text(`Porcentaje: ${participants.length > 0 ? Math.round((stats.asistieron / participants.length) * 100) : 0}%`, 14, finalY + 14)
+
+    doc.save(`asistencia_${groupName}_dia${dayNumber}.pdf`)
   }
 
   return (
@@ -164,6 +263,10 @@ export default function AttendanceClient({
               <div style={{ fontSize: '1.25rem', fontWeight: 900, width: '40px', textAlign: 'center' }}>{dayNumber}</div>
               <button className="btn btn-outline" style={{ padding: '0.5rem' }} onClick={() => setDayNumber(d => d + 1)}><ChevronRight size={18} /></button>
             </div>
+          </div>
+          <div className="form-group">
+            <label>Fecha de Registro</label>
+            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
           </div>
           <div className="form-group">
             <label>Programa</label>
@@ -210,50 +313,86 @@ export default function AttendanceClient({
                   <thead>
                     <tr style={{ background: 'transparent' }}>
                       <th>Participante</th>
-                      <th style={{ textAlign: 'center' }}>Asistió</th>
+                  <th style={{ textAlign: 'center' }}>Asistió</th>
                       <th style={{ textAlign: 'center' }}>Atraso</th>
                       <th style={{ textAlign: 'center' }}>Falta</th>
                       <th style={{ textAlign: 'center' }}>Permiso</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {participants.map((p) => (
-                      <tr key={p.participante_id} className="row-hover" style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '0.75rem' }}>
-                        <td style={{ padding: '1rem' }}>
-                          <div style={{ fontWeight: 800 }}>{p.participantes.nombre} {p.participantes.apellido}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>CI: {p.participantes.ci}</div>
-                        </td>
-                        {['asistio', 'atraso', 'falta', 'permiso'].map((status) => (
-                          <td key={status} style={{ textAlign: 'center' }}>
-                            <button
-                              className={`btn ${attendanceData[p.participante_id] === status ? 'btn-status-' + status : 'btn-ghost'}`}
-                              onClick={() => handleStatusChange(p.participante_id, status)}
-                              style={{
-                                width: '40px', height: '40px', borderRadius: '50%', padding: 0,
-                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
-                              }}
-                            >
-                              {status === 'asistio' && <UserCheck size={18} />}
-                              {status === 'atraso' && <Clock size={18} />}
-                              {status === 'falta' && <UserMinus size={18} />}
-                              {status === 'permiso' && <FileText size={18} />}
-                            </button>
+                    {participants.map((p) => {
+                      const current = attendanceData[p.participante_id]
+                      const rowBg = current === 'asistio'  ? 'rgba(16,217,139,0.05)'
+                                  : current === 'atraso'   ? 'rgba(245,166,35,0.05)'
+                                  : current === 'falta'    ? 'rgba(239,68,68,0.05)'
+                                  : current === 'permiso'  ? 'rgba(99,102,241,0.05)'
+                                  : 'transparent'
+
+                      const statusConfig = {
+                        asistio: { label: '✓ Asistió', activeColor: '#10d98b', activeBg: 'rgba(16,217,139,0.15)', activeBorder: '#10d98b' },
+                        atraso:  { label: '⏱ Atraso',  activeColor: '#f5a623', activeBg: 'rgba(245,166,35,0.15)', activeBorder: '#f5a623' },
+                        falta:   { label: '✗ Falta',   activeColor: '#ef4444', activeBg: 'rgba(239,68,68,0.15)',  activeBorder: '#ef4444' },
+                        permiso: { label: '📋 Permiso', activeColor: '#6366f1', activeBg: 'rgba(99,102,241,0.15)', activeBorder: '#6366f1' },
+                      } as Record<string, any>
+
+                      return (
+                        <tr key={p.participante_id} style={{ background: rowBg, transition: 'background 0.2s' }}>
+                          <td style={{ padding: '0.85rem 1rem' }}>
+                            <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{p.participantes.nombre} {p.participantes.apellido}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>CI: {p.participantes.ci}</div>
                           </td>
-                        ))}
-                      </tr>
-                    ))}
+                          {(['asistio', 'atraso', 'falta', 'permiso'] as const).map((status) => {
+                            const cfg = statusConfig[status]
+                            const isActive = current === status
+                            return (
+                              <td key={status} style={{ textAlign: 'center', padding: '0.5rem' }}>
+                                <button
+                                  onClick={() => handleStatusChange(p.participante_id, status)}
+                                  style={{
+                                    padding: '0.45rem 0.9rem',
+                                    borderRadius: '99px',
+                                    border: `2px solid ${isActive ? cfg.activeBorder : 'var(--border)'}`,
+                                    background: isActive ? cfg.activeBg : 'var(--surface)',
+                                    color: isActive ? cfg.activeColor : 'var(--muted)',
+                                    fontWeight: isActive ? 800 : 500,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    whiteSpace: 'nowrap',
+                                    transform: isActive ? 'scale(1.08)' : 'scale(1)',
+                                    boxShadow: isActive ? `0 4px 12px ${cfg.activeBorder}40` : 'none'
+                                  }}
+                                >
+                                  {cfg.label}
+                                </button>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
 
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', marginTop: '2rem', padding: '1.25rem', fontSize: '1.1rem' }}
-                onClick={saveAttendance}
-                disabled={saving || participants.length === 0}
-              >
-                {saving ? 'Guardando cambios...' : <><Save size={20} /> Finalizar Pase de Lista</>}
-              </button>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 2, padding: '1.25rem', fontSize: '1.1rem' }}
+                  onClick={saveAttendance}
+                  disabled={saving || participants.length === 0}
+                >
+                  {saving ? 'Guardando cambios...' : <><Save size={20} /> Finalizar Pase de Lista</>}
+                </button>
+                <button
+                  className="btn btn-outline"
+                  style={{ flex: 1, padding: '1.25rem', borderColor: 'var(--primary)', color: 'var(--primary)' }}
+                  onClick={generatePDF}
+                  disabled={participants.length === 0}
+                >
+                  <FileText size={20} /> Generar PDF
+                </button>
+              </div>
             </div>
 
             {/* Quick Stats Panel */}
@@ -282,13 +421,22 @@ export default function AttendanceClient({
         )}
 
         <style jsx>{`
-        .btn-status-asistio { background: var(--success); color: white; }
-        .btn-status-atraso { background: var(--warning); color: white; }
-        .btn-status-falta { background: var(--danger); color: white; }
-        .btn-status-permiso { background: var(--info); color: white; }
-        .btn-ghost { background: rgba(255,255,255,0.05); color: var(--muted); }
-        .btn-ghost:hover { background: rgba(255,255,255,0.1); }
-        .row-hover:hover { background: rgba(255,255,255,0.05) !important; }
+        .btn-status-asistio { background: #10b981; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .btn-status-atraso { background: #f59e0b; color: white; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
+        .btn-status-falta { background: #ef4444; color: white; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
+        .btn-status-permiso { background: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .btn-ghost { 
+          background: rgba(0, 0, 0, 0.03); 
+          color: var(--muted); 
+          border: 1px solid var(--border);
+        }
+        .btn-ghost:hover { 
+          background: rgba(0, 0, 0, 0.08);
+          color: var(--foreground);
+        }
+        .row-hover:hover { 
+          background: rgba(0, 0, 0, 0.02) !important; 
+        }
       `}</style>
       </div>
       <StatusModal

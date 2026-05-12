@@ -11,12 +11,12 @@ import { signOut } from '@/app/login/actions'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/programas', label: 'Programas', icon: GraduationCap },
-  { href: '/dashboard/departamentos', label: 'Departamentos', icon: Building2 },
-  { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2 },
+  { href: '/dashboard/programas', label: 'Programas', icon: GraduationCap, adminOnly: true },
+  { href: '/dashboard/departamentos', label: 'Departamentos', icon: Building2, adminOnly: true },
+  { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2, adminOnly: true },
   { href: '/dashboard/inscripciones', label: 'Inscripciones', icon: Users },
   { href: '/dashboard/asistencia', label: 'Asistencia', icon: CheckSquare },
-  { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3 },
+  { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3, adminOnly: true },
   { href: '/dashboard/facilitadores', label: 'Facilitadores', icon: UserPlus, adminOnly: true },
   { href: '/dashboard/usuarios', label: 'Usuarios', icon: UserCog, adminOnly: true },
   { href: '/dashboard/migracion', label: 'Migración', icon: Database, adminOnly: true },
@@ -58,8 +58,11 @@ export default function Sidebar({ role, departamentoId }: { role?: string; depar
           Menú Principal
         </div>
         {navItems.map((item) => {
+          const isFacilitador = role === 'facilitador'
+          // Admin-only pages are hidden for facilitadores
+          if (item.adminOnly && isFacilitador) return null
+          // Departmental restrictions
           if (departamentoId && (item.href === '/dashboard/usuarios' || item.href === '/dashboard/departamentos')) return null
-          if (item.adminOnly && role && role !== 'administrador') return null
 
           const Icon = item.icon
           const isActive = pathname === item.href

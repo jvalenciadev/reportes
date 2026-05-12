@@ -116,13 +116,14 @@ export async function assignFacilitatorGroup(email: string, groupName: string) {
   if (!profile) throw new Error(`Facilitador con email ${email} no encontrado.`)
 
   // 2. Obtener el grupo_id por nombre
+  const gNameClean = groupName?.trim()
   const { data: group } = await supabaseAdmin
     .from('grupos')
     .select('id')
-    .eq('name', groupName)
+    .eq('name', gNameClean)
     .single()
 
-  if (!group) throw new Error(`Grupo con nombre "${groupName}" no encontrado.`)
+  if (!group) throw new Error(`Grupo con nombre "${gNameClean}" no encontrado.`)
 
   // 3. Vincular
   const { error } = await supabaseAdmin

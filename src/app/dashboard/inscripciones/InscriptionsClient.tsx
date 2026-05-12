@@ -8,13 +8,19 @@ import {
   Calendar, Trash2, UserCheck
 } from 'lucide-react'
 import StatusModal, { StatusType } from '../components/StatusModal'
+import ReasonModal from '../components/ReasonModal'
+import ConfirmModal from '../components/ConfirmModal'
 
 export default function InscriptionsClient({
   departamentos,
-  userDeptId
+  userDeptId,
+  userRole,
+  facilitadorGroups = []
 }: {
   departamentos: any[],
-  userDeptId?: string
+  userDeptId?: string,
+  userRole?: string,
+  facilitadorGroups?: any[]
 }) {
   const supabase = createClient()
 
@@ -28,24 +34,15 @@ export default function InscriptionsClient({
   const [selectedDepto, setSelectedDepto] = useState(userDeptId || '')
   const [selectedGroup, setSelectedGroup] = useState('')
   const [selectedProgram, setSelectedProgram] = useState('')
-  const [groups, setGroups] = useState<any[]>([])
+  const [groups, setGroups] = useState<any[]>(userRole === 'facilitador' ? facilitadorGroups : [])
   const [programs, setPrograms] = useState<any[]>([])
   const [enrolledParticipants, setEnrolledParticipants] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [view, setView] = useState<'list' | 'add'>('list')
 
-  // Form State for New Participant
-  const [form, setForm] = useState({
-    nombre: '',
-    apellido: '',
-    ci: '',
-    correo: '',
-    celular: '',
-    fecha_nacimiento: '',
-    localidad_vive: '',
-    estado_inscripcion: 'inscrito'
-  })
+  // Modal States
+  const [reasonModal, setReasonModal] = useState({ show: false, id: '', status: '' })
+  const [confirmModal, setConfirmModal] = useState({ show: false, id: '', newGroupId: '', groupName: '' })
 
   // Load Initial Data
   useEffect(() => {
@@ -57,25 +54,47 @@ export default function InscriptionsClient({
     fetchBaseData()
   }, [])
 
-  // Load Groups when Depto changes
+  // For facilitadores: load their groups on mount immediately + auto-select dept
   useEffect(() => {
+    if (userRole === 'facilitador' && facilitadorGroups.length > 0) {
+      const firstGroup = facilitadorGroups[0]
+      setGroups(facilitadorGroups)
+      setSelectedGroup(firstGroup.id)
+      if (firstGroup.departamento_id) {
+        setSelectedDepto(firstGroup.departamento_id)
+      }
+    }
+  }, [userRole, JSON.stringify(facilitadorGroups)])
+
+  // Load Groups when Depto changes (non-facilitadores only)
+  useEffect(() => {
+    if (userRole === 'facilitador') return // handled by mount effect above
     if (!selectedDepto) return
     const fetchGroups = async () => {
       const { data } = await supabase.from('grupos').select('*').eq('departamento_id', selectedDepto)
       setGroups(data || [])
     }
     fetchGroups()
-  }, [selectedDepto])
+  }, [selectedDepto, userRole])
 
   // Load Enrolled Participants when Group/Program changes
   const loadParticipants = async () => {
     if (!selectedGroup || !selectedProgram) return
     setLoading(true)
-    const { data } = await supabase
+    console.log('Cargando participantes para Grupo:', selectedGroup, 'Programa:', selectedProgram)
+
+    const { data, error } = await supabase
       .from('inscripciones')
       .select('*, participantes(*)')
       .eq('grupo_id', selectedGroup)
       .eq('programa_id', selectedProgram)
+
+    if (error) {
+      console.error('Error de Supabase al cargar:', error)
+      showNotif('error', 'Error de Conexión', error.message)
+    }
+
+    console.log('Datos recibidos:', data)
     setEnrolledParticipants(data || [])
     setLoading(false)
   }
@@ -84,175 +103,162 @@ export default function InscriptionsClient({
     loadParticipants()
   }, [selectedGroup, selectedProgram])
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedGroup || !selectedProgram) {
-      alert('Selecciona programa y grupo primero')
+  // Logic to handle participant registration removed as requested
+
+  const updateStatus = async (id: string, newStatus: string) => {
+    // Si es BAJA, abrir el modal en lugar de procesar directo
+    if (newStatus === 'baja') {
+      setReasonModal({ show: true, id, status: newStatus })
       return
     }
-    setSaving(true)
 
     try {
-      // 1. Create or Get Participant (Upsert by CI)
-      const { data: part, error: pErr } = await supabase
-        .from('participantes')
-        .upsert({
-          nombre: form.nombre,
-          apellido: form.apellido,
-          ci: form.ci,
-          correo: form.correo,
-          celular: form.celular,
-          fecha_nacimiento: form.fecha_nacimiento || null,
-          localidad_vive: form.localidad_vive
-        }, { onConflict: 'ci' })
-        .select()
-        .single()
-
-      if (pErr) throw pErr
-
-      // 2. Create Enrollment
-      const { error: iErr } = await supabase
+      console.log(`Intentando actualizar ID: ${id} a estado: ${newStatus}`)
+      
+      const { data, error, count } = await supabase
         .from('inscripciones')
-        .upsert({
-          participante_id: part.id,
-          grupo_id: selectedGroup,
-          programa_id: selectedProgram,
-          estado: form.estado_inscripcion
-        }, { onConflict: 'participante_id,programa_id' })
+        .update({ estado: newStatus })
+        .eq('id', id)
+        .select() // Forzar que devuelva el registro actualizado
 
-      if (iErr) throw iErr
+      if (error) throw error
+      
+      if (!data || data.length === 0) {
+        throw new Error('No se encontró el registro o no tienes permisos para editarlo (RLS).')
+      }
 
-      // Success
-      setForm({ nombre: '', apellido: '', ci: '', correo: '', celular: '', fecha_nacimiento: '', localidad_vive: '', estado_inscripcion: 'inscrito' })
-      setView('list')
+      console.log('Actualización exitosa. Datos nuevos:', data)
       loadParticipants()
-      showNotif('success', '¡Registro Exitoso!', `${form.nombre} ha sido inscrito correctamente en el programa.`)
+      showNotif('success', 'Estado Actualizado', 'El cambio se ha guardado correctamente en la base de datos.')
     } catch (err: any) {
-      showNotif('error', 'Error en el Proceso', `No se pudo completar la inscripción: ${err.message}`)
+      console.error('Error crítico al actualizar:', err)
+      showNotif('error', 'Error al actualizar', err.message)
+      loadParticipants()
+    }
+  }
+
+  const updateGroup = async (id: string, newGroupId: string) => {
+    const newGroupName = groups.find(g => g.id === newGroupId)?.name || 'Nuevo Grupo'
+    setConfirmModal({ show: true, id, newGroupId, groupName: newGroupName })
+  }
+
+  const handleConfirmGroup = async () => {
+    setSaving(true)
+    try {
+      const { data, error } = await supabase
+        .from('inscripciones')
+        .update({ grupo_id: confirmModal.newGroupId })
+        .eq('id', confirmModal.id)
+        .select()
+
+      if (error) throw error
+      
+      if (!data || data.length === 0) throw new Error('No se pudo actualizar el grupo.')
+
+      setConfirmModal({ show: false, id: '', newGroupId: '', groupName: '' })
+      showNotif('success', 'Grupo Cambiado', 'El participante ha sido movido de grupo exitosamente.')
+      loadParticipants()
+    } catch (err: any) {
+      showNotif('error', 'Error al cambiar grupo', err.message)
+      loadParticipants()
     } finally {
       setSaving(false)
     }
   }
 
-  const deleteEnrollment = async (id: string) => {
-    if (!confirm('¿Seguro que deseas eliminar esta inscripción?')) return
-    await supabase.from('inscripciones').delete().eq('id', id)
-    loadParticipants()
+  const handleConfirmBaja = async (reason: string) => {
+    setSaving(true)
+    try {
+      console.log(`Procesando BAJA para ID: ${reasonModal.id} con motivo: ${reason}`)
+      
+      const { data, error } = await supabase
+        .from('inscripciones')
+        .update({ 
+          estado: reasonModal.status, 
+          observacion: reason 
+        })
+        .eq('id', reasonModal.id)
+        .select()
+
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+        throw new Error('No se pudo procesar la baja. Verifica tus permisos de base de datos.')
+      }
+      
+      setReasonModal({ show: false, id: '', status: '' })
+      loadParticipants()
+      showNotif('success', 'Baja Registrada', 'El participante ha sido dado de baja con éxito.')
+    } catch (err: any) {
+      console.error('Error en handleConfirmBaja:', err)
+      showNotif('error', 'Error al procesar baja', err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <>
-    <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} suppressHydrationWarning>
 
-      {/* Global Selectors */}
-      <div className="card glass" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-        <div className="form-group">
-          <label>Programa Académico</label>
-          <select value={selectedProgram} onChange={(e) => setSelectedProgram(e.target.value)}>
-            {programs.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Departamento</label>
-          <select value={selectedDepto} onChange={(e) => setSelectedDepto(e.target.value)} disabled={!!userDeptId}>
-            <option value="">Seleccionar...</option>
-            {departamentos.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Grupo</label>
-          <select value={selectedGroup} onChange={(e) => setSelectedGroup(e.target.value)} disabled={!selectedDepto}>
-            <option value="">Seleccionar Grupo</option>
-            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {selectedGroup && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '1rem', background: 'var(--surface)', padding: '0.4rem', borderRadius: '0.75rem' }}>
-              <button
-                className={`btn ${view === 'list' ? 'btn-primary' : 'btn-outline'}`}
-                onClick={() => setView('list')}
-                style={{ padding: '0.5rem 1.5rem' }}
-              >
-                <LayoutGrid size={18} /> Lista de Inscritos
-              </button>
-              <button
-                className={`btn ${view === 'add' ? 'btn-primary' : 'btn-outline'}`}
-                onClick={() => setView('add')}
-                style={{ padding: '0.5rem 1.5rem' }}
-              >
-                <UserPlus size={18} /> Nuevo Participante
-              </button>
-            </div>
-            <div className="badge" style={{ padding: '0.75rem 1.25rem', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 800 }}>
-              {enrolledParticipants.length} INSCRITOS EN TOTAL
-            </div>
+        {/* Global Selectors */}
+        <div className="card glass" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }} suppressHydrationWarning>
+          <div className="form-group" suppressHydrationWarning>
+            <label>Programa Académico</label>
+            <select value={selectedProgram} onChange={(e) => setSelectedProgram(e.target.value)}>
+              {programs.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+            </select>
           </div>
+          <div className="form-group" suppressHydrationWarning style={{ display: userRole === 'facilitador' ? 'none' : 'block' }}>
+            <label>Departamento</label>
+            <select value={selectedDepto} onChange={(e) => setSelectedDepto(e.target.value)} disabled={!!userDeptId || userRole === 'facilitador'}>
+              <option value="">Seleccionar...</option>
+              {departamentos.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group" suppressHydrationWarning>
+            <label>
+              Grupo
+              {userRole === 'facilitador' && (
+                <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', background: 'var(--primary-light)', color: 'var(--primary)', padding: '0.1rem 0.4rem', borderRadius: '99px', fontWeight: 800 }}>
+                  TUS GRUPOS
+                </span>
+              )}
+            </label>
+            <select value={selectedGroup} onChange={(e) => setSelectedGroup(e.target.value)} disabled={userRole === 'facilitador' && groups.length <= 1}>
+              <option value="">Seleccionar Grupo</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+        </div>
 
-          {view === 'add' ? (
-            <div className="card glass animate-slide-in" style={{ borderTop: '4px solid var(--primary)' }}>
-              <h3 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Contact color="var(--primary)" /> Registro de Nuevo Participante
-              </h3>
-              <form onSubmit={handleRegister} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                <div className="form-group">
-                  <label>Nombre(s)</label>
-                  <input required value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Juan" />
+        {selectedGroup && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '1rem', background: 'var(--surface)', padding: '0.4rem', borderRadius: '0.75rem' }}>
+                <div
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1.5rem', cursor: 'default' }}
+                >
+                  <LayoutGrid size={18} /> Lista de Inscritos
                 </div>
-                <div className="form-group">
-                  <label>Apellido(s)</label>
-                  <input required value={form.apellido} onChange={e => setForm({ ...form, apellido: e.target.value })} placeholder="Ej: Pérez" />
-                </div>
-                <div className="form-group">
-                  <label>Cédula de Identidad (CI)</label>
-                  <input required value={form.ci} onChange={e => setForm({ ...form, ci: e.target.value })} placeholder="Ej: 1234567 LP" />
-                </div>
-                <div className="form-group">
-                  <label>Correo Electrónico</label>
-                  <input type="email" value={form.correo} onChange={e => setForm({ ...form, correo: e.target.value })} placeholder="correo@ejemplo.com" />
-                </div>
-                <div className="form-group">
-                  <label>Celular</label>
-                  <input value={form.celular} onChange={e => setForm({ ...form, celular: e.target.value })} placeholder="70000000" />
-                </div>
-                <div className="form-group">
-                  <label>Fecha de Nacimiento</label>
-                  <input type="date" value={form.fecha_nacimiento} onChange={e => setForm({ ...form, fecha_nacimiento: e.target.value })} />
-                </div>
-                <div className="form-group">
-                  <label>Localidad donde vive</label>
-                  <input value={form.localidad_vive} onChange={e => setForm({ ...form, localidad_vive: e.target.value })} placeholder="Ej: El Alto" />
-                </div>
-                <div className="form-group">
-                  <label>Estado Inicial</label>
-                  <select value={form.estado_inscripcion} onChange={e => setForm({ ...form, estado_inscripcion: e.target.value })}>
-                    <option value="inscrito">Inscrito (Pendiente)</option>
-                    <option value="confirmado">Confirmado (Activo)</option>
-                    <option value="baja">Baja</option>
-                  </select>
-                </div>
-                <div style={{ gridColumn: 'span 2', marginTop: '1rem' }}>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '1rem' }} disabled={saving}>
-                    {saving ? 'Procesando...' : <><Save size={20} /> Finalizar Inscripción</>}
-                  </button>
-                </div>
-              </form>
+              </div>
+              <div className="badge" style={{ padding: '0.75rem 1.25rem', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 800 }}>
+                {enrolledParticipants.length} INSCRITOS EN TOTAL
+              </div>
             </div>
-          ) : (
-            <div className="card glass animate-fade-in" style={{ borderTop: '4px solid var(--success)' }}>
+
+            <div className="card glass animate-fade-in" style={{ borderTop: '4px solid var(--success)' }} suppressHydrationWarning>
               <div className="table-container">
                 <table>
                   <thead>
                     <tr>
                       <th>Participante</th>
-                      <th>Identidad</th>
+                      <th>Identidad / Grupo</th>
                       <th>Contacto</th>
-                      <th>Estado</th>
-                      <th style={{ textAlign: 'right' }}>Acciones</th>
+                      <th>Estado / Obs.</th>
+                      <th style={{ textAlign: 'right' }}>Registro</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -266,23 +272,62 @@ export default function InscriptionsClient({
                         </td>
                         <td>
                           <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{i.participantes.ci}</div>
+                          <select
+                            value={i.grupo_id}
+                            onChange={(e) => updateGroup(i.id, e.target.value)}
+                            style={{
+                              marginTop: '0.5rem',
+                              padding: '0.2rem 0.4rem',
+                              fontSize: '0.7rem',
+                              borderRadius: '0.4rem',
+                              border: '1px solid var(--border)',
+                              background: 'var(--surface)',
+                              color: 'var(--primary)',
+                              fontWeight: 700,
+                              width: '100%'
+                            }}
+                          >
+                            {groups.map(g => (
+                              <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                          </select>
                         </td>
                         <td>
                           <div style={{ fontSize: '0.8rem' }}><Mail size={12} style={{ verticalAlign: 'middle' }} /> {i.participantes.correo || '-'}</div>
                           <div style={{ fontSize: '0.8rem' }}><Phone size={12} style={{ verticalAlign: 'middle' }} /> {i.participantes.celular || '-'}</div>
                         </td>
                         <td>
-                          <span className="badge" style={{
-                            background: i.estado === 'confirmado' ? 'rgba(16, 217, 139, 0.1)' : 'rgba(255,255,255,0.05)',
-                            color: i.estado === 'confirmado' ? 'var(--success)' : 'var(--foreground-2)'
-                          }}>
-                            {i.estado.toUpperCase()}
-                          </span>
+                          <select
+                            value={i.estado}
+                            onChange={(e) => updateStatus(i.id, e.target.value)}
+                            style={{
+                              padding: '0.3rem 0.6rem',
+                              borderRadius: '0.5rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              border: 'none',
+                              cursor: 'pointer',
+                              background: i.estado === 'inscrito' ? 'rgba(16, 217, 139, 0.1)' : (i.estado === 'preinscrito' ? 'rgba(245, 166, 35, 0.1)' : 'rgba(255,255,255,0.05)'),
+                              color: i.estado === 'inscrito' ? 'var(--success)' : (i.estado === 'preinscrito' ? '#f5a623' : 'var(--foreground-2)'),
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            <option value="preinscrito">Preinscrito</option>
+                            <option value="inscrito">Inscrito</option>
+                            <option value="baja">Baja</option>
+                          </select>
+
+                          {i.observacion && (
+                            <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginTop: '0.3rem', maxWidth: '150px', fontStyle: 'italic' }}>
+                              "{i.observacion}"
+                            </div>
+                          )}
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button className="btn btn-outline" onClick={() => deleteEnrollment(i.id)} style={{ color: 'var(--danger)', borderColor: 'var(--danger-light)' }}>
-                            <Trash2 size={16} />
-                          </button>
+                          <div style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
+                            <Calendar size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                            {new Date(i.created_at).toLocaleDateString()}
+                          </div>
                         </td>
                       </tr>
                     )) : (
@@ -297,17 +342,38 @@ export default function InscriptionsClient({
                 </table>
               </div>
             </div>
-          )}
-        </div>
-      )}
-    </div>
-    <StatusModal
+          </div>
+        )}
+      </div>
+      <StatusModal
         show={notif.show}
         type={notif.type}
         title={notif.title}
         message={notif.message}
         onClose={() => setNotif({ ...notif, show: false })}
       />
+
+    <ReasonModal
+      show={reasonModal.show}
+      title="Confirmar Baja"
+      loading={saving}
+      onConfirm={handleConfirmBaja}
+      onCancel={() => {
+        setReasonModal({ show: false, id: '', status: '' })
+        loadParticipants() // Revertir el select
+      }}
+    />
+    <ConfirmModal
+      show={confirmModal.show}
+      title="Cambio de Grupo"
+      message={`¿Estás seguro de mover a este participante al grupo "${confirmModal.groupName}"?`}
+      loading={saving}
+      onConfirm={handleConfirmGroup}
+      onCancel={() => {
+        setConfirmModal({ show: false, id: '', newGroupId: '', groupName: '' })
+        loadParticipants()
+      }}
+    />
     </>
   )
 }
