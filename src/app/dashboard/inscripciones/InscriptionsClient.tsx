@@ -5,7 +5,9 @@ import { createClient } from '@/utils/supabase/client'
 import {
   Save, Search, UserPlus, CheckCircle, LayoutGrid,
   AlertCircle, Contact, Mail, Phone, MapPin,
-  Calendar, Trash2, UserCheck
+  Calendar, Trash2, UserCheck,
+  Info,
+  FileText
 } from 'lucide-react'
 import StatusModal, { StatusType } from '../components/StatusModal'
 import ReasonModal from '../components/ReasonModal'
@@ -77,6 +79,9 @@ export default function InscriptionsClient({
     fetchGroups()
   }, [selectedDepto, userRole])
 
+  // Filter and Sort State
+  const [filterStatus, setFilterStatus] = useState('all')
+
   // Load Enrolled Participants when Group/Program changes
   const loadParticipants = async () => {
     if (!selectedGroup || !selectedProgram) return
@@ -94,12 +99,26 @@ export default function InscriptionsClient({
       showNotif('error', 'Error de Conexión', error.message)
     }
 
-    console.log('Datos recibidos:', data)
+    // --- LÓGICA DE ORDENAMIENTO SENIOR (PRIORIDAD POR ESTADO + ALFABÉTICO) ---
+    const statusPriority: Record<string, number> = {
+      'inscrito': 1,
+      'preinscrito': 2,
+      'baja': 3
+    }
+
     const sortedData = (data || []).sort((a: any, b: any) => {
+      // 1. Prioridad por Estado
+      const pA = statusPriority[a.estado] || 99
+      const pB = statusPriority[b.estado] || 99
+      if (pA !== pB) return pA - pB
+
+      // 2. Apellido (A-Z)
       const apellidoA = (a.participantes?.apellido || '').toLowerCase();
       const apellidoB = (b.participantes?.apellido || '').toLowerCase();
       if (apellidoA < apellidoB) return -1;
       if (apellidoA > apellidoB) return 1;
+
+      // 3. Nombre (A-Z)
       const nombreA = (a.participantes?.nombre || '').toLowerCase();
       const nombreB = (b.participantes?.nombre || '').toLowerCase();
       if (nombreA < nombreB) return -1;
@@ -291,19 +310,130 @@ export default function InscriptionsClient({
 
         {selectedGroup && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{
+              background: 'var(--surface)',
+              borderRadius: '1.25rem',
+              border: '1px solid var(--border)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+              padding: '1rem 1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              marginBottom: '0.5rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: '1rem', background: 'var(--surface)', padding: '0.4rem', borderRadius: '0.75rem' }}>
-                <div
-                  className="btn btn-primary"
-                  style={{ padding: '0.5rem 1.5rem', cursor: 'default' }}
-                >
-                  <LayoutGrid size={18} /> Lista de Inscritos
+                {/* --- SECCIÓN IZQUIERDA: FILTRO Y TÍTULO --- */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{
+                    width: '42px', height: '42px', borderRadius: '12px',
+                    background: 'var(--primary-light)', color: 'var(--primary)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 10px rgba(var(--primary-rgb), 0.1)'
+                  }}>
+                    <LayoutGrid size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Gestión de Grupo</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--muted)' }}>Ver:</span>
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        style={{
+                          background: 'transparent', border: 'none',
+                          fontSize: '0.95rem', fontWeight: 600, color: 'var(--foreground)',
+                          cursor: 'pointer', outline: 'none', padding: '2px 4px',
+                          borderBottom: '2px solid var(--primary-light)'
+                        }}
+                      >
+                        <option value="all">Todos los Estados</option>
+                        <option value="inscrito">Solo Inscritos</option>
+                        <option value="preinscrito">Solo Preinscritos</option>
+                        <option value="baja">Solo Bajas</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* --- SECCIÓN CENTRAL: MÉTRICAS --- */}
+                <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', flex: 1, justifyContent: 'center' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }}></div>
+                      <span style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--foreground)' }}>
+                        {enrolledParticipants.filter(p => p.estado === 'inscrito').length}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Inscritos</div>
+                  </div>
+
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6' }}></div>
+                      <span style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--foreground)' }}>
+                        {enrolledParticipants.filter(p => p.estado === 'preinscrito').length}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Preinscritos</div>
+                  </div>
+
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--danger)' }}></div>
+                      <span style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--muted)' }}>
+                        {enrolledParticipants.filter(p => p.estado === 'baja').length}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Bajas</div>
+                  </div>
+                </div>
+
+                {/* --- SECCIÓN DERECHA: TOTAL --- */}
+                <div style={{
+                  background: 'var(--primary-light)',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '1rem',
+                  textAlign: 'center',
+                  minWidth: '120px'
+                }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)', lineHeight: 1.1 }}>
+                    {enrolledParticipants.length}
+                  </div>
+                  <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>
+                    Total Alumnos
+                  </div>
+                </div>
+
+              </div>
+
+              {/* --- BANNER DE REGLAS ADMINISTRATIVAS (RESALTADO) --- */}
+              <div style={{
+                marginTop: '1rem',
+                padding: '1rem 1.5rem',
+                background: 'rgba(59, 130, 246, 0.04)',
+                borderRadius: '1rem',
+                border: '1px solid rgba(59, 130, 246, 0.1)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.6rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--foreground)', fontSize: '0.8rem', fontWeight: 600 }}>
+                  <AlertCircle size={16} style={{ color: '#3b82f6' }} />
+                  <span>IMPORTANTE: REQUISITOS DE GESTIÓN</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', paddingLeft: '2.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--muted)', fontSize: '0.75rem' }}>
+                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#3b82f6' }}></div>
+                    <span>Para registrar <strong>asistencia</strong> y <strong>subir calificaciones</strong>, el participante debe estar <strong>Inscrito</strong>.</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--muted)', fontSize: '0.75rem' }}>
+                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#3b82f6' }}></div>
+                    <span>Todos los alumnos <strong>Inscritos</strong> deben entregar obligatoriamente sus documentos físicos <strong>(Marcar Check)</strong>.</span>
+                  </div>
                 </div>
               </div>
-              <div className="badge" style={{ padding: '0.75rem 1.25rem', background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 800 }}>
-                {enrolledParticipants.length} INSCRITOS EN TOTAL
-              </div>
+
             </div>
 
             <div className="card glass animate-fade-in" style={{ borderTop: '4px solid var(--success)' }} suppressHydrationWarning>
@@ -320,120 +450,167 @@ export default function InscriptionsClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {enrolledParticipants.length > 0 ? enrolledParticipants.map((i) => (
-                      <tr key={i.id}>
-                        <td>
-                          <div style={{ fontWeight: 800 }}>{i.participantes.apellido}, {i.participantes.nombre}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <MapPin size={10} /> {i.participantes.localidad_vive || 'Sin localidad'}
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{i.participantes.ci}</div>
-                          <select
-                            value={i.grupo_id}
-                            onChange={(e) => updateGroup(i.id, e.target.value)}
-                            style={{
-                              marginTop: '0.5rem',
-                              padding: '0.2rem 0.4rem',
-                              fontSize: '0.7rem',
-                              borderRadius: '0.4rem',
-                              border: '1px solid var(--border)',
-                              background: 'var(--surface)',
-                              color: 'var(--primary)',
-                              fontWeight: 700,
-                              width: '100%'
-                            }}
-                          >
-                            {groups.map(g => (
-                              <option key={g.id} value={g.id}>{g.name}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td style={{ width: '200px' }}>
-                          <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                            <Mail size={12} style={{ color: 'var(--muted)', minWidth: '12px' }} />
-                            <input
-                              type="email"
-                              defaultValue={i.participantes.correo || ''}
-                              onBlur={(e) => {
-                                if (e.target.value !== i.participantes.correo) {
-                                  updateParticipantContact(i.participante_id, 'correo', e.target.value);
-                                }
-                              }}
-                              style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.75rem', color: 'var(--foreground)', minWidth: '0' }}
-                              placeholder="Sin correo..."
-                            />
-                          </div>
-                          <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <Phone size={12} style={{ color: 'var(--muted)', minWidth: '12px' }} />
-                            <input
-                              type="text"
-                              defaultValue={i.participantes.celular || ''}
-                              onBlur={(e) => {
-                                if (e.target.value !== i.participantes.celular) {
-                                  updateParticipantContact(i.participante_id, 'celular', e.target.value);
-                                }
-                              }}
-                              style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.75rem', color: 'var(--foreground)', minWidth: '0' }}
-                              placeholder="Sin celular..."
-                            />
-                          </div>
-                        </td>
-                        <td>
-                          <select
-                            value={i.estado}
-                            onChange={(e) => updateStatus(i.id, e.target.value)}
-                            style={{
-                              padding: '0.3rem 0.6rem',
-                              borderRadius: '0.5rem',
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              border: 'none',
-                              cursor: 'pointer',
-                              background: i.estado === 'inscrito' ? 'rgba(16, 217, 139, 0.1)' : (i.estado === 'preinscrito' ? 'rgba(245, 166, 35, 0.1)' : 'rgba(255,255,255,0.05)'),
-                              color: i.estado === 'inscrito' ? 'var(--success)' : (i.estado === 'preinscrito' ? '#f5a623' : 'var(--foreground-2)'),
-                              textTransform: 'uppercase'
-                            }}
-                          >
-                            <option value="preinscrito">Preinscrito</option>
-                            <option value="inscrito">Inscrito</option>
-                            <option value="baja">Baja</option>
-                          </select>
+                    {enrolledParticipants
+                      .filter(i => filterStatus === 'all' || i.estado === filterStatus)
+                      .length > 0 ? enrolledParticipants
+                        .filter(i => filterStatus === 'all' || i.estado === filterStatus)
+                        .map((i) => {
+                          const isBaja = i.estado === 'baja';
+                          const initials = `${i.participantes.nombre?.[0] || ''}${i.participantes.apellido?.[0] || ''}`.toUpperCase();
 
-                          {i.observacion && (
-                            <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginTop: '0.3rem', maxWidth: '150px', fontStyle: 'italic' }}>
-                              "{i.observacion}"
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <button
-                            onClick={() => updateDocumento(i.id, !!i.entrego_documento)}
-                            className={`btn ${i.entrego_documento ? 'btn-primary' : 'btn-ghost'}`}
-                            style={{
-                              padding: '0.4rem 0.6rem',
-                              fontSize: '0.75rem',
-                              borderRadius: '0.5rem',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.3rem',
-                              border: i.entrego_documento ? 'none' : '1px solid var(--border)'
-                            }}
-                            title={i.entrego_documento ? "Documento entregado" : "Falta documento"}
-                          >
-                            <CheckCircle size={14} style={{ opacity: i.entrego_documento ? 1 : 0.4 }} />
-                            {i.entrego_documento ? 'Entregó' : 'Pendiente'}
-                          </button>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
-                            <Calendar size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                            {new Date(i.created_at).toLocaleDateString()}
-                          </div>
-                        </td>
-                      </tr>
-                    )) : (
+                          return (
+                            <tr key={i.id} style={{
+                              opacity: isBaja ? 0.6 : 1,
+                              background: isBaja ? 'rgba(0,0,0,0.02)' : 'transparent',
+                              transition: 'all 0.3s ease'
+                            }}>
+                              <td style={{ padding: '1rem 0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                  <div style={{
+                                    width: '38px', height: '38px', borderRadius: '12px',
+                                    background: isBaja ? 'var(--border)' : 'var(--primary-light)',
+                                    color: isBaja ? 'var(--muted)' : 'var(--primary)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '0.85rem', fontWeight: 900,
+                                    border: `1px solid ${isBaja ? 'transparent' : 'rgba(var(--primary-rgb), 0.1)'}`,
+                                    boxShadow: isBaja ? 'none' : '0 4px 10px rgba(0,0,0,0.05)'
+                                  }}>
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{
+                                      fontWeight: 800,
+                                      fontSize: '0.95rem',
+                                      textDecoration: isBaja ? 'line-through' : 'none',
+                                      color: isBaja ? 'var(--muted)' : 'var(--foreground)'
+                                    }}>
+                                      {i.participantes.apellido}, {i.participantes.nombre}
+                                    </div>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}>
+                                      <MapPin size={10} /> {i.participantes.localidad_vive || 'Sin localidad'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--foreground-2)', marginBottom: '0.4rem' }}>{i.participantes.ci}</div>
+                                <select
+                                  value={i.grupo_id}
+                                  onChange={(e) => updateGroup(i.id, e.target.value)}
+                                  style={{
+                                    padding: '0.3rem 0.5rem',
+                                    fontSize: '0.7rem',
+                                    borderRadius: '0.5rem',
+                                    border: '1px solid var(--border)',
+                                    background: 'var(--surface)',
+                                    color: 'var(--primary)',
+                                    fontWeight: 800,
+                                    width: '100%',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {groups.map(g => (
+                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td style={{ width: '220px' }}>
+                                <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                  <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}>
+                                    <Mail size={12} style={{ color: 'var(--muted)' }} />
+                                  </div>
+                                  <input
+                                    type="email"
+                                    defaultValue={i.participantes.correo || ''}
+                                    onBlur={(e) => {
+                                      if (e.target.value !== i.participantes.correo) {
+                                        updateParticipantContact(i.participante_id, 'correo', e.target.value);
+                                      }
+                                    }}
+                                    style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid transparent', padding: '0.2rem 0', fontSize: '0.8rem', color: 'var(--foreground)', transition: 'all 0.2s' }}
+                                    placeholder="Sin correo..."
+                                    onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
+                                  />
+                                </div>
+                                <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}>
+                                    <Phone size={12} style={{ color: 'var(--muted)' }} />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    defaultValue={i.participantes.celular || ''}
+                                    onBlur={(e) => {
+                                      if (e.target.value !== i.participantes.celular) {
+                                        updateParticipantContact(i.participante_id, 'celular', e.target.value);
+                                      }
+                                    }}
+                                    style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid transparent', padding: '0.2rem 0', fontSize: '0.8rem', color: 'var(--foreground)', transition: 'all 0.2s' }}
+                                    placeholder="Sin celular..."
+                                    onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
+                                  />
+                                </div>
+                              </td>
+                              <td>
+                                <select
+                                  value={i.estado}
+                                  onChange={(e) => updateStatus(i.id, e.target.value)}
+                                  style={{
+                                    padding: '0.4rem 0.8rem',
+                                    borderRadius: '0.6rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.02em',
+                                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                                    background: i.estado === 'inscrito' ? 'var(--success)' : (i.estado === 'preinscrito' ? '#3b82f6' : 'var(--border)'),
+                                    color: i.estado === 'inscrito' || i.estado === 'preinscrito' ? 'white' : 'var(--muted)'
+                                  }}
+                                >
+                                  <option value="inscrito">Inscrito</option>
+                                  <option value="preinscrito">Preinscrito</option>
+                                  <option value="baja">Baja</option>
+                                </select>
+
+                                {i.observacion && (
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: '0.5rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <AlertCircle size={10} /> {i.observacion}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <button
+                                  onClick={() => i.estado === 'inscrito' && updateDocumento(i.id, !!i.entrego_documento)}
+                                  className={`btn ${i.entrego_documento ? 'btn-primary' : 'btn-ghost'}`}
+                                  disabled={i.estado !== 'inscrito'}
+                                  style={{
+                                    padding: '0.4rem 0.6rem',
+                                    fontSize: '0.75rem',
+                                    borderRadius: '0.5rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    border: i.entrego_documento ? 'none' : '1px solid var(--border)',
+                                    opacity: i.estado === 'inscrito' ? 1 : 0.4,
+                                    cursor: i.estado === 'inscrito' ? 'pointer' : 'not-allowed',
+                                    filter: i.estado === 'inscrito' ? 'none' : 'grayscale(1)'
+                                  }}
+                                  title={i.estado !== 'inscrito' ? "Solo habilitado para inscritos" : (i.entrego_documento ? "Documento entregado" : "Falta documento")}
+                                >
+                                  <CheckCircle size={14} style={{ opacity: i.entrego_documento ? 1 : 0.4 }} />
+                                  {i.entrego_documento ? 'Entregó' : 'Pendiente'}
+                                </button>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
+                                  <Calendar size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                                  {new Date(i.created_at).toLocaleDateString()}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }) : (
                       <tr>
                         <td colSpan={6} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
                           <Search size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />

@@ -280,8 +280,8 @@ export default function AttendanceClient({
     const moduleName = modules.find(m => m.id === selectedModule)?.titulo_modulo || ''
     const deptoName = departamentos.find(d => d.id === selectedDepto)?.nombre || 'N/A'
     // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
-    doc.setFillColor(184, 134, 11) // Dorado más profundo (DarkGoldenRod)
-    doc.rect(14, 48, 182, 10, 'F')
+    doc.setFillColor(187, 151, 58) // Dorado institucional #bb973a
+    doc.rect(14, 40, 182, 10, 'F')
     doc.setFontSize(12)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')

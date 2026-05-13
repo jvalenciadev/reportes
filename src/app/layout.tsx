@@ -25,26 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
-      <head>
-        <Script
-          id="hydration-fix"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                const observer = new MutationObserver((mutations) => {
-                  mutations.forEach((mutation) => {
-                    if (mutation.type === 'attributes' && (mutation.attributeName === 'bis_skin_checked' || mutation.attributeName?.startsWith('data-gr-'))) {
-                      mutation.target.removeAttribute(mutation.attributeName);
-                    }
-                  });
-                });
-                observer.observe(document.documentElement, { attributes: true, subtree: true });
-              })();
-            `,
-          }}
-        />
-      </head>
+      <head />
       <body suppressHydrationWarning>{children}</body>
     </html>
   );
