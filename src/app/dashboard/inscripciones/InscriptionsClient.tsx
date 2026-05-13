@@ -95,7 +95,19 @@ export default function InscriptionsClient({
     }
 
     console.log('Datos recibidos:', data)
-    setEnrolledParticipants(data || [])
+    const sortedData = (data || []).sort((a: any, b: any) => {
+      const apellidoA = (a.participantes?.apellido || '').toLowerCase();
+      const apellidoB = (b.participantes?.apellido || '').toLowerCase();
+      if (apellidoA < apellidoB) return -1;
+      if (apellidoA > apellidoB) return 1;
+      const nombreA = (a.participantes?.nombre || '').toLowerCase();
+      const nombreB = (b.participantes?.nombre || '').toLowerCase();
+      if (nombreA < nombreB) return -1;
+      if (nombreA > nombreB) return 1;
+      return 0;
+    });
+
+    setEnrolledParticipants(sortedData)
     setLoading(false)
   }
 
@@ -134,6 +146,28 @@ export default function InscriptionsClient({
       console.error('Error crítico al actualizar:', err)
       showNotif('error', 'Error al actualizar', err.message)
       loadParticipants()
+    }
+  }
+
+  const updateDocumento = async (id: string, currentValue: boolean) => {
+    try {
+      const newValue = !currentValue
+      const { data, error } = await supabase
+        .from('inscripciones')
+        .update({ entrego_documento: newValue })
+        .eq('id', id)
+        .select()
+
+      if (error) throw error
+      
+      showNotif('success', 'Documento Actualizado', newValue ? 'Documento marcado como entregado.' : 'Documento marcado como no entregado.')
+      
+      // Update local state directly for better UX
+      setEnrolledParticipants(prev => 
+        prev.map(p => p.id === id ? { ...p, entrego_documento: newValue } : p)
+      )
+    } catch (err: any) {
+      showNotif('error', 'Error al actualizar', err.message)
     }
   }
 
@@ -194,6 +228,29 @@ export default function InscriptionsClient({
       showNotif('error', 'Error al procesar baja', err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const updateParticipantContact = async (participanteId: string, field: 'correo' | 'celular', newValue: string) => {
+    try {
+      const { error } = await supabase
+        .from('participantes')
+        .update({ [field]: newValue })
+        .eq('id', participanteId)
+
+      if (error) throw error
+
+      showNotif('success', 'Datos Actualizados', `El ${field} ha sido actualizado exitosamente.`)
+      
+      setEnrolledParticipants(prev => 
+        prev.map(p => p.participante_id === participanteId ? { 
+          ...p, 
+          participantes: { ...p.participantes, [field]: newValue } 
+        } : p)
+      )
+    } catch (err: any) {
+      console.error('Error al actualizar contacto:', err)
+      showNotif('error', 'Error al actualizar', err.message)
     }
   }
 
@@ -258,6 +315,7 @@ export default function InscriptionsClient({
                       <th>Identidad / Grupo</th>
                       <th>Contacto</th>
                       <th>Estado / Obs.</th>
+                      <th style={{ textAlign: 'center' }}>Documentos</th>
                       <th style={{ textAlign: 'right' }}>Registro</th>
                     </tr>
                   </thead>
@@ -265,7 +323,7 @@ export default function InscriptionsClient({
                     {enrolledParticipants.length > 0 ? enrolledParticipants.map((i) => (
                       <tr key={i.id}>
                         <td>
-                          <div style={{ fontWeight: 800 }}>{i.participantes.nombre} {i.participantes.apellido}</div>
+                          <div style={{ fontWeight: 800 }}>{i.participantes.apellido}, {i.participantes.nombre}</div>
                           <div style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                             <MapPin size={10} /> {i.participantes.localidad_vive || 'Sin localidad'}
                           </div>
@@ -292,9 +350,35 @@ export default function InscriptionsClient({
                             ))}
                           </select>
                         </td>
-                        <td>
-                          <div style={{ fontSize: '0.8rem' }}><Mail size={12} style={{ verticalAlign: 'middle' }} /> {i.participantes.correo || '-'}</div>
-                          <div style={{ fontSize: '0.8rem' }}><Phone size={12} style={{ verticalAlign: 'middle' }} /> {i.participantes.celular || '-'}</div>
+                        <td style={{ width: '200px' }}>
+                          <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                            <Mail size={12} style={{ color: 'var(--muted)', minWidth: '12px' }} /> 
+                            <input 
+                              type="email"
+                              defaultValue={i.participantes.correo || ''} 
+                              onBlur={(e) => {
+                                if (e.target.value !== i.participantes.correo) {
+                                  updateParticipantContact(i.participante_id, 'correo', e.target.value);
+                                }
+                              }}
+                              style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.75rem', color: 'var(--foreground)', minWidth: '0' }}
+                              placeholder="Sin correo..."
+                            />
+                          </div>
+                          <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Phone size={12} style={{ color: 'var(--muted)', minWidth: '12px' }} />
+                            <input 
+                              type="text"
+                              defaultValue={i.participantes.celular || ''} 
+                              onBlur={(e) => {
+                                if (e.target.value !== i.participantes.celular) {
+                                  updateParticipantContact(i.participante_id, 'celular', e.target.value);
+                                }
+                              }}
+                              style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.75rem', color: 'var(--foreground)', minWidth: '0' }}
+                              placeholder="Sin celular..."
+                            />
+                          </div>
                         </td>
                         <td>
                           <select
@@ -323,6 +407,25 @@ export default function InscriptionsClient({
                             </div>
                           )}
                         </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            onClick={() => updateDocumento(i.id, !!i.entrego_documento)}
+                            className={`btn ${i.entrego_documento ? 'btn-primary' : 'btn-ghost'}`}
+                            style={{
+                              padding: '0.4rem 0.6rem',
+                              fontSize: '0.75rem',
+                              borderRadius: '0.5rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              border: i.entrego_documento ? 'none' : '1px solid var(--border)'
+                            }}
+                            title={i.entrego_documento ? "Documento entregado" : "Falta documento"}
+                          >
+                            <CheckCircle size={14} style={{ opacity: i.entrego_documento ? 1 : 0.4 }} />
+                            {i.entrego_documento ? 'Entregó' : 'Pendiente'}
+                          </button>
+                        </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
                             <Calendar size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
@@ -332,7 +435,7 @@ export default function InscriptionsClient({
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
                           <Search size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
                           <div>No hay participantes inscritos en este grupo</div>
                         </td>

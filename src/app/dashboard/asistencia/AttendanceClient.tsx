@@ -49,7 +49,9 @@ export default function AttendanceClient({
   const [dayNumber, setDayNumber] = useState(1)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [attendanceData, setAttendanceData] = useState<Record<string, string>>({}) // participantId -> status
+  const [historyDays, setHistoryDays] = useState<{dia: number, fecha: string, asistio: number, atraso: number, falta: number, permiso: number, total: number}[]>([])
 
   // 1. Initial Load: Programs
   useEffect(() => {
@@ -119,17 +121,61 @@ export default function AttendanceClient({
       .from('asistencias')
       .select('*')
       .eq('modulo_id', selectedModule)
-      .eq('dia', dayNumber)
-      .eq('fecha', selectedDate)
 
-    // Map existing attendance to state
+    // Filter existing attendance for the participants in this group
+    const enrolledIds = enrolled?.map((p: any) => p.participante_id) || []
+    const groupAttendance = existing?.filter((a: any) => enrolledIds.includes(a.participante_id)) || []
+
+    // Generate history of days
+    const historyMap = new Map()
+    groupAttendance.forEach((a: any) => {
+      const key = `${a.dia}-${a.fecha}`
+      if (!historyMap.has(key)) {
+        historyMap.set(key, { dia: a.dia, fecha: a.fecha, asistio: 0, atraso: 0, falta: 0, permiso: 0, total: 0 })
+      }
+      const entry = historyMap.get(key)
+      entry.total += 1
+      if (a.estado === 'asistio') entry.asistio += 1
+      if (a.estado === 'atraso') entry.atraso += 1
+      if (a.estado === 'falta') entry.falta += 1
+      if (a.estado === 'permiso') entry.permiso += 1
+    })
+    const historyList = Array.from(historyMap.values()).sort((a, b) => a.dia - b.dia)
+
+    // Auto-calculate the correct day number for the currently selected date
+    const existingDay = historyList.find(h => h.fecha === selectedDate);
+    const calculatedDayNumber = existingDay ? existingDay.dia : (historyList.length > 0 ? Math.max(...historyList.map(h => h.dia)) + 1 : 1);
+
+    // Map existing attendance for the SELECTED session to state
+    const currentSessionAttendance = groupAttendance.filter((a: any) => a.dia === calculatedDayNumber && a.fecha === selectedDate)
     const attMap: Record<string, string> = {}
-    existing?.forEach(a => {
+    currentSessionAttendance.forEach((a: any) => {
       attMap[a.participante_id] = a.estado
     })
 
-    setParticipants(enrolled || [])
+
+
+    const sortedEnrolled = (enrolled || []).sort((a: any, b: any) => {
+      const apellidoA = (a.participantes?.apellido || '').toLowerCase();
+      const apellidoB = (b.participantes?.apellido || '').toLowerCase();
+      if (apellidoA < apellidoB) return -1;
+      if (apellidoA > apellidoB) return 1;
+      const nombreA = (a.participantes?.nombre || '').toLowerCase();
+      const nombreB = (b.participantes?.nombre || '').toLowerCase();
+      if (nombreA < nombreB) return -1;
+      if (nombreA > nombreB) return 1;
+      return 0;
+    });
+
+    setParticipants(sortedEnrolled)
     setAttendanceData(attMap)
+    setHistoryDays(historyList)
+    
+    // Automatically keep dayNumber in sync
+    if (dayNumber !== calculatedDayNumber) {
+      setDayNumber(calculatedDayNumber)
+    }
+    
     setLoading(false)
   }
 
@@ -213,7 +259,7 @@ export default function AttendanceClient({
     // Table
     const tableRows = participants.map((p, index) => [
       index + 1,
-      `${p.participantes.nombre} ${p.participantes.apellido}`,
+      `${p.participantes.apellido}, ${p.participantes.nombre}`,
       p.participantes.ci,
       (attendanceData[p.participante_id] || 'Pte.').toUpperCase(),
       '________________'
@@ -258,15 +304,25 @@ export default function AttendanceClient({
         <div className="card glass" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.25rem', alignItems: 'end' }}>
           <div className="form-group">
             <label><CalendarDays size={14} color="var(--primary)" /> Jornada / Día</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <button className="btn btn-outline" style={{ padding: '0.5rem' }} onClick={() => setDayNumber(d => Math.max(1, d - 1))}><ChevronLeft size={18} /></button>
-              <div style={{ fontSize: '1.25rem', fontWeight: 900, width: '40px', textAlign: 'center' }}>{dayNumber}</div>
-              <button className="btn btn-outline" style={{ padding: '0.5rem' }} onClick={() => setDayNumber(d => d + 1)}><ChevronRight size={18} /></button>
+            <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface)', padding: '0.55rem 1rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--primary)', textAlign: 'center', width: '100%' }}>
+                DÍA {dayNumber}
+              </div>
             </div>
           </div>
           <div className="form-group">
             <label>Fecha de Registro</label>
-            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
+            <input type="date" value={selectedDate} onChange={e => {
+              const newDate = e.target.value;
+              setSelectedDate(newDate);
+              // Optimistic update for dayNumber to avoid flicker
+              const existingDay = historyDays.find(h => h.fecha === newDate);
+              if (existingDay) {
+                setDayNumber(existingDay.dia);
+              } else {
+                setDayNumber(historyDays.length > 0 ? Math.max(...historyDays.map(h => h.dia)) + 1 : 1);
+              }
+            }} />
           </div>
           <div className="form-group">
             <label>Programa</label>
@@ -297,16 +353,93 @@ export default function AttendanceClient({
         </div>
 
         {selectedGroup ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-            {/* Listado de Pase de Lista */}
-            <div className="card glass" style={{ borderTop: '4px solid var(--primary)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            {/* Prominent History Table */}
+            <div className="card glass" style={{ borderTop: '4px solid var(--info)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <UsersIcon size={20} color="var(--primary)" /> Pase de Lista: {groups.find(g => g.id === selectedGroup)?.name}
+                  <History size={20} color="var(--info)" /> Jornadas Registradas para {groups.find(g => g.id === selectedGroup)?.name}
                 </h3>
-                {loading && <div className="animate-pulse" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Cargando lista...</div>}
+                <button 
+                  className="btn btn-outline" 
+                  onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    if (selectedDate !== today) {
+                      setSelectedDate(today);
+                    }
+                  }}
+                  style={{ borderColor: 'var(--info)', color: 'var(--info)' }}
+                >
+                  + Ir a Hoy (Nueva Jornada)
+                </button>
               </div>
+
+              {historyDays.length > 0 ? (
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr style={{ background: 'transparent' }}>
+                        <th>Jornada</th>
+                        <th>Fecha de Registro</th>
+                        <th style={{ textAlign: 'center' }}>Asistió</th>
+                        <th style={{ textAlign: 'center' }}>Atraso</th>
+                        <th style={{ textAlign: 'center' }}>Falta</th>
+                        <th style={{ textAlign: 'center' }}>Permiso</th>
+                        <th style={{ textAlign: 'center' }}>Total</th>
+                        <th style={{ textAlign: 'right' }}>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyDays.map(h => {
+                        const isEditing = h.dia === dayNumber && h.fecha === selectedDate;
+                        return (
+                          <tr key={`${h.dia}-${h.fecha}`} style={{ background: isEditing ? 'var(--primary-light)' : 'transparent', transition: 'all 0.2s' }}>
+                            <td style={{ fontWeight: 800, color: isEditing ? 'var(--primary)' : 'inherit' }}>
+                              Día {h.dia}
+                            </td>
+                            <td>{h.fecha}</td>
+                            <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 800 }}>{h.asistio}</td>
+                            <td style={{ textAlign: 'center', color: 'var(--warning)', fontWeight: 800 }}>{h.atraso}</td>
+                            <td style={{ textAlign: 'center', color: 'var(--danger)', fontWeight: 800 }}>{h.falta}</td>
+                            <td style={{ textAlign: 'center', color: 'var(--info)', fontWeight: 800 }}>{h.permiso}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>{h.total}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button 
+                                className={`btn ${isEditing ? 'btn-primary' : 'btn-ghost'}`}
+                                onClick={() => {
+                                  setDayNumber(h.dia);
+                                  setSelectedDate(h.fecha);
+                                }}
+                                style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', border: isEditing ? 'none' : '1px solid var(--border)' }}
+                              >
+                                {isEditing ? 'Editando...' : 'Ver / Editar'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '0.5rem', border: '1px dashed var(--border)' }}>
+                  <History size={32} style={{ opacity: 0.2, margin: '0 auto 1rem' }} />
+                  <div>No hay asistencias registradas aún. Comienza pasando lista abajo.</div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
+
+              {/* Listado de Pase de Lista */}
+              <div className="card glass" style={{ borderTop: '4px solid var(--primary)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <UsersIcon size={20} color="var(--primary)" /> Pase de Lista: Día {dayNumber} ({selectedDate})
+                  </h3>
+                  {loading && <div className="animate-pulse" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Cargando lista...</div>}
+                </div>
 
               <div className="table-container">
                 <table style={{ borderCollapse: 'separate', borderSpacing: '0 0.5rem' }}>
@@ -338,7 +471,7 @@ export default function AttendanceClient({
                       return (
                         <tr key={p.participante_id} style={{ background: rowBg, transition: 'background 0.2s' }}>
                           <td style={{ padding: '0.85rem 1rem' }}>
-                            <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{p.participantes.nombre} {p.participantes.apellido}</div>
+                            <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>{p.participantes.apellido}, {p.participantes.nombre}</div>
                             <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>CI: {p.participantes.ci}</div>
                           </td>
                           {(['asistio', 'atraso', 'falta', 'permiso'] as const).map((status) => {
@@ -379,7 +512,7 @@ export default function AttendanceClient({
                 <button
                   className="btn btn-primary"
                   style={{ flex: 2, padding: '1.25rem', fontSize: '1.1rem' }}
-                  onClick={saveAttendance}
+                  onClick={() => setShowConfirm(true)}
                   disabled={saving || participants.length === 0}
                 >
                   {saving ? 'Guardando cambios...' : <><Save size={20} /> Finalizar Pase de Lista</>}
@@ -413,8 +546,9 @@ export default function AttendanceClient({
             </div>
 
           </div>
-        ) : (
-          <div className="card glass" style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
+        </div>
+      ) : (
+        <div className="card glass" style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
             <Zap size={48} style={{ marginBottom: '1rem', opacity: 0.1 }} />
             <p>Selecciona Programa, Módulo y Grupo para iniciar el pase de lista</p>
           </div>
@@ -439,6 +573,49 @@ export default function AttendanceClient({
         }
       `}</style>
       </div>
+
+      {showConfirm && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div className="card glass animate-fade-up" style={{ maxWidth: '400px', width: '90%', padding: '2rem', borderTop: '4px solid var(--warning)' }}>
+            <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)' }}>
+              <AlertCircle size={24} /> Confirmar Asistencia
+            </h3>
+            <p style={{ marginBottom: '1.5rem', color: 'var(--muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+              ¿Estás seguro que los datos son correctos? <strong style={{ color: 'var(--foreground)' }}>Una vez finalizado, no se podrán editar fácilmente.</strong>
+            </p>
+            
+            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Total Inscritos:</span> <strong style={{ fontSize: '1.1rem' }}>{participants.length}</strong></div>
+              <div style={{ height: '1px', background: 'var(--border)', margin: '0.25rem 0' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)', fontSize: '0.9rem' }}><span>Total Asistieron:</span> <strong style={{ fontSize: '1.1rem' }}>{stats.asistieron}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--warning)', fontSize: '0.9rem' }}><span>Total Atrasos:</span> <strong style={{ fontSize: '1.1rem' }}>{stats.atrasos}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)', fontSize: '0.9rem' }}><span>Total Faltas:</span> <strong style={{ fontSize: '1.1rem' }}>{stats.faltas}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--info)', fontSize: '0.9rem' }}><span>Total Permisos:</span> <strong style={{ fontSize: '1.1rem' }}>{stats.permisos}</strong></div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowConfirm(false)}>
+                Cancelar
+              </button>
+              <button 
+                className="btn btn-primary" 
+                style={{ flex: 1, background: 'var(--warning)', borderColor: 'var(--warning)', color: '#000' }} 
+                onClick={() => {
+                  setShowConfirm(false);
+                  saveAttendance();
+                }}
+              >
+                Sí, Guardar Lista
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <StatusModal
         show={notif.show}
         type={notif.type}

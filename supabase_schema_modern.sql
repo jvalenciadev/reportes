@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.inscripciones (
     grupo_id UUID REFERENCES public.grupos(id) ON DELETE CASCADE,
     programa_id UUID REFERENCES public.programas(id) ON DELETE CASCADE,
     estado TEXT DEFAULT 'inscrito' CHECK (estado IN ('inscrito', 'confirmado', 'baja', 'permiso')),
+    entrego_documento BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     UNIQUE(participante_id, programa_id) -- Un participante solo se inscribe una vez por programa
 );

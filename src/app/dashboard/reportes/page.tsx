@@ -75,7 +75,7 @@ export default async function ReportesPage({
 
   const flattenedEnrollment = enrollmentData?.map(g => {
     const total_inscritos = g.inscripciones?.length || 0
-    const total_confirmados = g.inscripciones?.filter((i: any) => i.estado === 'confirmado').length || 0
+    const total_confirmados = g.inscripciones?.filter((i: any) => i.estado === 'inscrito').length || 0
     
     return {
       group_name: g.name || 'Grupo sin nombre',

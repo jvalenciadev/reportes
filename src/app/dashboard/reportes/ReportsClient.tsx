@@ -163,7 +163,7 @@ export default function ReportsClient({
       const confirmados = deptEnr.reduce((acc, curr) => acc + (curr.total_confirmados || 0), 0)
       return {
         name: dept,
-        Confirmados: confirmados,
+        Inscritos: confirmados,
         Pendientes: Math.max(0, inscritos - confirmados)
       }
     })
@@ -183,10 +183,9 @@ export default function ReportsClient({
     })
   }, [filteredAttendance])
 
-  // --- FUNNEL DATA ---
   const funnelData = useMemo(() => [
-    { name: 'Inscritos', value: metrics.total_inscritos, fill: COLORS.primary, icon: Users },
-    { name: 'Confirmados', value: metrics.total_confirmados, fill: COLORS.info, icon: TrendingUp },
+    { name: 'Preinscritos', value: metrics.total_inscritos, fill: COLORS.primary, icon: Users },
+    { name: 'Inscritos', value: metrics.total_confirmados, fill: COLORS.info, icon: TrendingUp },
     { name: 'Asistencia Prom.', value: metrics.avg_per_day, fill: COLORS.success, icon: CheckSquare }
   ], [metrics, COLORS])
 
@@ -210,7 +209,7 @@ export default function ReportsClient({
       const total = gAtt.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
       return {
         name: g.group_name,
-        confirmacion: g.total_inscritos > 0 ? Math.min((g.total_confirmados / g.total_inscritos) * 100, 100) : 0,
+        inscripcion: g.total_inscritos > 0 ? Math.min((g.total_confirmados / g.total_inscritos) * 100, 100) : 0,
         asistencia: total > 0 ? Math.min((ok / total) * 100, 100) : 0,
         size: g.total_inscritos
       }
@@ -260,8 +259,8 @@ export default function ReportsClient({
 
       {/* Main KPI Dashboard */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
-        <KPI title="Población Total" value={metrics.total_inscritos} icon={Users} color={COLORS.primary} subtitle="Inscritos registrados" />
-        <KPI title="Tasa de Confirmación" value={`${metrics.confirmation_rate}%`} icon={Target} color={COLORS.info} subtitle="Compromiso inicial" />
+        <KPI title="Población Total" value={metrics.total_inscritos} icon={Users} color={COLORS.primary} subtitle="Preinscritos registrados" />
+        <KPI title="Tasa de Inscripción" value={`${metrics.confirmation_rate}%`} icon={Target} color={COLORS.info} subtitle="Compromiso inicial" />
         <KPI title="Efectividad de Asistencia" value={`${metrics.attendance_rate}%`} icon={Zap} color={COLORS.success} subtitle="Asistencia real vs esperada" />
         <KPI title="Score de Eficiencia" value={metrics.efficiency_score} icon={MousePointer2} color={COLORS.gold} subtitle="Cálculo algorítmico" />
         <KPI title="Tasa de Deserción" value={`${metrics.dropout_rate}%`} icon={AlertTriangle} color={COLORS.danger} subtitle="Faltas y permisos" />
@@ -382,7 +381,7 @@ export default function ReportsClient({
                 <h4 style={{ margin: 0, fontWeight: 800 }}>Líder de Eficiencia</h4>
               </div>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--foreground-2)' }}>
-                El departamento de <b>{departmentalComparison[0]?.name}</b> lidera la conversión con un <b>{((departmentalComparison[0]?.Confirmados / metrics.total_inscritos) * 100).toFixed(1)}%</b> del total nacional.
+                El departamento de <b>{departmentalComparison[0]?.name}</b> lidera la conversión con un <b>{((departmentalComparison[0]?.Inscritos / metrics.total_inscritos) * 100).toFixed(1)}%</b> del total nacional.
               </p>
             </div>
             <div className="glass card" style={{ padding: '1.5rem', borderLeft: `6px solid ${COLORS.danger}` }}>
@@ -391,7 +390,7 @@ export default function ReportsClient({
                 <h4 style={{ margin: 0, fontWeight: 800 }}>Zona de Riesgo</h4>
               </div>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--foreground-2)' }}>
-                Se detectan <b>{anomalies.length} grupos</b> en zona crítica. La correlación sugiere que una baja confirmación (&lt;40%) predice deserción masiva.
+                Se detectan <b>{anomalies.length} grupos</b> en zona crítica. La correlación sugiere que una baja inscripción (&lt;40%) predice deserción masiva.
               </p>
             </div>
           </div>
@@ -422,7 +421,7 @@ export default function ReportsClient({
               <ResponsiveContainer width="100%" height={500}>
                 <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" opacity={0.4} />
-                  <XAxis type="number" dataKey="confirmacion" name="Confirmación" unit="%" domain={[0, 100]} stroke="var(--chart-text)" fontSize={12} />
+                  <XAxis type="number" dataKey="inscripcion" name="Inscripción" unit="%" domain={[0, 100]} stroke="var(--chart-text)" fontSize={12} />
                   <YAxis type="number" dataKey="asistencia" name="Asistencia" unit="%" domain={[0, 100]} stroke="var(--chart-text)" fontSize={12} />
                   <ZAxis type="number" dataKey="size" range={[30, 400]} name="Población" />
 
@@ -433,14 +432,14 @@ export default function ReportsClient({
                   <ReferenceArea x1={0} x2={75} y1={75} y2={100} fill="rgba(79, 142, 247, 0.05)" />
 
                   <Tooltip content={<CustomTooltip />} />
-                  <ReferenceLine x={75} stroke="var(--foreground-3)" strokeDasharray="5 5" label={{ position: 'top', value: 'META CONF.', fill: 'var(--foreground-3)', fontSize: 9, fontWeight: 800 }} />
+                  <ReferenceLine x={75} stroke="var(--foreground-3)" strokeDasharray="5 5" label={{ position: 'top', value: 'META INSCR.', fill: 'var(--foreground-3)', fontSize: 9, fontWeight: 800 }} />
                   <ReferenceLine y={75} stroke="var(--foreground-3)" strokeDasharray="5 5" label={{ position: 'right', value: 'META ASIST.', fill: 'var(--foreground-3)', fontSize: 9, fontWeight: 800 }} />
 
                   <Scatter name="Grupos" data={performanceMatrix} fill={COLORS.primary}>
                     {performanceMatrix.map((entry, index) => {
                       // Logic for color based on strategic position
-                      const isLeader = entry.asistencia >= 75 && entry.confirmacion >= 75;
-                      const isRisk = entry.asistencia < 60 || entry.confirmacion < 40;
+                      const isLeader = entry.asistencia >= 75 && entry.inscripcion >= 75;
+                      const isRisk = entry.asistencia < 60 || entry.inscripcion < 40;
 
                       return (
                         <Cell
@@ -489,7 +488,7 @@ export default function ReportsClient({
               </div>
               <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.success}44`, background: `${COLORS.success}11` }}>
                 <div style={{ fontWeight: 900, color: COLORS.success, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA A: LÍDERES</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Alta Confirmación + Alta Asistencia. Grupos modelo.</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Alta Inscripción + Alta Asistencia. Grupos modelo.</div>
               </div>
             </div>
           </ChartCard>
@@ -501,8 +500,8 @@ export default function ReportsClient({
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" stroke="var(--chart-text)" fontSize={11} width={100} fontWeight={700} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="Confirmados" fill={COLORS.info} radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="Confirmados" position="right" style={{ fill: 'var(--foreground)', fontSize: '0.7rem', fontWeight: 800 }} />
+                  <Bar dataKey="Inscritos" fill={COLORS.info} radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="Inscritos" position="right" style={{ fill: 'var(--foreground)', fontSize: '0.7rem', fontWeight: 800 }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -548,9 +547,9 @@ export default function ReportsClient({
                 <tr>
                   <th>Identificador Grupo</th>
                   <th>Sede</th>
+                  <th>Preinscritos</th>
                   <th>Inscritos</th>
-                  <th>Confirmados</th>
-                  <th>Confirmación %</th>
+                  <th>Inscripción %</th>
                   <th>Asistencia Prom.</th>
                   <th>Score Final</th>
                 </tr>
