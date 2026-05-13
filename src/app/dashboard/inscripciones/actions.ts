@@ -84,6 +84,6 @@ export async function migrateParticipant(data: any) {
     return { success: true }
   } catch (error: any) {
     console.error('Error en migración:', error.message)
-    throw error
+    return { error: error.message || 'Error desconocido en la migración' }
   }
 }

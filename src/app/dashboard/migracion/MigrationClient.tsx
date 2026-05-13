@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { 
-  Upload, FileText, CheckCircle, AlertCircle, 
+import {
+  Upload, FileText, CheckCircle, AlertCircle,
   Users, Shield, Building, ArrowRight, Loader2,
   Download, Database, Link as LinkIcon, Activity,
   GraduationCap
@@ -11,12 +11,12 @@ import StatusModal, { StatusType } from '../components/StatusModal'
 import { createSystemUser, assignFacilitatorGroup } from '../usuarios/actions'
 import { migrateParticipant } from '../inscripciones/actions'
 
-export default function MigrationClient({ 
-  roles = [], 
-  departamentos = [] 
-}: { 
-  roles: any[], 
-  departamentos: any[] 
+export default function MigrationClient({
+  roles = [],
+  departamentos = []
+}: {
+  roles: any[],
+  departamentos: any[]
 }) {
   const [activeTab, setActiveTab] = useState<'users' | 'assignments' | 'participants'>('users')
   const [file, setFile] = useState<File | null>(null)
@@ -68,7 +68,7 @@ export default function MigrationClient({
       // 1. Robust encoding detection (UTF-8 vs Windows-1252)
       const arrayBuffer = await file.arrayBuffer()
       let cleanText = ''
-      
+
       try {
         const utf8Decoder = new TextDecoder('utf-8', { fatal: true })
         cleanText = utf8Decoder.decode(arrayBuffer)
@@ -79,7 +79,7 @@ export default function MigrationClient({
       }
 
       cleanText = cleanText.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
-      
+
       // 2. Robust CSV Parser for quoted fields
       const parseCSVLine = (line: string, delimiter: string) => {
         const result = []
@@ -128,24 +128,26 @@ export default function MigrationClient({
             if (!email || !nombre || !rowData.password || !rowData.role) throw new Error('Faltan campos obligatorios')
             const depto = departamentos.find(d => d.name.toLowerCase() === (rowData.departamento || '').toLowerCase())
             const formData = new FormData()
-            formData.append('nombre', nombre); formData.append('apellidos', rowData.apellidos || ''); 
+            formData.append('nombre', nombre); formData.append('apellidos', rowData.apellidos || '');
             formData.append('ci', rowData.ci || ''); formData.append('correo', email);
             formData.append('email', email); formData.append('password', rowData.password);
             formData.append('role', rowData.role.toLowerCase()); formData.append('departamento_id', depto?.id || '');
-            await createSystemUser(formData)
+            const res = await createSystemUser(formData)
+            if (res?.error) throw new Error(res.error)
             newResults.push({ name: `${nombre} (${email})`, status: 'success' })
           } else if (activeTab === 'assignments') {
             const f_email = rowData.facilitador_email || rowData.email
             const g_name = rowData.grupo_nombre || rowData.grupo
             if (!f_email || !g_name) throw new Error('Faltan campos')
-            await assignFacilitatorGroup(f_email, g_name)
+            const res = await assignFacilitatorGroup(f_email, g_name)
+            if (res?.error) throw new Error(res.error)
             newResults.push({ name: `${f_email} -> ${g_name}`, status: 'success' })
           } else {
             // Participants Migration
             if (!rowData.nombre || !rowData.ci || !rowData.grupo_nombre || !rowData.programa_titulo) {
               throw new Error('Faltan campos (nombre, ci, grupo_nombre, programa_titulo)')
             }
-            await migrateParticipant({
+            const res = await migrateParticipant({
               nombre: rowData.nombre,
               apellido: rowData.apellido || '',
               ci: rowData.ci,
@@ -154,6 +156,7 @@ export default function MigrationClient({
               grupo_nombre: rowData.grupo_nombre,
               programa_titulo: rowData.programa_titulo
             })
+            if (res?.error) throw new Error(res.error)
             newResults.push({ name: `${rowData.nombre} ${rowData.apellido} (CI: ${rowData.ci})`, status: 'success' })
           }
         } catch (err: any) {
@@ -176,27 +179,27 @@ export default function MigrationClient({
 
   return (
     <div className="animate-fade-up" style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '2.5rem' }}>
-      
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        
+
         {/* Tab Switcher */}
         <div style={{ display: 'flex', gap: '0.75rem', background: 'var(--surface)', padding: '0.4rem', borderRadius: '1.25rem', width: 'fit-content', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}>
-          <button 
-            className={`btn ${activeTab === 'users' ? 'btn-primary' : ''}`} 
+          <button
+            className={`btn ${activeTab === 'users' ? 'btn-primary' : ''}`}
             style={{ borderRadius: '1rem', background: activeTab === 'users' ? 'var(--primary)' : 'transparent', color: activeTab === 'users' ? 'white' : 'var(--foreground-2)', padding: '0.6rem 1.25rem' }}
             onClick={() => { setActiveTab('users'); setFile(null); setResults([]); }}
           >
             <Users size={16} /> Usuarios
           </button>
-          <button 
-            className={`btn ${activeTab === 'assignments' ? 'btn-primary' : ''}`} 
+          <button
+            className={`btn ${activeTab === 'assignments' ? 'btn-primary' : ''}`}
             style={{ borderRadius: '1rem', background: activeTab === 'assignments' ? 'var(--primary)' : 'transparent', color: activeTab === 'assignments' ? 'white' : 'var(--foreground-2)', padding: '0.6rem 1.25rem' }}
             onClick={() => { setActiveTab('assignments'); setFile(null); setResults([]); }}
           >
             <LinkIcon size={16} /> Asignaciones
           </button>
-          <button 
-            className={`btn ${activeTab === 'participants' ? 'btn-primary' : ''}`} 
+          <button
+            className={`btn ${activeTab === 'participants' ? 'btn-primary' : ''}`}
             style={{ borderRadius: '1rem', background: activeTab === 'participants' ? 'var(--primary)' : 'transparent', color: activeTab === 'participants' ? 'white' : 'var(--foreground-2)', padding: '0.6rem 1.25rem' }}
             onClick={() => { setActiveTab('participants'); setFile(null); setResults([]); }}
           >
@@ -206,11 +209,11 @@ export default function MigrationClient({
 
         {/* Upload Card */}
         <div className="card glass" style={{ padding: '3.5rem 2rem', textAlign: 'center', border: '2px dashed var(--border)', background: 'transparent' }}>
-          <div style={{ 
-            width: '80px', height: '80px', borderRadius: '2.25rem', 
-            background: activeTab === 'participants' ? 'var(--info-light)' : (activeTab === 'users' ? 'var(--primary-light)' : 'var(--success-light)'), 
-            color: activeTab === 'participants' ? 'var(--info)' : (activeTab === 'users' ? 'var(--primary)' : 'var(--success)'), 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          <div style={{
+            width: '80px', height: '80px', borderRadius: '2.25rem',
+            background: activeTab === 'participants' ? 'var(--info-light)' : (activeTab === 'users' ? 'var(--primary-light)' : 'var(--success-light)'),
+            color: activeTab === 'participants' ? 'var(--info)' : (activeTab === 'users' ? 'var(--primary)' : 'var(--success)'),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 2rem', boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
           }}>
             {activeTab === 'participants' ? <GraduationCap size={40} /> : (activeTab === 'users' ? <Upload size={40} /> : <Database size={40} />)}
@@ -219,8 +222,8 @@ export default function MigrationClient({
             {activeTab === 'participants' ? 'Migrar Participantes' : (activeTab === 'users' ? 'Migrar Usuarios' : 'Asignar Grupos')}
           </h2>
           <p style={{ color: 'var(--foreground-2)', marginBottom: '2.5rem', maxWidth: '500px', margin: '0 auto 2.5rem', lineHeight: 1.6 }}>
-            {activeTab === 'participants' 
-              ? 'Sube un CSV para inscribir participantes masivamente en grupos y programas.' 
+            {activeTab === 'participants'
+              ? 'Sube un CSV para inscribir participantes masivamente en grupos y programas.'
               : (activeTab === 'users' ? 'Crea cuentas de acceso administrativo masivamente.' : 'Vincula facilitadores con sus grupos académicos.')}
           </p>
 
@@ -282,8 +285,8 @@ export default function MigrationClient({
               </code>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--foreground-2)', lineHeight: 1.6 }}>
-              {activeTab === 'participants' 
-                ? 'El sistema buscará automáticamente el grupo y el programa por su nombre exacto para realizar la inscripción.' 
+              {activeTab === 'participants'
+                ? 'El sistema buscará automáticamente el grupo y el programa por su nombre exacto para realizar la inscripción.'
                 : 'Asegúrate de que los correos electrónicos sean únicos en el sistema.'}
             </p>
           </div>
