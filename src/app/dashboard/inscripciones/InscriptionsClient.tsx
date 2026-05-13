@@ -126,7 +126,7 @@ export default function InscriptionsClient({
 
     try {
       console.log(`Intentando actualizar ID: ${id} a estado: ${newStatus}`)
-      
+
       const { data, error, count } = await supabase
         .from('inscripciones')
         .update({ estado: newStatus })
@@ -134,7 +134,7 @@ export default function InscriptionsClient({
         .select() // Forzar que devuelva el registro actualizado
 
       if (error) throw error
-      
+
       if (!data || data.length === 0) {
         throw new Error('No se encontró el registro o no tienes permisos para editarlo (RLS).')
       }
@@ -159,11 +159,11 @@ export default function InscriptionsClient({
         .select()
 
       if (error) throw error
-      
+
       showNotif('success', 'Documento Actualizado', newValue ? 'Documento marcado como entregado.' : 'Documento marcado como no entregado.')
-      
+
       // Update local state directly for better UX
-      setEnrolledParticipants(prev => 
+      setEnrolledParticipants(prev =>
         prev.map(p => p.id === id ? { ...p, entrego_documento: newValue } : p)
       )
     } catch (err: any) {
@@ -186,7 +186,7 @@ export default function InscriptionsClient({
         .select()
 
       if (error) throw error
-      
+
       if (!data || data.length === 0) throw new Error('No se pudo actualizar el grupo.')
 
       setConfirmModal({ show: false, id: '', newGroupId: '', groupName: '' })
@@ -204,12 +204,12 @@ export default function InscriptionsClient({
     setSaving(true)
     try {
       console.log(`Procesando BAJA para ID: ${reasonModal.id} con motivo: ${reason}`)
-      
+
       const { data, error } = await supabase
         .from('inscripciones')
-        .update({ 
-          estado: reasonModal.status, 
-          observacion: reason 
+        .update({
+          estado: reasonModal.status,
+          observacion: reason
         })
         .eq('id', reasonModal.id)
         .select()
@@ -219,7 +219,7 @@ export default function InscriptionsClient({
       if (!data || data.length === 0) {
         throw new Error('No se pudo procesar la baja. Verifica tus permisos de base de datos.')
       }
-      
+
       setReasonModal({ show: false, id: '', status: '' })
       loadParticipants()
       showNotif('success', 'Baja Registrada', 'El participante ha sido dado de baja con éxito.')
@@ -241,11 +241,11 @@ export default function InscriptionsClient({
       if (error) throw error
 
       showNotif('success', 'Datos Actualizados', `El ${field} ha sido actualizado exitosamente.`)
-      
-      setEnrolledParticipants(prev => 
-        prev.map(p => p.participante_id === participanteId ? { 
-          ...p, 
-          participantes: { ...p.participantes, [field]: newValue } 
+
+      setEnrolledParticipants(prev =>
+        prev.map(p => p.participante_id === participanteId ? {
+          ...p,
+          participantes: { ...p.participantes, [field]: newValue }
         } : p)
       )
     } catch (err: any) {
@@ -352,10 +352,10 @@ export default function InscriptionsClient({
                         </td>
                         <td style={{ width: '200px' }}>
                           <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                            <Mail size={12} style={{ color: 'var(--muted)', minWidth: '12px' }} /> 
-                            <input 
+                            <Mail size={12} style={{ color: 'var(--muted)', minWidth: '12px' }} />
+                            <input
                               type="email"
-                              defaultValue={i.participantes.correo || ''} 
+                              defaultValue={i.participantes.correo || ''}
                               onBlur={(e) => {
                                 if (e.target.value !== i.participantes.correo) {
                                   updateParticipantContact(i.participante_id, 'correo', e.target.value);
@@ -367,9 +367,9 @@ export default function InscriptionsClient({
                           </div>
                           <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                             <Phone size={12} style={{ color: 'var(--muted)', minWidth: '12px' }} />
-                            <input 
+                            <input
                               type="text"
-                              defaultValue={i.participantes.celular || ''} 
+                              defaultValue={i.participantes.celular || ''}
                               onBlur={(e) => {
                                 if (e.target.value !== i.participantes.celular) {
                                   updateParticipantContact(i.participante_id, 'celular', e.target.value);
@@ -456,27 +456,27 @@ export default function InscriptionsClient({
         onClose={() => setNotif({ ...notif, show: false })}
       />
 
-    <ReasonModal
-      show={reasonModal.show}
-      title="Confirmar Baja"
-      loading={saving}
-      onConfirm={handleConfirmBaja}
-      onCancel={() => {
-        setReasonModal({ show: false, id: '', status: '' })
-        loadParticipants() // Revertir el select
-      }}
-    />
-    <ConfirmModal
-      show={confirmModal.show}
-      title="Cambio de Grupo"
-      message={`¿Estás seguro de mover a este participante al grupo "${confirmModal.groupName}"?`}
-      loading={saving}
-      onConfirm={handleConfirmGroup}
-      onCancel={() => {
-        setConfirmModal({ show: false, id: '', newGroupId: '', groupName: '' })
-        loadParticipants()
-      }}
-    />
+      <ReasonModal
+        show={reasonModal.show}
+        title="Confirmar Baja"
+        loading={saving}
+        onConfirm={handleConfirmBaja}
+        onCancel={() => {
+          setReasonModal({ show: false, id: '', status: '' })
+          loadParticipants() // Revertir el select
+        }}
+      />
+      <ConfirmModal
+        show={confirmModal.show}
+        title="Cambio de Grupo"
+        message={`¿Estás seguro de mover a este participante al grupo "${confirmModal.groupName}"?`}
+        loading={saving}
+        onConfirm={handleConfirmGroup}
+        onCancel={() => {
+          setConfirmModal({ show: false, id: '', newGroupId: '', groupName: '' })
+          loadParticipants()
+        }}
+      />
     </>
   )
 }
