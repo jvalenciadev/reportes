@@ -1,31 +1,33 @@
 'use client'
 
-import { useState } from 'react'
-import { 
-  UserPlus, Trash2, Shield, Building, Mail, 
-  Lock, User as UserIcon, Edit2, X, Save 
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  UserPlus, Trash2, Shield, Building, Mail,
+  Lock, User as UserIcon, Edit2, X, Save, Key, Loader2, Eye, EyeOff
 } from 'lucide-react'
-import { createSystemUser, deleteSystemUser, updateSystemUser } from './actions'
+import { createSystemUser, deleteSystemUser, updateSystemUser, updateSystemUserPassword } from './actions'
 import StatusModal, { StatusType } from '../components/StatusModal'
 
-export default function UserManagementClient({ 
-  users = [], 
-  roles = [], 
-  departamentos = [] 
-}: { 
-  users: any[], 
-  roles: any[], 
-  departamentos: any[] 
+export default function UserManagementClient({
+  users = [],
+  roles = [],
+  departamentos = []
+}: {
+  users: any[],
+  roles: any[],
+  departamentos: any[]
 }) {
   const [loading, setLoading] = useState(false)
   const [editingUser, setEditingUser] = useState<any>(null)
   const [notif, setNotif] = useState({ show: false, type: 'info' as StatusType, title: '', message: '' })
+  const [pwdModal, setPwdModal] = useState({ show: false, userId: '', identifier: '' })
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
     const formData = new FormData(e.currentTarget)
-    
+
     try {
       if (editingUser) {
         await updateSystemUser(editingUser.id, formData)
@@ -35,7 +37,7 @@ export default function UserManagementClient({
         await createSystemUser(formData)
         setNotif({ show: true, type: 'success', title: 'Creado', message: 'La cuenta ha sido creada exitosamente.' })
       }
-      ;(e.target as HTMLFormElement).reset()
+      ; (e.target as HTMLFormElement).reset()
     } catch (err: any) {
       setNotif({ show: true, type: 'error', title: 'Error', message: err.message })
     } finally {
@@ -45,7 +47,7 @@ export default function UserManagementClient({
 
   const handleDelete = async (userId: string, email: string) => {
     if (!confirm(`¿Estás seguro de eliminar permanentemente a ${email}?`)) return
-    
+
     try {
       await deleteSystemUser(userId)
       setNotif({ show: true, type: 'success', title: 'Eliminado', message: 'El usuario ha sido removido del sistema.' })
@@ -59,19 +61,41 @@ export default function UserManagementClient({
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const handleChangePassword = (userId: string, identifier: string) => {
+    setPwdModal({ show: true, userId, identifier })
+  }
+
+  const submitPasswordChange = async (newPassword: string) => {
+    if (newPassword.length < 6) return
+    setLoading(true)
+    try {
+      const result = await updateSystemUserPassword(pwdModal.userId, newPassword)
+      if (result.error) {
+        setNotif({ show: true, type: 'error', title: 'Error', message: result.error })
+      } else {
+        setNotif({ show: true, type: 'success', title: 'Actualizado', message: 'La contraseña ha sido actualizada exitosamente.' })
+        setPwdModal({ show: false, userId: '', identifier: '' })
+      }
+    } catch (err: any) {
+      setNotif({ show: true, type: 'error', title: 'Error', message: err.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="animate-fade-up" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
-      
+
       {/* Formulario Dinámico */}
       <div className="card glass" style={{ height: 'fit-content', borderTop: `4px solid ${editingUser ? 'var(--warning)' : 'var(--primary)'}` }}>
         <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <h2 style={{ fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ 
-                padding: '0.5rem', 
-                background: editingUser ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)', 
-                borderRadius: '0.75rem', 
-                color: editingUser ? 'var(--warning)' : 'var(--primary)' 
+              <div style={{
+                padding: '0.5rem',
+                background: editingUser ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                borderRadius: '0.75rem',
+                color: editingUser ? 'var(--warning)' : 'var(--primary)'
               }}>
                 {editingUser ? <Edit2 size={24} /> : <UserPlus size={24} />}
               </div>
@@ -82,8 +106,8 @@ export default function UserManagementClient({
             </p>
           </div>
           {editingUser && (
-            <button 
-              className="btn btn-outline" 
+            <button
+              className="btn btn-outline"
               onClick={() => setEditingUser(null)}
               style={{ padding: '0.5rem', borderRadius: '50%' }}
             >
@@ -96,32 +120,32 @@ export default function UserManagementClient({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><UserIcon size={14} /> Nombre(s)</label>
-              <input 
-                name="nombre" type="text" required placeholder="Ej: Juan" 
+              <input
+                name="nombre" type="text" required placeholder="Ej: Juan"
                 defaultValue={editingUser?.nombre || ''}
               />
             </div>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><UserIcon size={14} /> Apellido(s)</label>
-              <input 
-                name="apellidos" type="text" required placeholder="Ej: Perez" 
+              <input
+                name="apellidos" type="text" required placeholder="Ej: Perez"
                 defaultValue={editingUser?.apellidos || ''}
               />
             </div>
           </div>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1rem' }}>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Shield size={14} /> CI</label>
-              <input 
-                name="ci" type="text" required placeholder="1234567 LP" 
+              <input
+                name="ci" type="text" required placeholder="1234567 LP"
                 defaultValue={editingUser?.ci || ''}
               />
             </div>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Mail size={14} /> Correo</label>
-              <input 
-                name="email" type="email" required placeholder="ejemplo@profe.gob.bo" 
+              <input
+                name="email" type="email" required placeholder="ejemplo@profe.gob.bo"
                 defaultValue={editingUser?.email || ''}
                 disabled={!!editingUser}
                 style={{ opacity: editingUser ? 0.6 : 1 }}
@@ -135,7 +159,7 @@ export default function UserManagementClient({
               <input name="password" type="password" required minLength={6} placeholder="Mínimo 6 caracteres" />
             </div>
           )}
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Building size={14} /> Departamento</label>
@@ -157,9 +181,9 @@ export default function UserManagementClient({
             </div>
           </div>
 
-          <button 
-            className={`btn ${editingUser ? 'btn-warning' : 'btn-primary'}`} 
-            type="submit" disabled={loading} 
+          <button
+            className={`btn ${editingUser ? 'btn-warning' : 'btn-primary'}`}
+            type="submit" disabled={loading}
             style={{ width: '100%', padding: '1rem', marginTop: '1rem' }}
           >
             {loading ? <Loader2 className="animate-spin" size={18} /> : (editingUser ? <Save size={18} /> : <UserPlus size={18} />)}
@@ -194,12 +218,12 @@ export default function UserManagementClient({
                     </div>
                   </td>
                   <td>
-                    <div style={{ 
-                      display: 'inline-flex', 
-                      alignItems: 'center', 
-                      gap: '0.4rem', 
-                      fontSize: '0.7rem', 
-                      fontWeight: '800', 
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      fontSize: '0.7rem',
+                      fontWeight: '800',
                       padding: '0.25rem 0.6rem',
                       borderRadius: '2rem',
                       background: u.roles?.name === 'administrador' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
@@ -213,7 +237,7 @@ export default function UserManagementClient({
                   </td>
                   <td style={{ borderRadius: '0 0.75rem 0.75rem 0', textAlign: 'right', padding: '1rem' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                      <button 
+                      <button
                         onClick={() => startEdit(u)}
                         className="btn btn-outline"
                         style={{ padding: '0.5rem', color: 'var(--primary)', borderColor: 'transparent' }}
@@ -221,7 +245,15 @@ export default function UserManagementClient({
                       >
                         <Edit2 size={18} />
                       </button>
-                      <button 
+                      <button
+                        onClick={() => handleChangePassword(u.id, u.email || u.full_name || 'Usuario')}
+                        className="btn btn-outline"
+                        style={{ padding: '0.5rem', color: 'var(--warning)', borderColor: 'transparent' }}
+                        title="Cambiar Contraseña"
+                      >
+                        <Key size={18} />
+                      </button>
+                      <button
                         onClick={() => handleDelete(u.id, u.email)}
                         className="btn btn-outline"
                         style={{ padding: '0.5rem', color: '#ef4444', borderColor: 'transparent' }}
@@ -238,19 +270,128 @@ export default function UserManagementClient({
         </div>
       </div>
 
-      <StatusModal 
+      <StatusModal
         show={notif.show}
         type={notif.type}
         title={notif.title}
         message={notif.message}
         onClose={() => setNotif({ ...notif, show: false })}
       />
+
+      <PasswordChangeModal
+        show={pwdModal.show}
+        identifier={pwdModal.identifier}
+        onClose={() => setPwdModal({ ...pwdModal, show: false })}
+        onSubmit={submitPasswordChange}
+        loading={loading}
+      />
     </div>
   )
 }
 
-const Loader2 = ({ className, size }: any) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-)
+function PasswordChangeModal({ show, identifier, onClose, onSubmit, loading }: any) {
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    if (show) {
+      document.body.style.overflow = 'hidden'
+      setPassword('')
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+  }, [show])
+
+  if (!show || !mounted) return null
+
+  const modalContent = (
+    <div style={{
+      position: 'fixed',
+      top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(3, 4, 11, 0.75)',
+      backdropFilter: 'blur(8px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 999999,
+      padding: '1rem'
+    }} onClick={onClose}>
+      <div
+        className="animate-scale-in"
+        style={{
+          background: 'var(--bg-2)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: '2rem',
+          padding: '2.5rem',
+          maxWidth: '460px',
+          width: '100%',
+          position: 'relative',
+          boxShadow: '0 40px 80px -15px rgba(0,0,0,0.8), 0 0 20px rgba(59, 130, 246, 0.1)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '1.25rem',
+            background: 'rgba(245, 158, 11, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem',
+            color: 'var(--warning)'
+          }}>
+            <Key size={32} />
+          </div>
+          <h3 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>Cambiar Contraseña</h3>
+          <p style={{ color: 'var(--foreground-3)', fontSize: '0.9rem' }}>
+            Estás actualizando el acceso para: <br />
+            <strong style={{ color: 'var(--foreground)' }}>{identifier}</strong>
+          </p>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(password) }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="form-group">
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', fontWeight: 700, color: 'var(--foreground-2)', textTransform: 'uppercase' }}>
+              <Lock size={14} /> Nueva Contraseña
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                placeholder="Mínimo 6 caracteres"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ width: '100%', paddingRight: '3rem' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--foreground-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button type="button" className="btn btn-outline" onClick={onClose} style={{ flex: 1 }}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={loading || password.length < 6} style={{ flex: 2 }}>
+              {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+              {loading ? 'Guardando...' : 'Actualizar Acceso'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+
+  return createPortal(modalContent, document.body)
+}
+

@@ -46,6 +46,7 @@ export default async function AsistenciaPage() {
         userDeptId={profile?.departamento_id}
         userRole={userRole}
         facilitadorGroups={assignedGroups}
+        currentUser={profile?.full_name || 'Personal Autorizado'}
       />
     </div>
   )

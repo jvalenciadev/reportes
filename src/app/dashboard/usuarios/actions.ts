@@ -165,3 +165,23 @@ export async function updateSystemUser(userId: string, formData: FormData) {
     return { error: err.message }
   }
 }
+
+export async function updateSystemUserPassword(userId: string, newPassword: string) {
+  try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: newPassword
+    })
+
+    if (authError) return { error: authError.message }
+
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message }
+  }
+}

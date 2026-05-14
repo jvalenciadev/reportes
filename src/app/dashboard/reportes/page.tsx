@@ -39,7 +39,8 @@ export default async function ReportesPage({
       name,
       departamentos (name),
       inscripciones (
-        estado
+        estado,
+        entrego_documento
       )
     `)
     .order('name')
@@ -49,7 +50,7 @@ export default async function ReportesPage({
   // 4. Mapeo y Consolidación Dinámica (BI Engine)
   // Agrupamos asistencias individuales por día y grupo para mantener compatibilidad con el dashboard
   const attendanceMap: Record<string, any> = {}
-  
+
   attendanceData?.forEach((a: any) => {
     const group = a.participantes?.inscripciones?.[0]?.grupos
     if (!group) return
@@ -63,7 +64,7 @@ export default async function ReportesPage({
         dept_name: group.departamentos?.name || 'S/D'
       }
     }
-    
+
     // Normalización de estados al esquema del dashboard
     if (a.estado === 'asistio') attendanceMap[key].asistieron++
     else if (a.estado === 'atraso') attendanceMap[key].atraso++
@@ -74,14 +75,22 @@ export default async function ReportesPage({
   const flattenedAttendance = Object.values(attendanceMap).sort((a, b) => a.dia - b.dia)
 
   const flattenedEnrollment = enrollmentData?.map(g => {
-    const total_inscritos = g.inscripciones?.length || 0
-    const total_confirmados = g.inscripciones?.filter((i: any) => i.estado === 'inscrito').length || 0
-    
+    const inscripciones = g.inscripciones || []
+    const total_inscritos = inscripciones.length
+    const total_confirmados = inscripciones.filter((i: any) => i.estado === 'inscrito').length
+    const total_preinscritos = inscripciones.filter((i: any) => i.estado === 'preinscrito').length
+
+    const preinscritos_entrego = inscripciones.filter((i: any) => i.estado === 'preinscrito' && i.entrego_documento).length
+    const inscritos_entrego = inscripciones.filter((i: any) => i.estado === 'inscrito' && i.entrego_documento).length
+
     return {
       group_name: g.name || 'Grupo sin nombre',
       dept_name: (g.departamentos as any)?.name || 'S/D',
       total_inscritos,
-      total_confirmados
+      total_confirmados,
+      total_preinscritos,
+      preinscritos_entrego,
+      inscritos_entrego
     }
   }) || []
 

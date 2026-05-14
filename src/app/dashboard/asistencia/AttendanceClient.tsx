@@ -7,7 +7,8 @@ import {
   History, Users as UsersIcon, Clock, AlertCircle, FileText,
   CheckCircle, XCircle, Info, Zap,
   UserCheck,
-  UserMinus
+  UserMinus,
+  ShieldCheck
 } from 'lucide-react'
 import StatusModal, { StatusType } from '../components/StatusModal'
 import jsPDF from 'jspdf'
@@ -17,12 +18,14 @@ export default function AttendanceClient({
   departamentos,
   userDeptId,
   userRole,
-  facilitadorGroups = []
+  facilitadorGroups = [],
+  currentUser
 }: {
   departamentos: any[],
   userDeptId?: string,
   userRole?: string,
-  facilitadorGroups?: any[]
+  facilitadorGroups?: any[],
+  currentUser: string
 }) {
   const supabase = createClient()
 
@@ -427,17 +430,22 @@ export default function AttendanceClient({
       margin: { left: 14, right: 14 }
     })
 
-    // --- SECCIÓN DE FIRMA ---
+    // --- SECCIÓN DE FIRMA (DISEÑO PROFESIONAL) ---
     const lastY = (doc as any).lastAutoTable.finalY || finalY + 30
     const signatureY = Math.min(pageHeight - 35, lastY + 25)
+
     doc.setDrawColor(0)
     doc.line(70, signatureY, 140, signatureY)
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(0)
-    doc.text('FIRMA Y NOMBRE DEL FACILITADOR', pageWidth / 2, signatureY + 5, { align: 'center' })
+    doc.text('FIRMA DEL FACILITADOR', pageWidth / 2, signatureY + 5, { align: 'center' })
     doc.setFont('helvetica', 'normal')
     doc.text(selectedFacilitator.toUpperCase(), pageWidth / 2, signatureY + 9, { align: 'center' })
+
+    // Pie de página institucional
+    doc.setFontSize(6)
+    doc.setTextColor(150)
+    doc.text(`Documento generado por el Sistema de Gestión PROFE v2.1 el ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' })
 
     doc.save(`ASISTENCIA_${groupName.replace(/\s+/g, '_')}_DIA_${dayNumber}.pdf`)
   }
@@ -488,21 +496,6 @@ export default function AttendanceClient({
             </select>
           </div>
         </div>
-
-        {facilitators.length > 1 && (
-          <div className="card glass animate-fade-in" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b', whiteSpace: 'nowrap' }}>
-              <Zap size={14} /> RESPONSABLE DEL REPORTE:
-            </label>
-            <select
-              value={selectedFacilitator}
-              onChange={e => setSelectedFacilitator(e.target.value)}
-              style={{ background: 'transparent', border: 'none', color: 'var(--foreground)', fontWeight: 600, cursor: 'pointer' }}
-            >
-              {facilitators.map((f: any) => <option key={f.name} value={f.name}>{f.name} ({f.depto})</option>)}
-            </select>
-          </div>
-        )}
       </div>
 
       {selectedGroup ? (
@@ -697,7 +690,64 @@ export default function AttendanceClient({
                 </table>
               </div>
 
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+              <div style={{
+                marginTop: '2rem',
+                padding: '1.25rem',
+                borderRadius: '1.25rem',
+                background: 'rgba(var(--primary-rgb), 0.03)',
+                border: '1px solid var(--border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
+                    <ShieldCheck size={16} />
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Configuración de Firmas en Reporte</span>
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontStyle: 'italic' }}>Este diseño aparecerá al final de tu PDF</div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
+                  <div style={{ textAlign: 'center', padding: '1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '1rem', border: '1px dashed var(--border)', maxWidth: '400px', margin: '0 auto', width: '100%' }}>
+                    <div style={{ height: '1px', background: 'var(--foreground)', margin: '0 auto 1rem', opacity: 0.2, width: '60%' }}></div>
+
+                    {facilitators.length > 1 ? (
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <select
+                          value={selectedFacilitator}
+                          onChange={e => setSelectedFacilitator(e.target.value)}
+                          style={{
+                            background: 'rgba(var(--primary-rgb), 0.1)',
+                            border: '1px solid var(--primary)',
+                            color: 'var(--primary)',
+                            fontWeight: 900,
+                            fontSize: '0.95rem',
+                            padding: '0.4rem 0.8rem',
+                            borderRadius: '0.5rem',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            width: '100%'
+                          }}
+                        >
+                          {facilitators.map((f: any) => <option key={f.name} value={f.name}>{f.name.toUpperCase()}</option>)}
+                        </select>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--muted)', marginTop: '0.5rem', fontWeight: 600 }}>
+                          Para descargar, seleccione el facilitador a cargo del módulo.
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.2rem' }}>
+                        {(selectedFacilitator || 'N/A').toUpperCase()}
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '0.5rem' }}>FIRMA DEL FACILITADOR</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                 <button
                   className="btn btn-primary"
                   style={{ flex: 2, padding: '1.25rem', fontSize: '1.1rem' }}

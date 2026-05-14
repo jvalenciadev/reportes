@@ -115,6 +115,8 @@ export default function ReportsClient({
 
     const total_inscritos = enr.reduce((acc, curr) => acc + (curr.total_inscritos || 0), 0)
     const total_confirmados = enr.reduce((acc, curr) => acc + (curr.total_confirmados || 0), 0)
+    const total_docs_pre = enr.reduce((acc, curr) => acc + (curr.preinscritos_entrego || 0), 0)
+    const total_docs_ins = enr.reduce((acc, curr) => acc + (curr.inscritos_entrego || 0), 0)
 
     const total_asistieron = att.reduce((acc, curr) => acc + (curr.asistieron || 0), 0)
     const total_atrasos = att.reduce((acc, curr) => acc + (curr.atraso || 0), 0)
@@ -131,6 +133,8 @@ export default function ReportsClient({
     return {
       total_inscritos,
       total_confirmados,
+      total_docs_pre,
+      total_docs_ins,
       total_asistieron,
       total_atrasos,
       total_faltas,
@@ -161,10 +165,14 @@ export default function ReportsClient({
       const deptEnr = enrollmentData.filter(e => e.dept_name === dept)
       const inscritos = deptEnr.reduce((acc, curr) => acc + (curr.total_inscritos || 0), 0)
       const confirmados = deptEnr.reduce((acc, curr) => acc + (curr.total_confirmados || 0), 0)
+      const docs_pre = deptEnr.reduce((acc, curr) => acc + (curr.preinscritos_entrego || 0), 0)
+      const docs_ins = deptEnr.reduce((acc, curr) => acc + (curr.inscritos_entrego || 0), 0)
       return {
         name: dept,
         Inscritos: confirmados,
-        Pendientes: Math.max(0, inscritos - confirmados)
+        Pendientes: Math.max(0, inscritos - confirmados),
+        Docs_Pre: docs_pre,
+        Docs_Ins: docs_ins
       }
     })
   }, [enrollmentData, deptoList])
@@ -261,6 +269,8 @@ export default function ReportsClient({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
         <KPI title="Población Total" value={metrics.total_inscritos} icon={Users} color={COLORS.primary} subtitle="Preinscritos registrados" />
         <KPI title="Tasa de Inscripción" value={`${metrics.confirmation_rate}%`} icon={Target} color={COLORS.info} subtitle="Compromiso inicial" />
+        <KPI title="Docs (Preinscritos)" value={metrics.total_docs_pre} icon={CheckSquare} color={COLORS.purple} subtitle="Entregados por preinscritos" />
+        <KPI title="Docs (Inscritos)" value={metrics.total_docs_ins} icon={CheckSquare} color={COLORS.success} subtitle="Entregados por inscritos" />
         <KPI title="Efectividad de Asistencia" value={`${metrics.attendance_rate}%`} icon={Zap} color={COLORS.success} subtitle="Asistencia real vs esperada" />
         <KPI title="Score de Eficiencia" value={metrics.efficiency_score} icon={MousePointer2} color={COLORS.gold} subtitle="Cálculo algorítmico" />
         <KPI title="Tasa de Deserción" value={`${metrics.dropout_rate}%`} icon={AlertTriangle} color={COLORS.danger} subtitle="Faltas y permisos" />
@@ -494,15 +504,18 @@ export default function ReportsClient({
           </ChartCard>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
-            <ChartCard title="Benchmark Regional (Inscripciones)" icon={Building2}>
+            <ChartCard title="Benchmark Regional (Inscripciones y Docs)" icon={Building2}>
               <ResponsiveContainer width="100%" height={350}>
                 <BarChart data={departmentalComparison} layout="vertical">
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" stroke="var(--chart-text)" fontSize={11} width={100} fontWeight={700} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="Inscritos" fill={COLORS.info} radius={[0, 4, 4, 0]}>
+                  <Legend verticalAlign="top" iconType="circle" wrapperStyle={{ fontSize: '10px', marginBottom: '10px' }} />
+                  <Bar dataKey="Inscritos" fill={COLORS.info} radius={[0, 4, 4, 0]} stackId="a">
                     <LabelList dataKey="Inscritos" position="right" style={{ fill: 'var(--foreground)', fontSize: '0.7rem', fontWeight: 800 }} />
                   </Bar>
+                  <Bar dataKey="Docs_Ins" name="Docs (Inscritos)" fill={COLORS.success} radius={[0, 4, 4, 0]} stackId="b" />
+                  <Bar dataKey="Docs_Pre" name="Docs (Preinscritos)" fill={COLORS.purple} radius={[0, 4, 4, 0]} stackId="b" />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -548,7 +561,9 @@ export default function ReportsClient({
                   <th>Identificador Grupo</th>
                   <th>Sede</th>
                   <th>Preinscritos</th>
+                  <th>Docs (Pre)</th>
                   <th>Inscritos</th>
+                  <th>Docs (Ins)</th>
                   <th>Inscripción %</th>
                   <th>Asistencia Prom.</th>
                   <th>Score Final</th>
@@ -559,7 +574,9 @@ export default function ReportsClient({
                 <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderBottom: '2px solid var(--border-strong)' }}>
                   <td colSpan={2} style={{ color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Resumen de Selección</td>
                   <td style={{ fontSize: '1rem' }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_inscritos || 0), 0).toLocaleString()}</td>
+                  <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.preinscritos_entrego || 0), 0).toLocaleString()}</td>
                   <td style={{ fontSize: '1rem', color: COLORS.info }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_confirmados || 0), 0).toLocaleString()}</td>
+                  <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.inscritos_entrego || 0), 0).toLocaleString()}</td>
                   <td>{metrics.confirmation_rate}%</td>
                   <td style={{ color: COLORS.success }}>{metrics.avg_per_day}</td>
                   <td>
@@ -580,7 +597,9 @@ export default function ReportsClient({
                       <td style={{ fontWeight: 800 }}>{g.group_name}</td>
                       <td style={{ color: 'var(--foreground-3)' }}>{g.dept_name}</td>
                       <td style={{ fontWeight: 700 }}>{g.total_inscritos}</td>
+                      <td style={{ color: COLORS.purple, fontWeight: 700 }}>{g.preinscritos_entrego || 0}</td>
                       <td style={{ color: COLORS.info, fontWeight: 700 }}>{g.total_confirmados}</td>
+                      <td style={{ color: COLORS.purple, fontWeight: 700 }}>{g.inscritos_entrego || 0}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <div style={{ flex: 1, height: '4px', background: 'var(--surface)', borderRadius: '2px', overflow: 'hidden' }}>
@@ -607,7 +626,9 @@ export default function ReportsClient({
                 <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderTop: '2px solid var(--border-strong)' }}>
                   <td colSpan={2} style={{ textAlign: 'right', color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Totales de Selección</td>
                   <td style={{ fontSize: '1rem' }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_inscritos || 0), 0).toLocaleString()}</td>
+                  <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.preinscritos_entrego || 0), 0).toLocaleString()}</td>
                   <td style={{ fontSize: '1rem', color: COLORS.info }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_confirmados || 0), 0).toLocaleString()}</td>
+                  <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.inscritos_entrego || 0), 0).toLocaleString()}</td>
                   <td>{metrics.confirmation_rate}%</td>
                   <td style={{ color: COLORS.success }}>{metrics.avg_per_day}</td>
                   <td>
