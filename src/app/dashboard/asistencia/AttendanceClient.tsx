@@ -501,14 +501,62 @@ export default function AttendanceClient({
       {selectedGroup ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
+          {/* Module Progress / Alert */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <Clock size={14} /> Avance del Módulo: {historyDays.length} / 5 Jornadas
+              </div>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: historyDays.length >= 5 ? 'var(--success)' : 'var(--info)' }}>
+                {historyDays.length >= 5 ? '¡COMPLETADO!' : `${5 - historyDays.length} días restantes`}
+              </div>
+            </div>
+            <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.02)' }}>
+              <div style={{
+                width: `${Math.min(100, (historyDays.length / 5) * 100)}%`,
+                height: '100%',
+                background: historyDays.length >= 5 ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, var(--info), #3b82f6)',
+                transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: historyDays.length >= 5 ? '0 0 10px rgba(16, 185, 129, 0.3)' : 'none'
+              }}></div>
+            </div>
+          </div>
+
+          {historyDays.length >= 5 && (
+            <div className="animate-fade-up" style={{
+              marginBottom: '1.5rem',
+              padding: '1.25rem',
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1.25rem',
+              color: '#10b981',
+              boxShadow: '0 10px 30px -10px rgba(0,0,0,0.3)'
+            }}>
+              <div style={{ background: '#10b981', color: '#000', padding: '0.5rem', borderRadius: '0.75rem' }}>
+                <CheckCircle size={24} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 900, fontSize: '1.1rem', marginBottom: '0.15rem' }}>¡Módulo Finalizado!</div>
+                <div style={{ fontSize: '0.85rem', opacity: 0.9, fontWeight: 500, lineHeight: '1.4' }}>
+                  Has completado el ciclo de 5 jornadas para este módulo. <br />
+                  <span style={{ fontWeight: 800 }}>Recomendación:</span> Selecciona el siguiente módulo en el panel superior para continuar el registro.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Prominent History Table */}
-          <div className="card glass" style={{ borderTop: '4px solid var(--info)' }}>
+          <div className="card glass" style={{ borderTop: `4px solid ${historyDays.length >= 5 ? 'var(--success)' : 'var(--info)'}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <History size={20} color="var(--info)" /> Jornadas Registradas para {groups.find(g => g.id === selectedGroup)?.name}
+                <History size={20} color={historyDays.length >= 5 ? 'var(--success)' : 'var(--info)'} /> Jornadas Registradas para {groups.find(g => g.id === selectedGroup)?.name}
               </h3>
               <button
                 className="btn btn-outline"
+                disabled={historyDays.length >= 5}
                 onClick={() => {
                   const action = () => {
                     const today = new Date().toISOString().split('T')[0];
@@ -523,9 +571,13 @@ export default function AttendanceClient({
                     action();
                   }
                 }}
-                style={{ borderColor: 'var(--info)', color: 'var(--info)' }}
+                style={{
+                  borderColor: historyDays.length >= 5 ? 'var(--border)' : 'var(--info)',
+                  color: historyDays.length >= 5 ? 'var(--muted)' : 'var(--info)',
+                  opacity: historyDays.length >= 5 ? 0.5 : 1
+                }}
               >
-                + Nueva Jornada (Hoy)
+                {historyDays.length >= 5 ? 'Módulo Completado (5/5)' : '+ Nueva Jornada (Hoy)'}
               </button>
             </div>
 
