@@ -733,12 +733,18 @@ export default function AttendanceClient({
                           {facilitators.map((f: any) => <option key={f.name} value={f.name}>{f.name.toUpperCase()}</option>)}
                         </select>
                         <div style={{ fontSize: '0.6rem', color: 'var(--muted)', marginTop: '0.5rem', fontWeight: 600 }}>
-                          Para descargar, seleccione el facilitador a cargo del módulo.
+                          Para descargar, seleccione el facilitador a cargo del módulo. <br />
+                          <span style={{ color: 'var(--primary)', opacity: 0.8 }}>No es necesario "Consolidar" para descargar el PDF.</span>
                         </div>
                       </div>
                     ) : (
-                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.2rem' }}>
-                        {(selectedFacilitator || 'N/A').toUpperCase()}
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.2rem' }}>
+                          {(selectedFacilitator || 'N/A').toUpperCase()}
+                        </div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--primary)', opacity: 0.8, fontWeight: 600 }}>
+                          No es necesario "Consolidar" para descargar el PDF.
+                        </div>
                       </div>
                     )}
 
@@ -765,6 +771,8 @@ export default function AttendanceClient({
                   <FileText size={20} /> Generar PDF
                 </button>
               </div>
+
+
             </div>
 
             {/* Quick Stats Panel */}
