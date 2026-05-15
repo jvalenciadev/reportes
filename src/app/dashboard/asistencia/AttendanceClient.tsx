@@ -8,7 +8,8 @@ import {
   CheckCircle, XCircle, Info, Zap,
   UserCheck,
   UserMinus,
-  ShieldCheck
+  ShieldCheck,
+  Edit2
 } from 'lucide-react'
 import StatusModal, { StatusType } from '../components/StatusModal'
 import jsPDF from 'jspdf'
@@ -62,6 +63,7 @@ export default function AttendanceClient({
   const [showDirtyModal, setShowDirtyModal] = useState(false)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const [historyDays, setHistoryDays] = useState<{ dia: number, fecha: string, asistio: number, atraso: number, falta: number, permiso: number, total: number }[]>([])
+  const [isEditingDate, setIsEditingDate] = useState(false)
 
   // 1. Initial Load: Programs
   useEffect(() => {
@@ -206,6 +208,21 @@ export default function AttendanceClient({
     loadAttendanceSession()
   }, [selectedGroup, selectedModule, dayNumber])
 
+  // Sync dayNumber if date changes (Look for existing session on that date)
+  useEffect(() => {
+    if (!historyDays.length || isEditingDate) return
+
+    // Si la jornada actual ya coincide con la fecha seleccionada, no hacemos nada
+    // Esto evita saltos automáticos cuando dos jornadas tienen la misma fecha
+    const currentSession = historyDays.find(h => h.dia === dayNumber)
+    if (currentSession && currentSession.fecha === selectedDate) return
+
+    const session = historyDays.find(h => h.fecha === selectedDate)
+    if (session && session.dia !== dayNumber) {
+      setDayNumber(session.dia)
+    }
+  }, [selectedDate, historyDays, dayNumber])
+
   const handleStatusChange = (participantId: string, status: string) => {
     setAttendanceData(prev => ({ ...prev, [participantId]: status }))
   }
@@ -245,13 +262,16 @@ export default function AttendanceClient({
 
     if (error) {
       showNotif('error', 'Fallo en el Registro', `No se pudo guardar la asistencia: ${error.message}`)
+      setSaving(false)
+      return false
     } else {
       showNotif('success', '¡Asistencia Guardada!', 'Se han registrado correctamente los datos.')
       setInitialAttendance(attendanceData) // Reset dirty state
       setInitialDate(selectedDate)
       loadAttendanceSession()
+      setSaving(false)
+      return true
     }
-    setSaving(false)
   }
 
   // Stats for current session
@@ -466,14 +486,36 @@ export default function AttendanceClient({
             </div>
           </div>
 
-          <div className="card glass" style={{ padding: '1.5rem' }}>
-            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 800, display: 'block', marginBottom: '0.5rem' }}>Fecha de Registro</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '0.5rem', padding: '0.6rem', color: 'var(--foreground)', fontSize: '0.9rem' }}
-            />
+          <div className="card glass" style={{ padding: '1.5rem', position: 'relative' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 800 }}>Fecha de Registro</label>
+              <button
+                onClick={() => setIsEditingDate(!isEditingDate)}
+                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem', fontWeight: 700 }}
+              >
+                {isEditingDate ? <><Save size={12} /> Listo</> : <><Edit2 size={12} /> Editar</>}
+              </button>
+            </div>
+
+            {isEditingDate ? (
+              <input
+                type="date"
+                value={selectedDate}
+                autoFocus
+                onChange={e => setSelectedDate(e.target.value)}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--primary)', borderRadius: '0.5rem', padding: '0.6rem', color: 'var(--foreground)', fontSize: '0.9rem' }}
+              />
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0' }}>
+                <CalendarDays size={20} color="var(--primary)" />
+                <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </div>
+              </div>
+            )}
+            <div style={{ fontSize: '0.6rem', color: 'var(--muted)', marginTop: '0.4rem', fontStyle: 'italic' }}>
+              {isEditingDate ? 'Selecciona la fecha para el pase de lista' : 'La jornada se registrará con esta fecha oficial'}
+            </div>
           </div>
 
           <div className="card glass" style={{ padding: '1.5rem' }}>
@@ -505,24 +547,24 @@ export default function AttendanceClient({
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                <Clock size={14} /> Avance del Módulo: {historyDays.length} / 5 Jornadas
+                <Clock size={14} /> Avance del Módulo: {historyDays.length} / 6 Jornadas
               </div>
-              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: historyDays.length >= 5 ? 'var(--success)' : 'var(--info)' }}>
-                {historyDays.length >= 5 ? '¡COMPLETADO!' : `${5 - historyDays.length} días restantes`}
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: historyDays.length >= 6 ? 'var(--success)' : 'var(--info)' }}>
+                {historyDays.length >= 6 ? '¡COMPLETADO!' : `${6 - historyDays.length} días restantes`}
               </div>
             </div>
             <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.02)' }}>
               <div style={{
-                width: `${Math.min(100, (historyDays.length / 5) * 100)}%`,
+                width: `${Math.min(100, (historyDays.length / 6) * 100)}%`,
                 height: '100%',
-                background: historyDays.length >= 5 ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, var(--info), #3b82f6)',
+                background: historyDays.length >= 6 ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, var(--info), #3b82f6)',
                 transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: historyDays.length >= 5 ? '0 0 10px rgba(16, 185, 129, 0.3)' : 'none'
+                boxShadow: historyDays.length >= 6 ? '0 0 10px rgba(16, 185, 129, 0.3)' : 'none'
               }}></div>
             </div>
           </div>
 
-          {historyDays.length >= 5 && (
+          {historyDays.length >= 6 && (
             <div className="animate-fade-up" style={{
               marginBottom: '1.5rem',
               padding: '1.25rem',
@@ -541,7 +583,7 @@ export default function AttendanceClient({
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 900, fontSize: '1.1rem', marginBottom: '0.15rem' }}>¡Módulo Finalizado!</div>
                 <div style={{ fontSize: '0.85rem', opacity: 0.9, fontWeight: 500, lineHeight: '1.4' }}>
-                  Has completado el ciclo de 5 jornadas para este módulo. <br />
+                  Has completado el ciclo de 6 jornadas para este módulo. <br />
                   <span style={{ fontWeight: 800 }}>Recomendación:</span> Selecciona el siguiente módulo en el panel superior para continuar el registro.
                 </div>
               </div>
@@ -549,14 +591,14 @@ export default function AttendanceClient({
           )}
 
           {/* Prominent History Table */}
-          <div className="card glass" style={{ borderTop: `4px solid ${historyDays.length >= 5 ? 'var(--success)' : 'var(--info)'}` }}>
+          <div className="card glass" style={{ borderTop: `4px solid ${historyDays.length >= 6 ? 'var(--success)' : 'var(--info)'}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <History size={20} color={historyDays.length >= 5 ? 'var(--success)' : 'var(--info)'} /> Jornadas Registradas para {groups.find(g => g.id === selectedGroup)?.name}
+                <History size={20} color={historyDays.length >= 6 ? 'var(--success)' : 'var(--info)'} /> Jornadas Registradas para {groups.find(g => g.id === selectedGroup)?.name}
               </h3>
               <button
                 className="btn btn-outline"
-                disabled={historyDays.length >= 5}
+                disabled={historyDays.length >= 6}
                 onClick={() => {
                   const action = () => {
                     const today = new Date().toISOString().split('T')[0];
@@ -572,12 +614,12 @@ export default function AttendanceClient({
                   }
                 }}
                 style={{
-                  borderColor: historyDays.length >= 5 ? 'var(--border)' : 'var(--info)',
-                  color: historyDays.length >= 5 ? 'var(--muted)' : 'var(--info)',
-                  opacity: historyDays.length >= 5 ? 0.5 : 1
+                  borderColor: historyDays.length >= 6 ? 'var(--border)' : 'var(--info)',
+                  color: historyDays.length >= 6 ? 'var(--muted)' : 'var(--info)',
+                  opacity: historyDays.length >= 6 ? 0.5 : 1
                 }}
               >
-                {historyDays.length >= 5 ? 'Módulo Completado (5/5)' : '+ Nueva Jornada (Hoy)'}
+                {historyDays.length >= 6 ? 'Módulo Completado (6/6)' : '+ Nueva Jornada (Hoy)'}
               </button>
             </div>
 
@@ -587,6 +629,7 @@ export default function AttendanceClient({
                   <thead>
                     <tr style={{ background: 'transparent' }}>
                       <th>Jornada</th>
+                      <th style={{ textAlign: 'center' }}>Fecha</th>
                       <th style={{ textAlign: 'center' }}>Asistió</th>
                       <th style={{ textAlign: 'center' }}>Atraso</th>
                       <th style={{ textAlign: 'center' }}>Falta</th>
@@ -601,6 +644,9 @@ export default function AttendanceClient({
                       return (
                         <tr key={h.dia} style={{ background: isEditing ? 'var(--primary-light)' : 'transparent', transition: 'all 0.2s' }}>
                           <td style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>Día {h.dia}</td>
+                          <td style={{ textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted)' }}>
+                            {new Date(h.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                          </td>
                           <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 800 }}>{h.asistio}</td>
                           <td style={{ textAlign: 'center', color: 'var(--warning)', fontWeight: 800 }}>{h.atraso}</td>
                           <td style={{ textAlign: 'center', color: 'var(--danger)', fontWeight: 800 }}>{h.falta}</td>
@@ -933,27 +979,31 @@ export default function AttendanceClient({
               Tienes modificaciones en el pase de lista de la jornada actual (Día {dayNumber}).
               Si continúas, estos cambios se **perderán permanentemente**.
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '1rem' }}>
               <button
-                className="btn btn-primary"
-                style={{ background: '#ef4444', borderColor: '#ef4444', padding: '1rem' }}
+                className="btn btn-outline"
+                style={{ flex: 1, color: '#ef4444', borderColor: '#ef4444', padding: '1rem' }}
                 onClick={() => {
                   if (pendingAction) pendingAction();
                   setShowDirtyModal(false);
                   setPendingAction(null);
                 }}
               >
-                Descartar Cambios y Continuar
+                No Guardar
               </button>
               <button
-                className="btn btn-outline"
-                style={{ padding: '1rem' }}
-                onClick={() => {
-                  setShowDirtyModal(false);
-                  setPendingAction(null);
+                className="btn btn-primary"
+                style={{ flex: 1, background: 'var(--success)', borderColor: 'var(--success)', padding: '1rem', color: '#000', fontWeight: 800 }}
+                onClick={async () => {
+                  const success = await saveAttendance();
+                  if (success && pendingAction) {
+                    pendingAction();
+                    setShowDirtyModal(false);
+                    setPendingAction(null);
+                  }
                 }}
               >
-                Volver y Guardar
+                Guardar
               </button>
             </div>
           </div>
