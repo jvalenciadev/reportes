@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/utils/supabase/client'
 import {
   Save, Search, CalendarDays, ChevronLeft, ChevronRight,
@@ -29,6 +30,10 @@ export default function AttendanceClient({
   currentUser: string
 }) {
   const supabase = createClient()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Notification State
   const [notif, setNotif] = useState({ show: false, type: 'info' as StatusType, title: '', message: '' })
@@ -128,15 +133,24 @@ export default function AttendanceClient({
       return
     }
 
-    // B. Fetch Existing Attendance for this specific module/day/date
-    const { data: existing } = await supabase
-      .from('asistencias')
-      .select('*')
-      .eq('modulo_id', selectedModule)
-
-    // Filter existing attendance for the participants in this group
+    // B. Fetch Existing Attendance for this specific module and enrolled participants
     const enrolledIds = enrolled?.map((p: any) => p.participante_id) || []
-    const groupAttendance = existing?.filter((a: any) => enrolledIds.includes(a.participante_id)) || []
+    let groupAttendance: any[] = []
+
+    if (enrolledIds.length > 0) {
+      const { data: existing, error: aErr } = await supabase
+        .from('asistencias')
+        .select('*')
+        .eq('modulo_id', selectedModule)
+        .in('participante_id', enrolledIds)
+
+      if (aErr) {
+        console.error('Error cargando asistencias:', aErr)
+        showNotif('error', 'Error de Carga', aErr.message)
+      } else {
+        groupAttendance = existing || []
+      }
+    }
 
     // Generate history of days (Grouped strictly by Day Number)
     const historyMap = new Map()
@@ -231,12 +245,19 @@ export default function AttendanceClient({
     if (!selectedModule || participants.length === 0) return
     setSaving(true)
 
+    const participantIds = participants.map((p: any) => p.participante_id)
+    if (participantIds.length === 0) {
+      setSaving(false)
+      return false
+    }
+
     // 1. Fetch existing records for these participants in THIS module/day
     const { data: existingRecords } = await supabase
       .from('asistencias')
       .select('id, participante_id')
       .eq('modulo_id', selectedModule)
       .eq('dia', dayNumber)
+      .in('participante_id', participantIds)
 
     // Senior Approach: Save entries for all participants who have a status selected
     // and explicitly update the date for ALL of them to match the current selection.
@@ -592,35 +613,38 @@ export default function AttendanceClient({
 
           {/* Prominent History Table */}
           <div className="card glass" style={{ borderTop: `4px solid ${historyDays.length >= 6 ? 'var(--success)' : 'var(--info)'}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <History size={20} color={historyDays.length >= 6 ? 'var(--success)' : 'var(--info)'} /> Jornadas Registradas para {groups.find(g => g.id === selectedGroup)?.name}
               </h3>
-              <button
-                className="btn btn-outline"
-                disabled={historyDays.length >= 6}
-                onClick={() => {
-                  const action = () => {
-                    const today = new Date().toISOString().split('T')[0];
-                    setSelectedDate(today);
-                    const nextDay = historyDays.length > 0 ? Math.max(...historyDays.map(h => h.dia)) + 1 : 1;
-                    setDayNumber(nextDay);
-                  };
-                  if (isDirty) {
-                    setPendingAction(() => action);
-                    setShowDirtyModal(true);
-                  } else {
-                    action();
-                  }
-                }}
-                style={{
-                  borderColor: historyDays.length >= 6 ? 'var(--border)' : 'var(--info)',
-                  color: historyDays.length >= 6 ? 'var(--muted)' : 'var(--info)',
-                  opacity: historyDays.length >= 6 ? 0.5 : 1
-                }}
-              >
-                {historyDays.length >= 6 ? 'Módulo Completado (6/6)' : '+ Nueva Jornada (Hoy)'}
-              </button>
+              {historyDays.length > 0 && (
+                <button
+                  className="btn btn-outline"
+                  disabled={historyDays.length >= 6}
+                  onClick={() => {
+                    const action = () => {
+                      const today = new Date().toISOString().split('T')[0];
+                      setSelectedDate(today);
+                      const nextDay = historyDays.length > 0 ? Math.max(...historyDays.map(h => h.dia)) + 1 : 1;
+                      setDayNumber(nextDay);
+                    };
+                    if (isDirty) {
+                      setPendingAction(() => action);
+                      setShowDirtyModal(true);
+                    } else {
+                      action();
+                    }
+                  }}
+                  style={{
+                    borderColor: historyDays.length >= 6 ? 'var(--border)' : 'var(--info)',
+                    color: historyDays.length >= 6 ? 'var(--muted)' : 'var(--info)',
+                    opacity: historyDays.length >= 6 ? 0.5 : 1,
+                    fontWeight: 700
+                  }}
+                >
+                  {historyDays.length >= 6 ? 'Módulo Completado (6/6)' : '+ Nueva Jornada (Hoy)'}
+                </button>
+              )}
             </div>
 
             {historyDays.length > 0 ? (
@@ -679,9 +703,68 @@ export default function AttendanceClient({
                 </table>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--muted)', background: 'rgba(255,255,255,0.02)', borderRadius: '0.5rem', border: '1px dashed var(--border)' }}>
-                <History size={32} style={{ opacity: 0.2, margin: '0 auto 1rem' }} />
-                <div>No hay asistencias registradas aún. Comienza pasando lista abajo.</div>
+              <div className="animate-fade-in" style={{ 
+                textAlign: 'center', 
+                padding: '3rem 2rem', 
+                background: 'linear-gradient(180deg, rgba(var(--primary-rgb), 0.03) 0%, transparent 100%)', 
+                borderRadius: '1rem', 
+                border: '1px dashed rgba(var(--primary-rgb), 0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '1.25rem',
+                margin: '1rem 0'
+              }}>
+                <div style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '1rem',
+                  background: 'rgba(var(--primary-rgb), 0.1)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 20px rgba(var(--primary-rgb), 0.15)'
+                }}>
+                  <CalendarDays size={28} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: '0.4rem' }}>Primera Jornada Lista</h4>
+                  <p style={{ color: 'var(--muted)', fontSize: '0.85rem', maxWidth: '400px', margin: '0 auto', lineHeight: '1.5' }}>
+                    Aún no hay asistencias registradas. La tabla de abajo ya está configurada para el <strong>Día 1</strong>. Simplemente marca la asistencia y guarda los cambios para registrarla.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    window.scrollTo({ top: window.scrollY + 400, behavior: 'smooth' });
+                  }}
+                  style={{
+                    marginTop: '0.5rem',
+                    padding: '0.6rem 1.25rem',
+                    background: 'var(--primary)',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: '99px',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 4px 15px rgba(var(--primary-rgb), 0.3)',
+                    transition: 'transform 0.2s, box-shadow 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(var(--primary-rgb), 0.4)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(var(--primary-rgb), 0.3)';
+                  }}
+                >
+                  Ir a Pasar Lista <ChevronRight size={14} />
+                </button>
               </div>
             )}
           </div>
@@ -918,14 +1001,16 @@ export default function AttendanceClient({
       `}</style>
 
       {/* Custom Confirmation Modal for Saving */}
-      {showConfirm && (
+      {mounted && showConfirm && createPortal(
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+          background: 'rgba(3, 4, 11, 0.7)', backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999999,
+          overflowY: 'auto', padding: '1.5rem 1rem'
         }}>
-          <div className="card glass animate-fade-up" style={{ maxWidth: '400px', width: '90%', padding: '2rem', borderTop: '4px solid var(--warning)' }}>
-            <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)' }}>
+          <div className="card glass animate-fade-up" style={{ maxWidth: '400px', width: '90%', padding: '2rem', borderTop: '4px solid var(--warning)', margin: 'auto' }}>
+            <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)', fontWeight: 900 }}>
               <AlertCircle size={24} /> Confirmar Asistencia
             </h3>
             <p style={{ marginBottom: '1.5rem', color: 'var(--muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
@@ -933,7 +1018,7 @@ export default function AttendanceClient({
             </p>
 
             <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '0.5rem', padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Fecha de Asistencia:</span> <strong style={{ color: 'var(--primary)' }}>{new Date(selectedDate + 'T00:00:00').toLocaleDateString()}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Fecha de Asistencia:</span> <strong style={{ color: 'var(--primary)' }}>{new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Jornada / Día:</span> <strong style={{ color: 'var(--primary)' }}>Día {dayNumber}</strong></div>
               <div style={{ height: '1px', background: 'var(--border)', margin: '0.25rem 0' }}></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Total Inscritos:</span> <strong style={{ fontSize: '1.1rem' }}>{participants.length}</strong></div>
@@ -950,7 +1035,7 @@ export default function AttendanceClient({
               </button>
               <button
                 className="btn btn-primary"
-                style={{ flex: 1, background: 'var(--warning)', borderColor: 'var(--warning)', color: '#000' }}
+                style={{ flex: 1, background: 'var(--warning)', borderColor: 'var(--warning)', color: '#000', fontWeight: 800 }}
                 onClick={() => {
                   setShowConfirm(false);
                   saveAttendance();
@@ -960,17 +1045,20 @@ export default function AttendanceClient({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Dirty State Warning Modal */}
-      {showDirtyModal && (
+      {mounted && showDirtyModal && createPortal(
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
+          background: 'rgba(3, 4, 11, 0.7)', backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999999,
+          overflowY: 'auto', padding: '1.5rem 1rem'
         }}>
-          <div className="card glass animate-fade-up" style={{ maxWidth: '450px', width: '90%', padding: '2.5rem', borderTop: '5px solid #ef4444', textAlign: 'center' }}>
+          <div className="card glass animate-fade-up" style={{ maxWidth: '450px', width: '90%', padding: '2.5rem', borderTop: '5px solid #ef4444', textAlign: 'center', margin: 'auto' }}>
             <div style={{ color: '#ef4444', marginBottom: '1.5rem' }}>
               <AlertCircle size={64} style={{ margin: '0 auto' }} />
             </div>
@@ -1007,7 +1095,8 @@ export default function AttendanceClient({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <StatusModal

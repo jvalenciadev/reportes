@@ -4,6 +4,59 @@
    DARK MODE (default)
    ============================================================ */
 :root,
+[data-theme="light"] {
+  --bg: #f8fafc;
+  --bg-2: #f1f5f9;
+  --bg-3: #ffffff;
+  --surface: rgba(0, 0, 0, 0.02);
+  --surface-hover: rgba(0, 0, 0, 0.04);
+  --surface-active: rgba(99, 102, 241, 0.08);
+  --card: rgba(255, 255, 255, 0.85);
+  --card-solid: #ffffff;
+
+  --foreground: #0f172a;
+  --foreground-2: #475569;
+  --foreground-3: #94a3b8;
+
+  --primary: #4f46e5;
+  --primary-light: rgba(79, 70, 229, 0.08);
+  --primary-glow: rgba(79, 70, 229, 0.15);
+
+  --success: #059669;
+  --success-light: rgba(5, 150, 105, 0.08);
+  --warning: #d97706;
+  --warning-light: rgba(217, 119, 6, 0.08);
+  --danger: #dc2626;
+  --danger-light: rgba(220, 38, 38, 0.08);
+  --purple: #7c3aed;
+  --purple-light: rgba(124, 58, 237, 0.08);
+
+  --border: rgba(0, 0, 0, 0.05);
+  --border-strong: rgba(0, 0, 0, 0.1);
+  --input-bg: rgba(0, 0, 0, 0.02);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  --shadow-glow: 0 0 40px rgba(79, 70, 229, 0.05);
+
+  --sidebar-bg: rgba(255, 255, 255, 0.95);
+  --sidebar-border: rgba(0, 0, 0, 0.04);
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.1);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+
+  --chart-grid: rgba(0, 0, 0, 0.03);
+  --chart-tooltip-bg: #ffffff;
+  --chart-text: #94a3b8;
+
+  --radius: 1.25rem;
+  --radius-sm: 0.6rem;
+  --radius-lg: 2rem;
+
+  color-scheme: light;
+}
+
 [data-theme="dark"] {
   --bg: #03040b;
   --bg-2: #080915;
@@ -55,55 +108,6 @@
   --radius-lg: 2rem;
 
   color-scheme: dark;
-}
-
-[data-theme="light"] {
-  --bg: #f8fafc;
-  --bg-2: #f1f5f9;
-  --bg-3: #ffffff;
-  --surface: rgba(0, 0, 0, 0.02);
-  --surface-hover: rgba(0, 0, 0, 0.04);
-  --surface-active: rgba(99, 102, 241, 0.08);
-  --card: rgba(255, 255, 255, 0.85);
-  --card-solid: #ffffff;
-
-  --foreground: #0f172a;
-  --foreground-2: #475569;
-  --foreground-3: #94a3b8;
-
-  --primary: #4f46e5;
-  --primary-light: rgba(79, 70, 229, 0.08);
-  --primary-glow: rgba(79, 70, 229, 0.15);
-
-  --success: #059669;
-  --success-light: rgba(5, 150, 105, 0.08);
-  --warning: #d97706;
-  --warning-light: rgba(217, 119, 6, 0.08);
-  --danger: #dc2626;
-  --danger-light: rgba(220, 38, 38, 0.08);
-  --purple: #7c3aed;
-  --purple-light: rgba(124, 58, 237, 0.08);
-
-  --border: rgba(0, 0, 0, 0.05);
-  --border-strong: rgba(0, 0, 0, 0.1);
-  --input-bg: rgba(0, 0, 0, 0.02);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
-  --shadow-glow: 0 0 40px rgba(79, 70, 229, 0.05);
-
-  --sidebar-bg: rgba(255, 255, 255, 0.95);
-  --sidebar-border: rgba(0, 0, 0, 0.04);
-
-  --scrollbar-thumb: rgba(0, 0, 0, 0.1);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
-
-  --chart-grid: rgba(0, 0, 0, 0.03);
-  --chart-tooltip-bg: #ffffff;
-  --chart-text: #94a3b8;
-
-  color-scheme: light;
 }
 
 /* ============================================================
