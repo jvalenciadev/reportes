@@ -70,6 +70,66 @@ export default function AttendanceClient({
   const [historyDays, setHistoryDays] = useState<{ dia: number, fecha: string, asistio: number, atraso: number, falta: number, permiso: number, total: number }[]>([])
   const [isEditingDate, setIsEditingDate] = useState(false)
 
+  // Inline table row editing state
+  const [editingRowDia, setEditingRowDia] = useState<number | null>(null)
+  const [editRowNewDia, setEditRowNewDia] = useState<number>(1)
+  const [editRowNewFecha, setEditRowNewFecha] = useState<string>('')
+
+  const getChronologicalViolations = () => {
+    const violations: { type: 'duplicate' | 'chronological', msg: string, affectedDays: number[] }[] = [];
+    const rows = [...historyDays];
+    const isNewDay = !historyDays.some(h => h.dia === dayNumber);
+    if (isNewDay) {
+      rows.push({
+        dia: dayNumber,
+        fecha: selectedDate,
+        asistio: participants.filter(p => attendanceData[p.participante_id] === 'asistio').length,
+        atraso: participants.filter(p => attendanceData[p.participante_id] === 'atraso').length,
+        falta: participants.filter(p => attendanceData[p.participante_id] === 'falta').length,
+        permiso: participants.filter(p => attendanceData[p.participante_id] === 'permiso').length,
+        total: participants.length,
+      } as any);
+    }
+    rows.sort((a, b) => a.dia - b.dia);
+
+    // 1. Check for Duplicate Dates
+    const seenDates = new Map<string, number[]>();
+    rows.forEach(r => {
+      if (!seenDates.has(r.fecha)) {
+        seenDates.set(r.fecha, []);
+      }
+      seenDates.get(r.fecha)!.push(r.dia);
+    });
+
+    seenDates.forEach((dias, fecha) => {
+      if (dias.length > 1) {
+        const formattedDate = new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        violations.push({
+          type: 'duplicate',
+          msg: `El ${dias.map(d => `Día ${d}`).join(' y el ')} están registrados con la misma fecha (${formattedDate}). Cada jornada debe tener una fecha distinta.`,
+          affectedDays: dias
+        });
+      }
+    });
+
+    // 2. Check for Chronological Order Violations
+    for (let i = 0; i < rows.length; i++) {
+      for (let j = i + 1; j < rows.length; j++) {
+        if (rows[i].fecha >= rows[j].fecha) {
+          const dateI = new Date(rows[i].fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const dateJ = new Date(rows[j].fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          violations.push({
+            type: 'chronological',
+            msg: `Inconsistencia: El Día ${rows[i].dia} (${dateI}) está registrado con una fecha posterior o igual al Día ${rows[j].dia} (${dateJ}). Las jornadas deben ser secuenciales y cronológicas.`,
+            affectedDays: [rows[i].dia, rows[j].dia]
+          });
+        }
+      }
+    }
+
+    return violations;
+  };
+
   // 1. Initial Load: Programs
   useEffect(() => {
     const fetchPrograms = async () => {
@@ -245,6 +305,21 @@ export default function AttendanceClient({
     if (!selectedModule || participants.length === 0) return
     setSaving(true)
 
+    // Check for chronological and duplicate date violations
+    const violations = getChronologicalViolations();
+    const duplicateViolation = violations.find(v => v.type === 'duplicate');
+    if (duplicateViolation) {
+      showNotif('error', 'Fechas Duplicadas', duplicateViolation.msg);
+      setSaving(false);
+      return false;
+    }
+    const chronoViolation = violations.find(v => v.type === 'chronological');
+    if (chronoViolation) {
+      showNotif('error', 'Inconsistencia Cronológica', chronoViolation.msg);
+      setSaving(false);
+      return false;
+    }
+
     const participantIds = participants.map((p: any) => p.participante_id)
     if (participantIds.length === 0) {
       setSaving(false)
@@ -294,6 +369,81 @@ export default function AttendanceClient({
       return true
     }
   }
+
+  const handleUpdateRowJornada = async (oldDia: number) => {
+    if (!selectedModule) return;
+    setSaving(true);
+
+    // 1. Temporarily build rows to validate before updating
+    const simulatedRows = historyDays.map(h => {
+      if (h.dia === oldDia) {
+        return { ...h, dia: editRowNewDia, fecha: editRowNewFecha };
+      }
+      return h;
+    });
+
+    // Validate simulatedRows for duplicates
+    const seenDates = new Map<string, number[]>();
+    simulatedRows.forEach(r => {
+      if (!seenDates.has(r.fecha)) seenDates.set(r.fecha, []);
+      seenDates.get(r.fecha)!.push(r.dia);
+    });
+
+    let hasDuplicate = false;
+    seenDates.forEach((dias, fecha) => {
+      if (dias.length > 1) {
+        const formattedDate = new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        showNotif('error', 'Fechas Duplicadas', `No se pueden guardar los cambios: El ${dias.map(d => `Día ${d}`).join(' y el ')} tendrían la misma fecha (${formattedDate}).`);
+        hasDuplicate = true;
+      }
+    });
+
+    if (hasDuplicate) {
+      setSaving(false);
+      return;
+    }
+
+    // Validate simulatedRows for chronological order
+    simulatedRows.sort((a, b) => a.dia - b.dia);
+    let hasChronoError = false;
+    for (let i = 0; i < simulatedRows.length; i++) {
+      for (let j = i + 1; j < simulatedRows.length; j++) {
+        if (simulatedRows[i].fecha >= simulatedRows[j].fecha) {
+          const dateI = new Date(simulatedRows[i].fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const dateJ = new Date(simulatedRows[j].fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          showNotif('error', 'Inconsistencia Cronológica', `No se pueden guardar los cambios: El Día ${simulatedRows[i].dia} (${dateI}) quedaría con una fecha posterior o igual al Día ${simulatedRows[j].dia} (${dateJ}).`);
+          hasChronoError = true;
+          break;
+        }
+      }
+      if (hasChronoError) break;
+    }
+
+    if (hasChronoError) {
+      setSaving(false);
+      return;
+    }
+
+    // 2. Perform the database update for this module / day number
+    const { error } = await supabase
+      .from('asistencias')
+      .update({ dia: editRowNewDia, fecha: editRowNewFecha })
+      .eq('modulo_id', selectedModule)
+      .eq('dia', oldDia);
+
+    if (error) {
+      showNotif('error', 'Fallo al Actualizar', `Error de base de datos: ${error.message}`);
+    } else {
+      showNotif('success', '¡Jornada Actualizada!', 'Se han guardado los cambios en la base de datos.');
+      if (dayNumber === oldDia) {
+        setDayNumber(editRowNewDia);
+        setSelectedDate(editRowNewFecha);
+      }
+      setEditingRowDia(null);
+      await loadAttendanceSession();
+    }
+    setSaving(false);
+  };
 
   // Stats for current session
   // Stats for current session (calculated in every render)
@@ -647,126 +797,303 @@ export default function AttendanceClient({
               )}
             </div>
 
-            {historyDays.length > 0 ? (
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr style={{ background: 'transparent' }}>
-                      <th>Jornada</th>
-                      <th style={{ textAlign: 'center' }}>Fecha</th>
-                      <th style={{ textAlign: 'center' }}>Asistió</th>
-                      <th style={{ textAlign: 'center' }}>Atraso</th>
-                      <th style={{ textAlign: 'center' }}>Falta</th>
-                      <th style={{ textAlign: 'center' }}>Permiso</th>
-                      <th style={{ textAlign: 'center' }}>Total</th>
-                      <th style={{ textAlign: 'right' }}>Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyDays.map(h => {
-                      const isEditing = h.dia === dayNumber;
-                      return (
-                        <tr key={h.dia} style={{ background: isEditing ? 'var(--primary-light)' : 'transparent', transition: 'all 0.2s' }}>
-                          <td style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>Día {h.dia}</td>
-                          <td style={{ textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted)' }}>
-                            {new Date(h.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                          </td>
-                          <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 800 }}>{h.asistio}</td>
-                          <td style={{ textAlign: 'center', color: 'var(--warning)', fontWeight: 800 }}>{h.atraso}</td>
-                          <td style={{ textAlign: 'center', color: 'var(--danger)', fontWeight: 800 }}>{h.falta}</td>
-                          <td style={{ textAlign: 'center', color: 'var(--info)', fontWeight: 800 }}>{h.permiso}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>{h.total}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <button
-                              className={`btn ${isEditing ? 'btn-primary' : 'btn-ghost'}`}
-                              onClick={() => {
-                                const action = () => {
-                                  setDayNumber(h.dia);
-                                  setSelectedDate(h.fecha);
-                                };
-                                if (isDirty && !isEditing) {
-                                  setPendingAction(() => action);
-                                  setShowDirtyModal(true);
-                                } else {
-                                  action();
-                                }
-                              }}
-                              style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', border: isEditing ? 'none' : '1px solid var(--border)' }}
-                            >
-                              {isEditing ? 'Editando...' : 'Ver / Editar'}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="animate-fade-in" style={{ 
-                textAlign: 'center', 
-                padding: '3rem 2rem', 
-                background: 'linear-gradient(180deg, rgba(var(--primary-rgb), 0.03) 0%, transparent 100%)', 
-                borderRadius: '1rem', 
-                border: '1px dashed rgba(var(--primary-rgb), 0.3)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '1.25rem',
-                margin: '1rem 0'
-              }}>
-                <div style={{
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '1rem',
-                  background: 'rgba(var(--primary-rgb), 0.1)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 20px rgba(var(--primary-rgb), 0.15)'
-                }}>
-                  <CalendarDays size={28} />
-                </div>
+            {(() => {
+              const renderedRows = [...historyDays];
+              const isNewDay = !historyDays.some(h => h.dia === dayNumber);
+              if (isNewDay) {
+                renderedRows.push({
+                  dia: dayNumber,
+                  fecha: selectedDate,
+                  asistio: stats.asistieron,
+                  atraso: stats.atrasos,
+                  falta: stats.faltas,
+                  permiso: stats.permisos,
+                  total: participants.length,
+                  isPreview: true
+                } as any);
+              }
+              renderedRows.sort((a, b) => a.dia - b.dia);
+
+              const violations = getChronologicalViolations();
+
+              return renderedRows.length > 0 ? (
                 <div>
-                  <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: '0.4rem' }}>Primera Jornada Lista</h4>
-                  <p style={{ color: 'var(--muted)', fontSize: '0.85rem', maxWidth: '400px', margin: '0 auto', lineHeight: '1.5' }}>
-                    Aún no hay asistencias registradas. La tabla de abajo ya está configurada para el <strong>Día 1</strong>. Simplemente marca la asistencia y guarda los cambios para registrarla.
-                  </p>
+                  {violations.map((v, idx) => (
+                    <div key={idx} className="animate-fade-in" style={{
+                      marginBottom: '1rem',
+                      padding: '0.85rem 1.25rem',
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      borderRadius: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      color: 'var(--danger)',
+                      fontSize: '0.825rem',
+                      fontWeight: 600
+                    }}>
+                      <span style={{ fontSize: '1.25rem', display: 'inline-flex', alignItems: 'center' }}>⚠️</span>
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ textTransform: 'uppercase', fontSize: '0.7rem', display: 'block', letterSpacing: '0.05em', marginBottom: '0.15rem' }}>
+                          {v.type === 'duplicate' ? 'Alerta: Fechas Duplicadas' : 'Alerta: Inconsistencia Cronológica'}
+                        </strong>
+                        <span style={{ opacity: 0.9 }}>{v.msg}</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr style={{ background: 'transparent' }}>
+                          <th>Jornada</th>
+                          <th style={{ textAlign: 'center' }}>Fecha</th>
+                          <th style={{ textAlign: 'center' }}>Asistió</th>
+                          <th style={{ textAlign: 'center' }}>Atraso</th>
+                          <th style={{ textAlign: 'center' }}>Falta</th>
+                          <th style={{ textAlign: 'center' }}>Permiso</th>
+                          <th style={{ textAlign: 'center' }}>Total</th>
+                          <th style={{ textAlign: 'right' }}>Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {renderedRows.map(h => {
+                          const isEditing = h.dia === dayNumber;
+                          const isEditingRow = editingRowDia === h.dia;
+                          const isPreview = (h as any).isPreview;
+                          const rowViolations = violations.filter(v => v.affectedDays.includes(h.dia));
+                          const hasViolation = rowViolations.length > 0;
+                          return (
+                            <tr key={h.dia} style={{ background: isEditing ? 'var(--primary-light)' : 'transparent', transition: 'all 0.2s' }}>
+                              <td style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>
+                                {isEditingRow ? (
+                                  <select
+                                    value={editRowNewDia}
+                                    onChange={e => setEditRowNewDia(parseInt(e.target.value))}
+                                    style={{
+                                      background: 'var(--card-bg)',
+                                      border: '1px solid var(--primary)',
+                                      borderRadius: '0.4rem',
+                                      color: 'var(--primary)',
+                                      fontSize: '1rem',
+                                      fontWeight: 900,
+                                      padding: '0.2rem 0.4rem',
+                                      outline: 'none'
+                                    }}
+                                  >
+                                    {[1, 2, 3, 4, 5, 6].map(d => (
+                                      <option key={d} value={d} style={{ background: 'var(--card-bg)', color: 'var(--foreground)' }}>Día {d}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  `Día ${h.dia}`
+                                )}
+                                
+                                {isPreview && (
+                                  <span style={{
+                                    fontSize: '0.65rem',
+                                    background: 'rgba(16, 185, 129, 0.1)',
+                                    color: '#10b981',
+                                    padding: '0.15rem 0.35rem',
+                                    borderRadius: '0.25rem',
+                                    fontWeight: 800,
+                                    marginLeft: '0.5rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
+                                    Agregando...
+                                  </span>
+                                )}
+                                
+                                {isEditing && !isPreview && (
+                                  <span style={{
+                                    fontSize: '0.65rem',
+                                    background: 'rgba(59, 130, 246, 0.1)',
+                                    color: 'var(--info)',
+                                    padding: '0.15rem 0.35rem',
+                                    borderRadius: '0.25rem',
+                                    fontWeight: 800,
+                                    marginLeft: '0.5rem'
+                                  }}>
+                                    Editando...
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{
+                                textAlign: 'center',
+                                fontSize: '0.85rem',
+                                fontWeight: 800,
+                                color: hasViolation ? 'var(--danger)' : 'var(--muted)',
+                                background: hasViolation ? 'rgba(239, 68, 68, 0.05)' : 'transparent',
+                                borderRadius: '0.4rem',
+                                padding: '0.35rem 0.6rem',
+                                border: hasViolation ? '1px dashed rgba(239, 68, 68, 0.3)' : 'none',
+                                transition: 'all 0.2s'
+                              }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
+                                  {hasViolation && (
+                                    <span style={{ cursor: 'help', fontSize: '0.95rem' }} title={rowViolations.map(v => v.msg).join('\n')}>
+                                      ⚠️
+                                    </span>
+                                  )}
+                                  {isEditingRow ? (
+                                    <input
+                                      type="date"
+                                      value={editRowNewFecha}
+                                      onChange={e => setEditRowNewFecha(e.target.value)}
+                                      style={{
+                                        background: 'var(--card-bg)',
+                                        border: '1px solid var(--primary)',
+                                        borderRadius: '0.4rem',
+                                        color: 'var(--foreground)',
+                                        padding: '0.2rem 0.4rem',
+                                        fontSize: '0.85rem',
+                                        width: '130px',
+                                        textAlign: 'center',
+                                        outline: 'none'
+                                      }}
+                                    />
+                                  ) : (
+                                    new Date(h.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ textAlign: 'center', color: 'var(--success)', fontWeight: 800 }}>{h.asistio}</td>
+                              <td style={{ textAlign: 'center', color: 'var(--warning)', fontWeight: 800 }}>{h.atraso}</td>
+                              <td style={{ textAlign: 'center', color: 'var(--danger)', fontWeight: 800 }}>{h.falta}</td>
+                              <td style={{ textAlign: 'center', color: 'var(--info)', fontWeight: 800 }}>{h.permiso}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--muted)' }}>{h.total}</td>
+                              <td style={{ textAlign: 'right' }}>
+                                {isEditingRow ? (
+                                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                    <button
+                                      className="btn btn-primary"
+                                      onClick={() => handleUpdateRowJornada(h.dia)}
+                                      disabled={saving}
+                                      style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', fontWeight: 700 }}
+                                    >
+                                      {saving ? 'Guardando...' : 'Actualizar'}
+                                    </button>
+                                    <button
+                                      className="btn btn-ghost"
+                                      onClick={() => setEditingRowDia(null)}
+                                      style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', border: '1px solid var(--border)', fontWeight: 700 }}
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                ) : isPreview ? (
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700, fontStyle: 'italic', paddingRight: '0.5rem' }}>
+                                    Borrador
+                                  </span>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                    <button
+                                      className={`btn ${isEditing ? 'btn-primary' : 'btn-ghost'}`}
+                                      onClick={() => {
+                                        const action = () => {
+                                          setDayNumber(h.dia);
+                                          setSelectedDate(h.fecha);
+                                        };
+                                        if (isDirty && !isEditing) {
+                                          setPendingAction(() => action);
+                                          setShowDirtyModal(true);
+                                        } else {
+                                          action();
+                                        }
+                                      }}
+                                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: isEditing ? 'none' : '1px solid var(--border)', fontWeight: 700 }}
+                                    >
+                                      {isEditing ? 'Editando...' : 'Ver / Editar'}
+                                    </button>
+                                    <button
+                                      className="btn btn-ghost"
+                                      onClick={() => {
+                                        setEditingRowDia(h.dia);
+                                        setEditRowNewDia(h.dia);
+                                        setEditRowNewFecha(h.fecha);
+                                      }}
+                                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid var(--border)', color: 'var(--info)', fontWeight: 700 }}
+                                    >
+                                      Editar Día
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => {
-                    window.scrollTo({ top: window.scrollY + 400, behavior: 'smooth' });
-                  }}
-                  style={{
-                    marginTop: '0.5rem',
-                    padding: '0.6rem 1.25rem',
-                    background: 'var(--primary)',
-                    color: '#000',
-                    border: 'none',
-                    borderRadius: '99px',
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    cursor: 'pointer',
+              ) : (
+                <div className="animate-fade-in" style={{
+                  textAlign: 'center',
+                  padding: '3rem 2rem',
+                  background: 'linear-gradient(180deg, rgba(var(--primary-rgb), 0.03) 0%, transparent 100%)',
+                  borderRadius: '1rem',
+                  border: '1px dashed rgba(var(--primary-rgb), 0.3)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '1.25rem',
+                  margin: '1rem 0'
+                }}>
+                  <div style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '1rem',
+                    background: 'rgba(var(--primary-rgb), 0.1)',
+                    color: 'var(--primary)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    boxShadow: '0 4px 15px rgba(var(--primary-rgb), 0.3)',
-                    transition: 'transform 0.2s, box-shadow 0.2s'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(var(--primary-rgb), 0.4)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(var(--primary-rgb), 0.3)';
-                  }}
-                >
-                  Ir a Pasar Lista <ChevronRight size={14} />
-                </button>
-              </div>
-            )}
+                    justifyContent: 'center',
+                    boxShadow: '0 0 20px rgba(var(--primary-rgb), 0.15)'
+                  }}>
+                    <CalendarDays size={28} />
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--foreground)', marginBottom: '0.4rem' }}>Primera Jornada Lista</h4>
+                    <p style={{ color: 'var(--muted)', fontSize: '0.85rem', maxWidth: '400px', margin: '0 auto', lineHeight: '1.5' }}>
+                      Aún no hay asistencias registradas. La tabla de abajo ya está configurada para el <strong>Día 1</strong>. Simplemente marca la asistencia y guarda los cambios para registrarla.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      window.scrollTo({ top: window.scrollY + 400, behavior: 'smooth' });
+                    }}
+                    style={{
+                      marginTop: '0.5rem',
+                      padding: '0.6rem 1.25rem',
+                      background: 'var(--primary)',
+                      color: '#000',
+                      border: 'none',
+                      borderRadius: '99px',
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 15px rgba(var(--primary-rgb), 0.3)',
+                      transition: 'transform 0.2s, box-shadow 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(var(--primary-rgb), 0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(var(--primary-rgb), 0.3)';
+                    }}
+                  >
+                    Ir a Pasar Lista <ChevronRight size={14} />
+                  </button>
+                </div>
+              ); })()}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
