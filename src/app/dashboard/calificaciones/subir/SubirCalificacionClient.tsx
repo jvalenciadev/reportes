@@ -242,6 +242,17 @@ export default function SubirCalificacionClient({
 
   // Handle value change inside row
   const handleValueChange = (participantId: string, field: 'autoformacion' | 'practica_guiada' | 'asistencia' | 'evaluacion', val: string) => {
+    if (val === '') {
+      setGradeData(prev => ({
+        ...prev,
+        [participantId]: {
+          ...prev[participantId],
+          [field]: '' as any
+        }
+      }))
+      return
+    }
+
     let num = Number(val)
     if (isNaN(num)) num = 0
 
@@ -271,14 +282,18 @@ export default function SubirCalificacionClient({
     setSaving(true)
 
     const payload = Object.entries(gradeData).map(([pId, scores]) => {
-      const total = scores.autoformacion + scores.practica_guiada + scores.asistencia + scores.evaluacion
+      const auto = Number(scores.autoformacion) || 0
+      const prac = Number(scores.practica_guiada) || 0
+      const asist = Number(scores.asistencia) || 0
+      const evalN = Number(scores.evaluacion) || 0
+      const total = auto + prac + asist + evalN
       return {
         participante_id: pId,
         modulo_id: selectedModule,
-        autoformacion: scores.autoformacion,
-        practica_guiada: scores.practica_guiada,
-        asistencia: scores.asistencia,
-        evaluacion: scores.evaluacion,
+        autoformacion: auto,
+        practica_guiada: prac,
+        asistencia: asist,
+        evaluacion: evalN,
         total: Math.min(100, Math.round(total * 100) / 100)
       }
     })
@@ -338,7 +353,7 @@ ON public.calificaciones FOR ALL USING (
   if (totalStudents > 0) {
     let sum = 0
     Object.values(gradeData).forEach(g => {
-      const tot = g.autoformacion + g.practica_guiada + g.asistencia + g.evaluacion
+      const tot = (Number(g.autoformacion) || 0) + (Number(g.practica_guiada) || 0) + (Number(g.asistencia) || 0) + (Number(g.evaluacion) || 0)
       sum += tot
       if (tot >= 61) totalPassing++
     })
@@ -612,7 +627,7 @@ ON public.calificaciones FOR ALL USING (
                   <tbody>
                     {participants.map((p) => {
                       const scores = gradeData[p.id] || { autoformacion: 0, practica_guiada: 0, asistencia: 0, evaluacion: 0 }
-                      const total = scores.autoformacion + scores.practica_guiada + scores.asistencia + scores.evaluacion
+                      const total = (Number(scores.autoformacion) || 0) + (Number(scores.practica_guiada) || 0) + (Number(scores.asistencia) || 0) + (Number(scores.evaluacion) || 0)
                       const isPassing = total >= 61
 
                       return (
@@ -631,7 +646,7 @@ ON public.calificaciones FOR ALL USING (
                               min="0"
                               max="40"
                               step="0.5"
-                              value={scores.autoformacion || ''}
+                              value={scores.autoformacion ?? ''}
                               onChange={(e) => handleValueChange(p.id, 'autoformacion', e.target.value)}
                               placeholder="0"
                               style={{
@@ -655,7 +670,7 @@ ON public.calificaciones FOR ALL USING (
                               min="0"
                               max="20"
                               step="0.5"
-                              value={scores.practica_guiada || ''}
+                              value={scores.practica_guiada ?? ''}
                               onChange={(e) => handleValueChange(p.id, 'practica_guiada', e.target.value)}
                               placeholder="0"
                               style={{
@@ -679,7 +694,7 @@ ON public.calificaciones FOR ALL USING (
                               min="0"
                               max="10"
                               step="0.5"
-                              value={scores.asistencia || ''}
+                              value={scores.asistencia ?? ''}
                               onChange={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
                               placeholder="0"
                               style={{
@@ -703,7 +718,7 @@ ON public.calificaciones FOR ALL USING (
                               min="0"
                               max="30"
                               step="0.5"
-                              value={scores.evaluacion || ''}
+                              value={scores.evaluacion ?? ''}
                               onChange={(e) => handleValueChange(p.id, 'evaluacion', e.target.value)}
                               placeholder="0"
                               style={{
