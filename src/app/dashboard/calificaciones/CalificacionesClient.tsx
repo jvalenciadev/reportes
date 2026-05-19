@@ -294,7 +294,7 @@ export default function CalificacionesClient({
           { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `FACILITADOR: ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
+          { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
           { content: `FECHA: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
         ],
         [
