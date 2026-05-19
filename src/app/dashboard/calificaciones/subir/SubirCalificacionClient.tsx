@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { 
-  Building2, Users, GraduationCap, ChevronRight, Save, 
+import {
+  Building2, Users, GraduationCap, ChevronRight, Save,
   Database, Info, AlertTriangle, CheckCircle, Calculator, Copy, Check
 } from 'lucide-react'
 
@@ -137,7 +137,7 @@ export default function SubirCalificacionClient({
         .eq('grupo_id', selectedGroup)
         .eq('programa_id', selectedProgram)
         .eq('estado', 'inscrito')
-      
+
       if (iErr) throw iErr
 
       const list = inscripcionesData
@@ -347,10 +347,10 @@ ON public.calificaciones FOR ALL USING (
 
   return (
     <div style={{ position: 'relative' }}>
-      
+
       {/* Dynamic Toast Notification */}
       {notification && (
-        <div 
+        <div
           className="animate-fade-in"
           style={{
             position: 'fixed',
@@ -421,7 +421,7 @@ ON public.calificaciones FOR ALL USING (
               lineHeight: '1.6',
               fontFamily: 'monospace'
             }}>
-{`CREATE TABLE IF NOT EXISTS public.calificaciones (
+              {`CREATE TABLE IF NOT EXISTS public.calificaciones (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     participante_id UUID REFERENCES public.participantes(id) ON DELETE CASCADE,
     modulo_id UUID REFERENCES public.programa_modulos(id) ON DELETE CASCADE,
@@ -467,7 +467,7 @@ ON public.calificaciones FOR ALL USING (
       {/* Selectors Panel */}
       <div className="card shadow-lg animate-fade-in" style={{ padding: '1.75rem', borderRadius: '1.25rem', marginBottom: '2rem' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', alignItems: 'end' }}>
-          
+
           {/* Department Selection (For non-facilitadores) */}
           {userRole !== 'facilitador' && (
             <div>
@@ -552,7 +552,7 @@ ON public.calificaciones FOR ALL USING (
       {/* Main Grid View */}
       {selectedGroup && selectedModule && !isTableMissing && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>
-          
+
           {/* Main Grade Card Table */}
           <div className="card shadow-lg" style={{ borderRadius: '1.25rem', overflow: 'hidden', padding: 0 }}>
             <div style={{
@@ -782,15 +782,15 @@ ON public.calificaciones FOR ALL USING (
 
           {/* Right Statistics Summary panel */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            
+
             {/* Stat Box: Summary */}
             <div className="card shadow-lg" style={{ borderRadius: '1.25rem', padding: '1.5rem' }}>
               <h4 style={{ fontWeight: 900, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Calculator size={15} /> Estadísticas del Módulo
               </h4>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                
+
                 <div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700 }}>PROMEDIO DEL GRUPO</div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
