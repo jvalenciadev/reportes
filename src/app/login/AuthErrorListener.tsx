@@ -2,19 +2,18 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { Lock, CheckCircle2 } from 'lucide-react'
+import { Lock, CheckCircle2, Loader2 } from 'lucide-react'
 
 export default function AuthErrorListener() {
+  const [supabase] = useState(() => createClient())
   const [error, setError] = useState<string | null>(null)
   const [isRecovery, setIsRecovery] = useState(false)
+  const [isSettingSession, setIsSettingSession] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    // Inicializar supabase para que procese el hash fragment automáticamente
-    const supabase = createClient()
-    
     const hash = window.location.hash
     if (hash) {
       if (hash.includes('error=')) {
@@ -26,6 +25,26 @@ export default function AuthErrorListener() {
       } else if (hash.includes('type=recovery')) {
         setIsRecovery(true)
         
+        const params = new URLSearchParams(hash.substring(1))
+        const accessToken = params.get('access_token')
+        const refreshToken = params.get('refresh_token')
+        
+        if (accessToken && refreshToken) {
+          setIsSettingSession(true)
+          supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          }).then(({ data, error }) => {
+            setIsSettingSession(false)
+            if (error) {
+              console.error('Error setting recovery session:', error.message)
+              setError('No se pudo establecer la sesión de recuperación: ' + error.message)
+            } else {
+              console.log('Recovery session set successfully')
+            }
+          })
+        }
+        
         // Opcional: Escuchar el evento de recuperación
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
           if (event === 'PASSWORD_RECOVERY') {
@@ -35,13 +54,12 @@ export default function AuthErrorListener() {
         return () => subscription.unsubscribe()
       }
     }
-  }, [])
+  }, [supabase])
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsUpdating(true)
     setError(null)
-    const supabase = createClient()
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword
     })
@@ -64,6 +82,39 @@ export default function AuthErrorListener() {
         <CheckCircle2 size={48} color="var(--success)" style={{ margin: '0 auto 1rem' }} />
         <h3 style={{ color: 'var(--success)', marginBottom: '0.5rem', fontWeight: 800 }}>¡Contraseña Actualizada!</h3>
         <p style={{ fontSize: '0.85rem', color: 'var(--foreground-3)' }}>Iniciando sesión de forma segura...</p>
+      </div>
+    )
+  }
+
+  if (isSettingSession) {
+    return (
+      <div className="glass animate-scale-in" style={{ 
+        padding: '2.5rem 2rem', 
+        borderRadius: '1.5rem', 
+        border: '1px solid var(--primary)', 
+        marginBottom: '2rem', 
+        background: 'var(--surface)', 
+        boxShadow: '0 10px 30px -10px var(--primary-glow)',
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '1rem'
+      }}>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          .spinner-recovery {
+            animation: spin 1s linear infinite;
+            color: var(--primary);
+          }
+        `}</style>
+        <Loader2 size={40} className="spinner-recovery" />
+        <h3 style={{ color: 'var(--foreground)', fontWeight: 800, fontSize: '1.1rem' }}>Verificando Token</h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--foreground-2)', maxWidth: '280px', margin: '0 auto' }}>
+          Estableciendo conexión segura para restablecer su contraseña...
+        </p>
       </div>
     )
   }

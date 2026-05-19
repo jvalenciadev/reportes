@@ -122,12 +122,15 @@ export default function ConsultaClient() {
           const countFalta = moduleAsists.filter((a: any) => a.estado === 'falta').length
           const countPermiso = moduleAsists.filter((a: any) => a.estado === 'permiso').length
           
-          // Calculate net score for attendance based on official academic logic
-          // 6 sessions total: Full score is 10 points if 6 assistances.
-          // Permits give score relative to 80% weight, Tardy is 50% weight, Absence is 0%.
+          // Calculate net score for attendance based on official academic logic:
+          // - Asistió: 100% (1.0)
+          // - Permiso: 100% (1.0)
+          // - Atraso (Tarde): 80% (0.8)
+          // - Falta: 0% (0.0)
           let attendancePercentage = 0
           if (totalSessions > 0) {
-            attendancePercentage = Math.round((countAsistio / totalSessions) * 100)
+            const scoreSum = (countAsistio * 1.0) + (countPermiso * 1.0) + (countAtraso * 0.8) + (countFalta * 0.0)
+            attendancePercentage = Math.round((scoreSum / totalSessions) * 100)
           }
 
           return {

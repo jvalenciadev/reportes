@@ -479,49 +479,55 @@ export default function AttendanceClient({
     doc.setFontSize(12)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.text('ASISTENCIA DE ESTUDIANTES / PARTICIPANTES', pageWidth / 2, 54.5, { align: 'center' })
+    doc.text('ASISTENCIA DE ESTUDIANTES / PARTICIPANTES', pageWidth / 2, 46.5, { align: 'center' })
 
     const currentFac = facilitators.find(f => f.name === selectedFacilitator)
     const facilitatorDepto = currentFac?.depto || 'N/A'
 
     // --- BLOQUE DE METADATOS (TABLA DINÁMICA - AUTO AJUSTABLE) ---
     autoTable(doc, {
-      startY: 58,
+      startY: 53,
       body: [
         [
-          { content: `DEPARTAMENTO: ${facilitatorDepto.toUpperCase()}`, styles: { cellWidth: 91 } },
-          { content: `PERIODO: I/2026`, styles: { cellWidth: 91 } }
+          { content: `DEPARTAMENTO: ${facilitatorDepto.toUpperCase()}`, styles: { fontStyle: 'bold' } },
+          { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `FACILITADOR: ${selectedFacilitator.toUpperCase() || 'N/A'}` },
-          { content: `FECHA: ${new Date(selectedDate + 'T00:00:00').toLocaleDateString()}` }
+          { content: `FACILITADOR: ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
+          { content: `FECHA: ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `MÓDULO: ${moduleName.toUpperCase()}` },
-          { content: `PROGRAMA: ${programName.toUpperCase()}` }
+          { content: `GRUPO: ${groupName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
+          { content: `JORNADA REGISTRADA: DÍA ${dayNumber}`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `GRUPO: ${groupName.toUpperCase()}` },
-          { content: `JORNADA REGISTRADA: DÍA ${dayNumber}` }
+          { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+        ],
+        [
+          { content: `MÓDULO: ${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
         ]
       ],
-      theme: 'grid',
+      theme: 'plain',
       styles: {
         fontSize: 7,
-        cellPadding: 2,
-        textColor: [20, 20, 20],
-        lineWidth: 0.1,
-        lineColor: [100, 100, 100],
-        overflow: 'linebreak' // Permite el salto de línea automático
+        cellPadding: 1.3,
+        textColor: [40, 40, 40],
+        overflow: 'linebreak'
       },
       columnStyles: {
-        0: { fontStyle: 'bold' },
-        1: { fontStyle: 'bold' }
+        0: { cellWidth: 89.5 },
+        1: { cellWidth: 89.5 }
       },
-      margin: { left: 14, right: 14 }
+      margin: { left: 17, right: 14 }
     })
 
-    const metaFinalY = (doc as any).lastAutoTable.finalY + 5
+    const metaFinalY = (doc as any).lastAutoTable.finalY
+
+    // Draw the luxury vertical gold accent bar next to the metadata block
+    doc.setFillColor(187, 151, 58) // dorado institucional #bb973a
+    doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
+
+    const tableStartY = metaFinalY + 5
 
     // --- TABLA DE ASISTENCIA ---
     const tableData = participants.map((p, idx) => {
@@ -551,25 +557,28 @@ export default function AttendanceClient({
     })
 
     autoTable(doc, {
-      startY: metaFinalY,
+      startY: tableStartY,
       head: [['Nro', 'C.I.', 'NOMBRES', 'APELLIDO PATERNO', 'APELLIDO MATERNO', 'ASIST.', 'OBSERVACIONES']],
       body: tableData,
       theme: 'grid',
       headStyles: {
-        fillColor: [240, 240, 240],
-        textColor: [0, 0, 0],
+        fillColor: [187, 151, 58], // Elegant institutional gold
+        textColor: 255, // Clean white text
         fontSize: 7,
         halign: 'center',
-        lineWidth: 0.1,
-        lineColor: [80, 80, 80],
+        lineWidth: 0.05,
+        lineColor: [120, 100, 40],
         fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [253, 252, 248] // Subtle warm ivory zebra striping
       },
       styles: {
         fontSize: 7,
-        cellPadding: 2,
+        cellPadding: 1.3,
         textColor: [30, 30, 30],
-        lineWidth: 0.1,
-        lineColor: [150, 150, 150]
+        lineWidth: 0.05,
+        lineColor: [200, 200, 200]
       },
       columnStyles: {
         0: { halign: 'center', cellWidth: 8 },
@@ -582,16 +591,34 @@ export default function AttendanceClient({
 
     const finalY = (doc as any).lastAutoTable.finalY || 150
 
+    // --- INDICADORES ACADÉMICOS Y SECCIÓN DE FIRMA ---
+    // Senior Page-Budgeting Algorithm: Prevent orphan signature blocks
+    // Compacted space required for both: ~55mm
+    const spaceNeededForEnding = 55
+    let statsStartY = finalY + 4
+    let hasAddedPageForEnding = false
+
+    if (pageHeight - finalY < spaceNeededForEnding) {
+      doc.addPage()
+      try {
+        doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
+      } catch (e) {
+        console.warn("Background image not found")
+      }
+      statsStartY = 40 // Safe margin on new page
+      hasAddedPageForEnding = true
+    }
+
     // --- LEYENDA Y RESUMEN ESTADÍSTICO (DISEÑO TÉCNICO) ---
     doc.setFontSize(6)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(100)
-    doc.text('SIMBOLOGÍA: A: ASISTIÓ | AT: ATRASO | F: FALTA | P: PERMISO', 14, finalY + 5)
+    doc.setTextColor(120)
+    doc.text('SIMBOLOGÍA: A: ASISTIÓ | AT: ATRASO | F: FALTA | P: PERMISO', 14, statsStartY + 3)
 
     const pct = participants.length > 0 ? Math.round((stats.asistieron / participants.length) * 100) : 0
 
     autoTable(doc, {
-      startY: finalY + 8,
+      startY: statsStartY + 6,
       head: [[{ content: 'INDICADORES ESTADÍSTICOS DE LA JORNADA', colSpan: 5, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
       body: [
         [
@@ -612,7 +639,7 @@ export default function AttendanceClient({
       theme: 'grid',
       styles: {
         fontSize: 7,
-        cellPadding: 2,
+        cellPadding: 1.3,
         halign: 'center',
         lineWidth: 0.1,
         lineColor: [180, 180, 180],
@@ -621,22 +648,46 @@ export default function AttendanceClient({
       margin: { left: 14, right: 14 }
     })
 
-    // --- SECCIÓN DE FIRMA (DISEÑO PROFESIONAL) ---
-    const lastY = (doc as any).lastAutoTable.finalY || finalY + 30
-    const signatureY = Math.min(pageHeight - 35, lastY + 25)
+    const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
 
-    doc.setDrawColor(0)
-    doc.line(70, signatureY, 140, signatureY)
+    // --- SECCIÓN DE FIRMA DEL FACILITADOR ---
+    // Tighter 10mm gap for premium layout
+    let signatureY = statsFinalY + 10
+    if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
+      doc.addPage()
+      try {
+        doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
+      } catch (e) {
+        console.warn("Background image not found")
+      }
+      signatureY = 45 // Safe Y coordinates on fresh page
+    }
+
+    // Centered Facilitator Signature Block with premium design detailing
+    const sigCenterX = pageWidth / 2
+
+    // Smooth dark grey signature line
+    doc.setDrawColor(40, 40, 40)
+    doc.setLineWidth(0.3)
+    doc.line(sigCenterX - 35, signatureY + 12, sigCenterX + 35, signatureY + 12)
+
+    // Beautiful institutional gold dot centered on the line for high-end detail
+    doc.setFillColor(187, 151, 58)
+    doc.circle(sigCenterX, signatureY + 12, 1, 'F')
+
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.text('FIRMA DEL FACILITADOR', pageWidth / 2, signatureY + 5, { align: 'center' })
-    doc.setFont('helvetica', 'normal')
-    doc.text(selectedFacilitator.toUpperCase(), pageWidth / 2, signatureY + 9, { align: 'center' })
+    doc.setTextColor(187, 151, 58) // Gold Accent Title
+    doc.text('FACILITADOR(A)', sigCenterX, signatureY + 17, { align: 'center' })
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(40, 40, 40)
+    doc.text(selectedFacilitator.toUpperCase(), sigCenterX, signatureY + 21, { align: 'center' })
 
     // Pie de página institucional
     doc.setFontSize(6)
     doc.setTextColor(150)
-    doc.text(`Documento generado por el Sistema de Gestión PROFE v2.1 el ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' })
 
     doc.save(`ASISTENCIA_${groupName.replace(/\s+/g, '_')}_DIA_${dayNumber}.pdf`)
   }
@@ -888,7 +939,7 @@ export default function AttendanceClient({
                                 ) : (
                                   `Día ${h.dia}`
                                 )}
-                                
+
                                 {isPreview && (
                                   <span style={{
                                     fontSize: '0.65rem',
@@ -906,7 +957,7 @@ export default function AttendanceClient({
                                     Agregando...
                                   </span>
                                 )}
-                                
+
                                 {isEditing && !isPreview && (
                                   <span style={{
                                     fontSize: '0.65rem',
@@ -1093,7 +1144,8 @@ export default function AttendanceClient({
                     Ir a Pasar Lista <ChevronRight size={14} />
                   </button>
                 </div>
-              ); })()}
+              );
+            })()}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>

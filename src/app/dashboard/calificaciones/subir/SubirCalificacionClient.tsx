@@ -130,12 +130,13 @@ export default function SubirCalificacionClient({
     setLoading(true)
 
     try {
-      // Fetch all participants registered in this group and program
+      // Fetch all participants registered in this group and program (Only active 'inscritos')
       const { data: inscripcionesData, error: iErr } = await supabase
         .from('inscripciones')
         .select('estado, participantes(id, nombre, apellido, ci)')
         .eq('grupo_id', selectedGroup)
         .eq('programa_id', selectedProgram)
+        .eq('estado', 'inscrito')
       
       if (iErr) throw iErr
 
@@ -174,8 +175,8 @@ export default function SubirCalificacionClient({
 
       // Calculate attendance statistics per participant using specific rules:
       // - Asistió: 100% (1.0)
-      // - Permiso: 80% (0.8)
-      // - Atraso (Tarde): 50% (0.5)
+      // - Permiso: 100% (1.0)
+      // - Atraso (Tarde): 80% (0.8)
       // - Falta: 0% (0.0)
       const attendanceStats: Record<string, { scoreSum: number; total: number }> = {}
       attendances?.forEach((att: any) => {
@@ -186,9 +187,9 @@ export default function SubirCalificacionClient({
         if (att.estado === 'asistio') {
           attendanceStats[att.participante_id].scoreSum += 1.0
         } else if (att.estado === 'permiso') {
-          attendanceStats[att.participante_id].scoreSum += 0.8
+          attendanceStats[att.participante_id].scoreSum += 1.0
         } else if (att.estado === 'atraso') {
-          attendanceStats[att.participante_id].scoreSum += 0.5
+          attendanceStats[att.participante_id].scoreSum += 0.8
         } else if (att.estado === 'falta') {
           attendanceStats[att.participante_id].scoreSum += 0.0
         }
@@ -835,7 +836,15 @@ ON public.calificaciones FOR ALL USING (
               <ul style={{ paddingLeft: '1.2rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.75rem', color: 'var(--muted)', lineHeight: '1.5' }}>
                 <li><strong>Autoformación (40 pt max)</strong>: Tareas, investigaciones y aprendizaje autónomo.</li>
                 <li><strong>Prácticas Guiadas (20 pt max)</strong>: Proyectos guiados y trabajo práctico.</li>
-                <li><strong>Asistencia (10 pt max)</strong>: Calculada del porcentaje de asistencia.</li>
+                <li>
+                  <strong>Asistencia (10 pt max)</strong>: Calculada del promedio de asistencia modular:
+                  <ul style={{ paddingLeft: '1rem', marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', listStyleType: 'circle' }}>
+                    <li>Asistió: 10 pts (100% de la sesión)</li>
+                    <li>Permiso: 10 pts (100% de la sesión)</li>
+                    <li>Atraso: 8 pts (80% de la sesión)</li>
+                    <li>Falta: 0 pts (0% de la sesión)</li>
+                  </ul>
+                </li>
                 <li><strong>Evaluación (30 pt max)</strong>: Cuestionario o prueba final modular.</li>
                 <li><strong>Aprobación (61 pt o más)</strong>: Requisito de suficiencia.</li>
               </ul>

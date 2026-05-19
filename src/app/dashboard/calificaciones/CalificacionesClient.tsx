@@ -144,12 +144,13 @@ export default function CalificacionesClient({
         setSelectedFacilitator(currentUser || 'N/A')
       }
 
-      // Fetch all participants registered in this group and program
+      // Fetch all participants registered in this group and program (Only active 'inscritos')
       const { data: inscripcionesData, error: iErr } = await supabase
         .from('inscripciones')
         .select('estado, participantes(id, nombre, apellido, ci)')
         .eq('grupo_id', selectedGroup)
         .eq('programa_id', selectedProgram)
+        .eq('estado', 'inscrito')
 
       if (iErr) throw iErr
 
@@ -289,38 +290,44 @@ export default function CalificacionesClient({
       startY: 53,
       body: [
         [
-          { content: `DEPARTAMENTO: ${deptoName.toUpperCase()}`, styles: { cellWidth: 91 } },
-          { content: `PERIODO: I/2026`, styles: { cellWidth: 91 } }
+          { content: `DEPARTAMENTO: ${deptoName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
+          { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `FACILITADOR: ${selectedFacilitator.toUpperCase() || 'N/A'}` },
-          { content: `FECHA: ${new Date().toLocaleDateString('es-ES')}` }
+          { content: `FACILITADOR: ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
+          { content: `FECHA: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `MÓDULO: ${moduleName.toUpperCase()}` },
-          { content: `PROGRAMA: ${programName.toUpperCase()}` }
+          { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `GRUPO: ${groupName.toUpperCase()}` }
+          { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+        ],
+        [
+          { content: `MÓDULO: ${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
         ]
       ],
-      theme: 'grid',
+      theme: 'plain',
       styles: {
         fontSize: 7,
-        cellPadding: 2,
-        textColor: [20, 20, 20],
-        lineWidth: 0.1,
-        lineColor: [100, 100, 100],
+        cellPadding: 1.3,
+        textColor: [40, 40, 40],
         overflow: 'linebreak'
       },
       columnStyles: {
-        0: { fontStyle: 'bold' },
-        1: { fontStyle: 'bold' }
+        0: { cellWidth: 89.5 },
+        1: { cellWidth: 89.5 }
       },
-      margin: { left: 14, right: 14 }
+      margin: { left: 17, right: 14 }
     })
 
-    const metaFinalY = (doc as any).lastAutoTable.finalY + 5
+    const metaFinalY = (doc as any).lastAutoTable.finalY
+
+    // Draw the luxury vertical gold accent bar next to the metadata block
+    doc.setFillColor(187, 151, 58) // dorado institucional #bb973a
+    doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
+
+    const tableStartY = metaFinalY + 5
 
     // --- TABLA DE CALIFICACIONES ---
     const tableData = participants.map((p, idx) => [
@@ -336,7 +343,7 @@ export default function CalificacionesClient({
     ])
 
     autoTable(doc, {
-      startY: metaFinalY,
+      startY: tableStartY,
       head: [['Nro', 'C.I.', 'APELLIDOS, NOMBRES', 'AUT. (40)', 'PRÁC. (20)', 'ASIST. (10)', 'EVAL. (30)', 'TOTAL', 'ESTADO']],
       body: tableData,
       theme: 'grid',
@@ -354,7 +361,7 @@ export default function CalificacionesClient({
       },
       styles: {
         fontSize: 7,
-        cellPadding: 2,
+        cellPadding: 1.3,
         textColor: [30, 30, 30],
         lineWidth: 0.05,
         lineColor: [200, 200, 200]
@@ -407,9 +414,14 @@ export default function CalificacionesClient({
     const finalY = (doc as any).lastAutoTable.finalY || 150
     const pctPassing = totalStudents > 0 ? Math.round((totalPassing / totalStudents) * 100) : 0
 
-    // Prevent page break repeating the header by starting indicators on new page if space is too narrow
-    let statsStartY = finalY + 8
-    if (pageHeight - finalY < 65) {
+    // --- INDICADORES ACADÉMICOS Y SECCIÓN DE FIRMA ---
+    // Senior Page-Budgeting Algorithm: Prevent orphan signature blocks
+    // Compacted space required for both: ~55mm
+    const spaceNeededForEnding = 55
+    let statsStartY = finalY + 4
+    let hasAddedPageForEnding = false
+
+    if (pageHeight - finalY < spaceNeededForEnding) {
       doc.addPage()
       try {
         doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
@@ -417,6 +429,7 @@ export default function CalificacionesClient({
         console.warn("Background image not found")
       }
       statsStartY = 40 // Safe margin on new page
+      hasAddedPageForEnding = true
     }
 
     // --- INDICADORES ACADÉMICOS ---
@@ -440,7 +453,7 @@ export default function CalificacionesClient({
       theme: 'grid',
       styles: {
         fontSize: 7,
-        cellPadding: 2,
+        cellPadding: 1.3,
         halign: 'center',
         lineWidth: 0.1,
         lineColor: [180, 180, 180],
@@ -449,12 +462,12 @@ export default function CalificacionesClient({
       margin: { left: 14, right: 14 }
     })
 
-    const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 30
+    const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
 
     // --- SECCIÓN DE FIRMA DEL FACILITADOR ---
-    // Reserve 35mm space for high-end styling
-    let signatureY = statsFinalY + 30
-    if (signatureY > pageHeight - 40) {
+    // Tighter 10mm gap for premium layout
+    let signatureY = statsFinalY + 10
+    if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
       doc.addPage()
       try {
         doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
@@ -489,12 +502,10 @@ export default function CalificacionesClient({
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(6.5)
     doc.setTextColor(120, 120, 120)
-    doc.text('Programa de Formación Académica y Especialización Continua', sigCenterX, signatureY + 25, { align: 'center' })
 
     // Pie de página institucional
     doc.setFontSize(6)
     doc.setTextColor(150)
-    doc.text(`Documento generado por el Sistema de Gestión PROFE v2.1 el ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' })
 
     doc.save(`CALIFICACIONES_${groupName.replace(/\s+/g, '_')}.pdf`)
   }
