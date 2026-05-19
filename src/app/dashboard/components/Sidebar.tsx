@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, Building2, UserSquare2,
   CheckSquare, BarChart3, LogOut, UserCog, GraduationCap,
-  UserPlus, Database
+  UserPlus, Database, Award, ClipboardCheck
 } from 'lucide-react'
 import { signOut } from '@/app/login/actions'
 
@@ -16,6 +16,8 @@ const navItems = [
   { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2, adminOnly: true },
   { href: '/dashboard/inscripciones', label: 'Inscripciones', icon: Users },
   { href: '/dashboard/asistencia', label: 'Asistencia', icon: CheckSquare },
+  { href: '/dashboard/calificaciones/subir', label: 'Subir Calificación', icon: ClipboardCheck },
+  { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: Award },
   { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3, adminOnly: true },
   { href: '/dashboard/facilitadores', label: 'Facilitadores', icon: UserPlus, adminOnly: true },
   { href: '/dashboard/usuarios', label: 'Usuarios', icon: UserCog, adminOnly: true },

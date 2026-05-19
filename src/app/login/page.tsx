@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import AuthErrorListener from './AuthErrorListener'
 import LoginForm from './LoginForm'
 import { ShieldCheck, GraduationCap } from 'lucide-react'
+import Link from 'next/link'
 
 export default async function LoginPage({
   searchParams,
@@ -100,8 +101,24 @@ export default async function LoginPage({
 
         <LoginForm message={message} />
 
+        {/* Public Consultation Link */}
+        <div style={{ marginTop: '1.75rem', textAlign: 'center' }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--foreground-3)' }}>¿Es usted un participante? </span>
+          <Link href="/consulta" style={{
+            fontSize: '0.8rem',
+            fontWeight: 800,
+            color: 'var(--primary)',
+            textDecoration: 'none',
+            borderBottom: '1px dashed var(--primary)',
+            paddingBottom: '2px',
+            transition: 'color 0.2s ease'
+          }}>
+            Consultar Asistencia y Calificaciones
+          </Link>
+        </div>
+
         <div style={{ 
-          marginTop: '3.5rem', 
+          marginTop: '2.5rem', 
           textAlign: 'center',
           opacity: 0.6
         }}>
