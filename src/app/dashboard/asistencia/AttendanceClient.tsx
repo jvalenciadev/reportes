@@ -374,15 +374,7 @@ export default function AttendanceClient({
     if (!selectedModule) return;
     setSaving(true);
 
-    // 1. Validate if the new day number already exists in other registered days (except itself)
-    const isDayDuplicate = historyDays.some(h => h.dia === editRowNewDia && h.dia !== oldDia);
-    if (isDayDuplicate) {
-      showNotif('error', 'Día Duplicado', `No se pueden guardar los cambios: El Día ${editRowNewDia} ya está registrado en este módulo.`);
-      setSaving(false);
-      return;
-    }
-
-    // 2. Temporarily build rows to validate before updating
+    // 1. Temporarily build rows to validate before updating
     const simulatedRows = historyDays.map(h => {
       if (h.dia === oldDia) {
         return { ...h, dia: editRowNewDia, fecha: editRowNewFecha };
@@ -390,7 +382,7 @@ export default function AttendanceClient({
       return h;
     });
 
-    // Validate simulatedRows for duplicate dates
+    // Validate simulatedRows for duplicates
     const seenDates = new Map<string, number[]>();
     simulatedRows.forEach(r => {
       if (!seenDates.has(r.fecha)) seenDates.set(r.fecha, []);
@@ -432,20 +424,12 @@ export default function AttendanceClient({
       return;
     }
 
-    const enrolledIds = participants.map((p: any) => p.participante_id);
-    if (enrolledIds.length === 0) {
-      showNotif('error', 'Sin Participantes', 'No hay participantes inscritos activos en este grupo para actualizar.');
-      setSaving(false);
-      return;
-    }
-
-    // 3. Perform the database update for this module / day number (only for active enrolled participants)
+    // 2. Perform the database update for this module / day number
     const { error } = await supabase
       .from('asistencias')
       .update({ dia: editRowNewDia, fecha: editRowNewFecha })
       .eq('modulo_id', selectedModule)
-      .eq('dia', oldDia)
-      .in('participante_id', enrolledIds);
+      .eq('dia', oldDia);
 
     if (error) {
       showNotif('error', 'Fallo al Actualizar', `Error de base de datos: ${error.message}`);
@@ -509,7 +493,7 @@ export default function AttendanceClient({
           { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `FACILITADOR: ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
+          { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
           { content: `FECHA: ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
         ],
         [
