@@ -533,9 +533,9 @@ export default function ConsultaClient() {
                           {/* Pass/Fail Badges */}
                           {mod.grade.hasGrade ? (
                             <div style={{
-                              background: mod.grade.total >= 61 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                              border: mod.grade.total >= 61 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
-                              color: mod.grade.total >= 61 ? '#34d399' : '#f87171',
+                              background: mod.grade.total >= 51 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                              border: mod.grade.total >= 51 ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                              color: mod.grade.total >= 51 ? '#34d399' : '#f87171',
                               padding: '0.3rem 0.9rem',
                               borderRadius: '2rem',
                               fontSize: '0.7rem',
@@ -544,8 +544,8 @@ export default function ConsultaClient() {
                               alignItems: 'center',
                               gap: '0.35rem'
                             }}>
-                              {mod.grade.total >= 61 ? <BadgeCheck size={14} /> : <AlertCircle size={14} />}
-                              {mod.grade.total >= 61 ? 'APROBADO' : 'REPROBADO'}
+                              {mod.grade.total >= 51 ? <BadgeCheck size={14} /> : <AlertCircle size={14} />}
+                              {mod.grade.total >= 51 ? 'APROBADO' : 'REPROBADO'}
                             </div>
                           ) : (
                             <span style={{
@@ -597,8 +597,8 @@ export default function ConsultaClient() {
                                   marginTop: '0.5rem',
                                   padding: '0.8rem 1rem',
                                   borderRadius: '0.75rem',
-                                  background: mod.grade.total >= 61 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                                  border: mod.grade.total >= 61 ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
+                                  background: mod.grade.total >= 51 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                                  border: mod.grade.total >= 51 ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
                                   display: 'flex',
                                   justifyContent: 'space-between',
                                   alignItems: 'center'
@@ -607,7 +607,7 @@ export default function ConsultaClient() {
                                   <span style={{
                                     fontSize: '1.25rem',
                                     fontWeight: 950,
-                                    color: mod.grade.total >= 61 ? '#34d399' : '#f87171'
+                                    color: mod.grade.total >= 51 ? '#34d399' : '#f87171'
                                   }}>
                                     {mod.grade.total} <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>/ 100</span>
                                   </span>
@@ -860,7 +860,7 @@ export default function ConsultaClient() {
                           <strong style={{
                             fontSize: '1.75rem',
                             fontWeight: 950,
-                            color: averageGrade >= 61 ? '#34d399' : gradedCount > 0 ? '#f87171' : '#94a3b8'
+                            color: averageGrade >= 51 ? '#34d399' : gradedCount > 0 ? '#f87171' : '#94a3b8'
                           }}>
                             {gradedCount > 0 ? averageGrade : 'S/R'} <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#64748b' }}>/ 100</span>
                           </strong>

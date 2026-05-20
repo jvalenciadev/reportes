@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS public.programa_modulos (
     fecha_inicio DATE NOT NULL,
     fecha_fin DATE NOT NULL,
     estado TEXT DEFAULT 'activo' CHECK (estado IN ('activo', 'finalizado', 'pendiente')),
+    orden INTEGER,
+    grupo INTEGER,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

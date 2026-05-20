@@ -355,7 +355,7 @@ ON public.calificaciones FOR ALL USING (
     Object.values(gradeData).forEach(g => {
       const tot = (Number(g.autoformacion) || 0) + (Number(g.practica_guiada) || 0) + (Number(g.asistencia) || 0) + (Number(g.evaluacion) || 0)
       sum += tot
-      if (tot >= 61) totalPassing++
+      if (tot >= 51) totalPassing++
     })
     averageScore = Math.round((sum / totalStudents) * 10) / 10
   }
@@ -628,7 +628,7 @@ ON public.calificaciones FOR ALL USING (
                     {participants.map((p) => {
                       const scores = gradeData[p.id] || { autoformacion: 0, practica_guiada: 0, asistencia: 0, evaluacion: 0 }
                       const total = (Number(scores.autoformacion) || 0) + (Number(scores.practica_guiada) || 0) + (Number(scores.asistencia) || 0) + (Number(scores.evaluacion) || 0)
-                      const isPassing = total >= 61
+                      const isPassing = total >= 51
 
                       return (
                         <tr key={p.id}>
@@ -771,7 +771,7 @@ ON public.calificaciones FOR ALL USING (
                 background: 'var(--surface)'
               }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--muted)', fontWeight: 600 }}>
-                  Nota de aprobación: <strong>61 puntos</strong> o más.
+                  Nota de aprobación: <strong>51 puntos</strong> o más.
                 </span>
 
                 <button
@@ -861,7 +861,7 @@ ON public.calificaciones FOR ALL USING (
                   </ul>
                 </li>
                 <li><strong>Evaluación (30 pt max)</strong>: Cuestionario o prueba final modular.</li>
-                <li><strong>Aprobación (61 pt o más)</strong>: Requisito de suficiencia.</li>
+                <li><strong>Aprobación (51 pt o más)</strong>: Requisito de suficiencia.</li>
               </ul>
             </div>
 

@@ -16,6 +16,17 @@ import StatusModal, { StatusType } from '../components/StatusModal'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+async function getBase64ImageFromUrl(imageUrl: string): Promise<string> {
+  const res = await fetch(imageUrl)
+  const blob = await res.blob()
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(reader.result as string), false)
+    reader.addEventListener('error', () => reject(new Error('Failed to read blob')))
+    reader.readAsDataURL(blob)
+  })
+}
+
 export default function AttendanceClient({
   departamentos,
   userDeptId,
@@ -156,9 +167,20 @@ export default function AttendanceClient({
   useEffect(() => {
     if (!selectedProgram) return
     const fetchModules = async () => {
-      const { data } = await supabase.from('programa_modulos').select('*').eq('programa_id', selectedProgram)
-      setModules(data || [])
-      if (data && data.length > 0) setSelectedModule(data[0].id)
+      const { data } = await supabase
+        .from('programa_modulos')
+        .select('*')
+        .eq('programa_id', selectedProgram)
+        .order('orden', { ascending: true })
+
+      const sortedData = data || []
+      setModules(sortedData)
+
+      if (sortedData.length > 0) {
+        const todayStr = new Date().toISOString().split('T')[0]
+        const currentModule = sortedData.find(m => todayStr >= m.fecha_inicio && todayStr <= m.fecha_fin)
+        setSelectedModule(currentModule ? currentModule.id : sortedData[0].id)
+      }
     }
     fetchModules()
   }, [selectedProgram])
@@ -178,6 +200,13 @@ export default function AttendanceClient({
     if (!selectedGroup || !selectedModule) return
     setLoading(true)
 
+    // Guard: Prevent day number greater than 6
+    if (dayNumber > 6) {
+      setDayNumber(6)
+      setLoading(false)
+      return
+    }
+
     // A. Fetch Participants enrolled in this group/program (Only active 'inscritos')
     const { data: enrolled, error: pErr } = await supabase
       .from('inscripciones')
@@ -188,7 +217,7 @@ export default function AttendanceClient({
 
     if (pErr) {
       console.error('Error cargando participantes:', pErr)
-      showNotif('error', 'Error de Carga', pErr.message)
+      showNotif('error', 'Fallo al Cargar Participantes', `No se pudieron cargar los estudiantes inscritos. Detalle técnico: ${pErr.message}`)
       setLoading(false)
       return
     }
@@ -206,9 +235,114 @@ export default function AttendanceClient({
 
       if (aErr) {
         console.error('Error cargando asistencias:', aErr)
-        showNotif('error', 'Error de Carga', aErr.message)
+        showNotif('error', 'Fallo al Cargar Asistencias', `No se pudieron recuperar los registros previos. Detalle técnico: ${aErr.message}`)
       } else {
         groupAttendance = existing || []
+      }
+    }
+
+    // --- AUTO-SYNCHRONIZATION & AUDIT SYSTEM (SENIOR IMPLEMENTATION) ---
+    if (enrolledIds.length > 0 && groupAttendance.length > 0) {
+      let didChange = false
+
+      // 1. Clean up invalid days (day > 6)
+      const invalidRecords = groupAttendance.filter((a: any) => a.dia > 6)
+      if (invalidRecords.length > 0) {
+        const { error: deleteErr } = await supabase
+          .from('asistencias')
+          .delete()
+          .eq('modulo_id', selectedModule)
+          .gt('dia', 6)
+          .in('participante_id', enrolledIds)
+        if (deleteErr) {
+          console.error('Error deleting invalid day records (>6):', deleteErr)
+        } else {
+          didChange = true
+        }
+      }
+
+      // 2. Identify valid registered days (from 1 to 6)
+      const registeredDays = Array.from(new Set(groupAttendance.map((a: any) => a.dia))).filter(d => d >= 1 && d <= 6)
+      const missingRecords: any[] = []
+      const daysToSyncDates: { dia: number; chosenDate: string }[] = []
+
+      registeredDays.forEach((dia: number) => {
+        const recordsForDay = groupAttendance.filter((a: any) => a.dia === dia)
+
+        // A. Find the most common date for this day
+        const dateCounts: Record<string, number> = {}
+        recordsForDay.forEach((r: any) => {
+          dateCounts[r.fecha] = (dateCounts[r.fecha] || 0) + 1
+        })
+        let chosenDate = selectedDate // fallback
+        let maxCount = 0
+        Object.entries(dateCounts).forEach(([dateStr, count]) => {
+          if (count > maxCount) {
+            maxCount = count
+            chosenDate = dateStr
+          }
+        })
+
+        // B. Check for date discrepancies
+        const hasDateDiscrepancy = recordsForDay.some((r: any) => r.fecha !== chosenDate)
+        if (hasDateDiscrepancy) {
+          daysToSyncDates.push({ dia, chosenDate })
+        }
+
+        // C. Check for missing participants on this day
+        enrolledIds.forEach((pId: string) => {
+          const hasRecord = recordsForDay.some((r: any) => r.participante_id === pId)
+          if (!hasRecord) {
+            missingRecords.push({
+              participante_id: pId,
+              modulo_id: selectedModule,
+              dia: dia,
+              estado: 'falta', // Default missing status to 'falta'
+              fecha: chosenDate
+            })
+          }
+        })
+      })
+
+      // Perform inserts for missing participants to ensure equal total across all days
+      if (missingRecords.length > 0) {
+        const { error: insertErr } = await supabase
+          .from('asistencias')
+          .insert(missingRecords)
+        if (insertErr) {
+          console.error('Error auto-inserting missing attendance records:', insertErr)
+        } else {
+          didChange = true
+        }
+      }
+
+      // Perform date updates for synchronization
+      if (daysToSyncDates.length > 0) {
+        for (const sync of daysToSyncDates) {
+          const { error: updateErr } = await supabase
+            .from('asistencias')
+            .update({ fecha: sync.chosenDate })
+            .eq('modulo_id', selectedModule)
+            .eq('dia', sync.dia)
+            .in('participante_id', enrolledIds)
+          if (updateErr) {
+            console.error(`Error auto-synchronizing dates for day ${sync.dia}:`, updateErr)
+          } else {
+            didChange = true
+          }
+        }
+      }
+
+      // If database changed, re-fetch records to have absolute source of truth
+      if (didChange) {
+        const { data: refreshed, error: aErr } = await supabase
+          .from('asistencias')
+          .select('*')
+          .eq('modulo_id', selectedModule)
+          .in('participante_id', enrolledIds)
+        if (!aErr && refreshed) {
+          groupAttendance = refreshed
+        }
       }
     }
 
@@ -240,8 +374,6 @@ export default function AttendanceClient({
       const existing = currentSessionAttendance.find((a: any) => a.participante_id === p.participante_id)
       attMap[p.participante_id] = existing ? existing.estado : ''
     })
-
-
 
     const sortedEnrolled = (enrolled || []).sort((a: any, b: any) => {
       const apellidoA = (a.participantes?.apellido || '').toLowerCase();
@@ -305,6 +437,13 @@ export default function AttendanceClient({
     if (!selectedModule || participants.length === 0) return
     setSaving(true)
 
+    // Guard: Prevent day number greater than 6
+    if (dayNumber > 6) {
+      showNotif('error', 'Límite de Jornadas', 'No se puede registrar asistencia para un Día superior a 6.')
+      setSaving(false)
+      return false
+    }
+
     // Check for chronological and duplicate date violations
     const violations = getChronologicalViolations();
     const duplicateViolation = violations.find(v => v.type === 'duplicate');
@@ -334,21 +473,22 @@ export default function AttendanceClient({
       .eq('dia', dayNumber)
       .in('participante_id', participantIds)
 
-    // Senior Approach: Save entries for all participants who have a status selected
-    // and explicitly update the date for ALL of them to match the current selection.
-    const records = Object.entries(attendanceData)
-      .filter(([_, estado]) => estado !== '') // Only save if a status is selected
-      .map(([participantId, estado]) => {
-        const existing = existingRecords?.find(r => r.participante_id === participantId)
-        return {
-          ...(existing ? { id: existing.id } : {}),
-          participante_id: participantId,
-          modulo_id: selectedModule,
-          dia: dayNumber,
-          estado,
-          fecha: selectedDate
-        }
-      })
+    // Senior Approach: Save entries for all enrolled participants.
+    // Explicitly update the date for ALL of them to match the current selection.
+    // If a participant doesn't have a status, default to 'falta'.
+    const records = participants.map((p: any) => {
+      const participantId = p.participante_id
+      const estado = attendanceData[participantId] || 'falta'
+      const existing = existingRecords?.find(r => r.participante_id === participantId)
+      return {
+        ...(existing ? { id: existing.id } : {}),
+        participante_id: participantId,
+        modulo_id: selectedModule,
+        dia: dayNumber,
+        estado: estado === '' ? 'falta' : estado,
+        fecha: selectedDate
+      }
+    })
 
     // Now upserting with 'id' is safe because 'id' is the Primary Key 
     // and always has a unique constraint.
@@ -357,12 +497,21 @@ export default function AttendanceClient({
       .upsert(records, { onConflict: 'id' })
 
     if (error) {
-      showNotif('error', 'Fallo en el Registro', `No se pudo guardar la asistencia: ${error.message}`)
-      setSaving(false)
-      return false
+      let customMessage = `No se pudo guardar la asistencia: ${error.message}`;
+      if (error.code === '23505' && error.message.includes('asistencias_unique_participante_dia')) {
+        customMessage = `Conflicto de Duplicados: Algunos estudiantes ya tienen asistencia en el Día ${dayNumber}. Refresque la página para sincronizar los datos más recientes.`;
+      }
+      showNotif('error', 'Fallo en el Registro de Asistencia', customMessage);
+      setSaving(false);
+      return false;
     } else {
       showNotif('success', '¡Asistencia Guardada!', 'Se han registrado correctamente los datos.')
-      setInitialAttendance(attendanceData) // Reset dirty state
+      const savedStates: Record<string, string> = {}
+      records.forEach(r => {
+        savedStates[r.participante_id] = r.estado
+      })
+      setAttendanceData(savedStates)
+      setInitialAttendance(savedStates) // Reset dirty state
       setInitialDate(selectedDate)
       loadAttendanceSession()
       setSaving(false)
@@ -373,6 +522,13 @@ export default function AttendanceClient({
   const handleUpdateRowJornada = async (oldDia: number) => {
     if (!selectedModule) return;
     setSaving(true);
+
+    // Guard: Prevent day number greater than 6
+    if (editRowNewDia > 6) {
+      showNotif('error', 'Límite de Jornadas', 'No se puede cambiar la jornada a un Día superior a 6.');
+      setSaving(false);
+      return;
+    }
 
     // 1. Temporarily build rows to validate before updating
     const simulatedRows = historyDays.map(h => {
@@ -424,15 +580,27 @@ export default function AttendanceClient({
       return;
     }
 
-    // 2. Perform the database update for this module / day number
+    const enrolledIds = participants.map((p: any) => p.participante_id);
+    if (enrolledIds.length === 0) {
+      showNotif('error', 'Sin Participantes', 'No hay participantes inscritos activos en este grupo para actualizar.');
+      setSaving(false);
+      return;
+    }
+
+    // 2. Perform the database update for this module / day number (only for active enrolled participants)
     const { error } = await supabase
       .from('asistencias')
       .update({ dia: editRowNewDia, fecha: editRowNewFecha })
       .eq('modulo_id', selectedModule)
-      .eq('dia', oldDia);
+      .eq('dia', oldDia)
+      .in('participante_id', enrolledIds);
 
     if (error) {
-      showNotif('error', 'Fallo al Actualizar', `Error de base de datos: ${error.message}`);
+      let customMessage = `Error de base de datos: ${error.message}`;
+      if (error.code === '23505' && error.message.includes('asistencias_unique_participante_dia')) {
+        customMessage = `Conflicto de Duplicados: El Día ${editRowNewDia} entra en conflicto con registros existentes para estos estudiantes. Revise que no haya cruce de jornadas.`;
+      }
+      showNotif('error', 'Fallo al Actualizar Jornada', customMessage);
     } else {
       showNotif('success', '¡Jornada Actualizada!', 'Se han guardado los cambios en la base de datos.');
       if (dayNumber === oldDia) {
@@ -454,7 +622,24 @@ export default function AttendanceClient({
     permisos: participants.filter(p => attendanceData[p.participante_id] === 'permiso').length,
   }
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
+    const enrolledIds = participants.map((p: any) => p.participante_id)
+    if (enrolledIds.length === 0) return
+
+    setLoading(true)
+    const { data: allAtt, error: attErr } = await supabase
+      .from('asistencias')
+      .select('*')
+      .eq('modulo_id', selectedModule)
+      .in('participante_id', enrolledIds)
+
+    if (attErr) {
+      console.error('Error cargando asistencias para el PDF:', attErr)
+      showNotif('error', 'Fallo al Generar PDF', `No se pudieron cargar los registros de asistencia del módulo. Detalle técnico: ${attErr.message}`)
+      setLoading(false)
+      return
+    }
+
     const doc = new jsPDF('p', 'mm', 'a4')
     const pageWidth = doc.internal.pageSize.getWidth()
     const pageHeight = doc.internal.pageSize.getHeight()
@@ -462,27 +647,61 @@ export default function AttendanceClient({
     // 1. Full Page Background
     const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
 
+    let bgBase64 = ''
     try {
-      doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
-    } catch (e) {
-      console.warn("Background image not found")
+      bgBase64 = await getBase64ImageFromUrl(backgroundImage)
+    } catch (err) {
+      console.warn("Failed to pre-load background image as base64", err)
     }
+
+    const addPdfBackground = (pdfDoc: any) => {
+      try {
+        const w = pdfDoc.internal.pageSize.getWidth()
+        const h = pdfDoc.internal.pageSize.getHeight()
+        if (bgBase64) {
+          let format = 'JPEG'
+          if (bgBase64.startsWith('data:image/png')) {
+            format = 'PNG'
+          } else if (bgBase64.startsWith('data:image/webp')) {
+            format = 'WEBP'
+          }
+          pdfDoc.addImage(bgBase64, format, 0, 0, w, h)
+        } else {
+          pdfDoc.addImage(backgroundImage, 'JPEG', 0, 0, w, h)
+        }
+      } catch (e) {
+        console.warn("Background image error:", e)
+      }
+    }
+
+    addPdfBackground(doc)
 
     const group = groups.find(g => g.id === selectedGroup)
     const groupName = group?.name || 'GRUPO'
     const programName = programs.find(p => p.id === selectedProgram)?.titulo || ''
     const moduleName = modules.find(m => m.id === selectedModule)?.titulo_modulo || ''
     const deptoName = departamentos.find(d => d.id === selectedDepto)?.nombre || 'N/A'
+
     // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
     doc.setFillColor(187, 151, 58) // Dorado institucional #bb973a
-    doc.rect(14, 40, 182, 10, 'F')
+    doc.rect(14, 40, pageWidth - 28, 10, 'F')
     doc.setFontSize(12)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.text('ASISTENCIA DE ESTUDIANTES / PARTICIPANTES', pageWidth / 2, 46.5, { align: 'center' })
+    doc.text('REPORTE DE ASISTENCIA MODULAR CONSOLIDADA', pageWidth / 2, 46.5, { align: 'center' })
 
     const currentFac = facilitators.find(f => f.name === selectedFacilitator)
     const facilitatorDepto = currentFac?.depto || 'N/A'
+
+    const currentModuleObj = modules.find(m => m.id === selectedModule)
+    const formatDate = (dateStr?: string) => {
+      if (!dateStr) return 'N/A'
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`
+      }
+      return dateStr
+    }
 
     // --- BLOQUE DE METADATOS (TABLA DINÁMICA - AUTO AJUSTABLE) ---
     autoTable(doc, {
@@ -494,17 +713,20 @@ export default function AttendanceClient({
         ],
         [
           { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
-          { content: `FECHA: ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
+          { content: `TIPO DE REPORTE: MODULAR (DÍAS 1 AL 6)`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `GRUPO: ${groupName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
-          { content: `JORNADA REGISTRADA: DÍA ${dayNumber}`, styles: { fontStyle: 'bold' } }
+          { content: `GRUPO: ${groupName.toUpperCase()}`, styles: { fontStyle: 'bold' } }
         ],
         [
           { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `MÓDULO: ${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+          { content: `${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+        ],
+        [
+          { content: `FECHA INICIO MÓDULO: ${formatDate(currentModuleObj?.fecha_inicio)}`, styles: { fontStyle: 'bold' } },
+          { content: `FECHA FIN MÓDULO: ${formatDate(currentModuleObj?.fecha_fin)}`, styles: { fontStyle: 'bold' } }
         ]
       ],
       theme: 'plain',
@@ -515,8 +737,8 @@ export default function AttendanceClient({
         overflow: 'linebreak'
       },
       columnStyles: {
-        0: { cellWidth: 89.5 },
-        1: { cellWidth: 89.5 }
+        0: { cellWidth: (pageWidth - 28) / 2 },
+        1: { cellWidth: (pageWidth - 28) / 2 }
       },
       margin: { left: 17, right: 14 }
     })
@@ -529,36 +751,57 @@ export default function AttendanceClient({
 
     const tableStartY = metaFinalY + 5
 
-    // --- TABLA DE ASISTENCIA ---
-    const tableData = participants.map((p, idx) => {
-      const apellidos = p.participantes.apellido.split(' ')
-      const paterno = apellidos[0] || ''
-      const materno = apellidos.slice(1).join(' ') || ''
+    // Get list of registered days (1 to 6)
+    const registeredDays = Array.from(new Set(allAtt.map((a: any) => a.dia))).filter(d => d >= 1 && d <= 6).sort((a, b) => a - b)
 
-      const status = attendanceData[p.participante_id]
-      let statusChar = ''
-      switch (status) {
-        case 'asistio': statusChar = 'A'; break
-        case 'atraso': statusChar = 'AT'; break
-        case 'falta': statusChar = 'F'; break
-        case 'permiso': statusChar = 'P'; break
-        default: statusChar = '-'; break
-      }
+    // Build the table body data
+    const tableData = participants.map((p, idx) => {
+      const apellidos = p.participantes.apellido.toUpperCase()
+      const nombres = p.participantes.nombre.toUpperCase()
+      const fullName = `${apellidos}, ${nombres}`
+
+      // For days 1 to 6, find status and calculate score
+      let scoreSum = 0
+      let count = 0
+
+      const daysSymbols = [1, 2, 3, 4, 5, 6].map(d => {
+        const record = allAtt.find(a => a.participante_id === p.participante_id && a.dia === d)
+
+        // If day is registered, missing records are counted as 'falta'
+        const isDayRegistered = registeredDays.includes(d)
+
+        if (isDayRegistered) {
+          count++
+          const estado = record ? record.estado : 'falta'
+          if (estado === 'asistio' || estado === 'permiso') scoreSum += 10
+          else if (estado === 'atraso') scoreSum += 8
+          else if (estado === 'falta') scoreSum += 0
+
+          switch (estado) {
+            case 'asistio': return 'A'
+            case 'atraso': return 'AT'
+            case 'falta': return 'F'
+            case 'permiso': return 'P'
+            default: return 'F'
+          }
+        }
+        return '-' // Not registered yet
+      })
+
+      const average = count > 0 ? (scoreSum / count).toFixed(1) : '0.0'
 
       return [
         idx + 1,
         p.participantes.ci,
-        p.participantes.nombre.toUpperCase(),
-        p.paterno || paterno.toUpperCase(),
-        p.materno || materno.toUpperCase(),
-        statusChar,
-        ''
+        fullName,
+        ...daysSymbols,
+        average
       ]
     })
 
     autoTable(doc, {
       startY: tableStartY,
-      head: [['Nro', 'C.I.', 'NOMBRES', 'APELLIDO PATERNO', 'APELLIDO MATERNO', 'ASIST.', 'OBSERVACIONES']],
+      head: [['Nro', 'C.I.', 'APELLIDOS Y NOMBRES', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'PROM.']],
       body: tableData,
       theme: 'grid',
       headStyles: {
@@ -583,8 +826,14 @@ export default function AttendanceClient({
       columnStyles: {
         0: { halign: 'center', cellWidth: 8 },
         1: { halign: 'center', cellWidth: 20 },
-        5: { halign: 'center', cellWidth: 15 },
-        6: { cellWidth: 40 }
+        2: { cellWidth: 64 },
+        3: { halign: 'center', cellWidth: 12 },
+        4: { halign: 'center', cellWidth: 12 },
+        5: { halign: 'center', cellWidth: 12 },
+        6: { halign: 'center', cellWidth: 12 },
+        7: { halign: 'center', cellWidth: 12 },
+        8: { halign: 'center', cellWidth: 12 },
+        9: { halign: 'center', cellWidth: 18, fontStyle: 'bold', textColor: [187, 151, 58] }
       },
       margin: { left: 14, right: 14 }
     })
@@ -592,48 +841,85 @@ export default function AttendanceClient({
     const finalY = (doc as any).lastAutoTable.finalY || 150
 
     // --- INDICADORES ACADÉMICOS Y SECCIÓN DE FIRMA ---
-    // Senior Page-Budgeting Algorithm: Prevent orphan signature blocks
-    // Compacted space required for both: ~55mm
-    const spaceNeededForEnding = 55
+    const spaceNeededForEnding = 75
     let statsStartY = finalY + 4
     let hasAddedPageForEnding = false
 
     if (pageHeight - finalY < spaceNeededForEnding) {
       doc.addPage()
-      try {
-        doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
-      } catch (e) {
-        console.warn("Background image not found")
-      }
+      addPdfBackground(doc)
       statsStartY = 40 // Safe margin on new page
       hasAddedPageForEnding = true
     }
 
-    // --- LEYENDA Y RESUMEN ESTADÍSTICO (DISEÑO TÉCNICO) ---
+    // --- LEYENDA Y FECHAS DE JORNADAS ---
     doc.setFontSize(6)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(120)
-    doc.text('SIMBOLOGÍA: A: ASISTIÓ | AT: ATRASO | F: FALTA | P: PERMISO', 14, statsStartY + 3)
+    doc.text('SIMBOLOGÍA: A: ASISTIÓ (10 pts) | AT: ATRASO (8 pts) | F: FALTA (0 pts) | P: PERMISO (10 pts) | -: NO REGISTRADO', 14, statsStartY + 3)
 
-    const pct = participants.length > 0 ? Math.round((stats.asistieron / participants.length) * 100) : 0
+    // Build dates legend for days 1 to 6
+    const dateStrings: string[] = []
+    for (let d = 1; d <= 6; d++) {
+      const recordsForDay = allAtt.filter((a: any) => a.dia === d)
+      if (recordsForDay.length > 0) {
+        const dateStr = new Date(recordsForDay[0].fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+        dateStrings.push(`D${d}: ${dateStr}`)
+      } else {
+        dateStrings.push(`D${d}: -`)
+      }
+    }
+    doc.text(`FECHAS REGISTRADAS: ${dateStrings.join(' | ')}`, 14, statsStartY + 6)
+
+    // Calculate modular stats
+    let totalAsistio = 0
+    let totalAtraso = 0
+    let totalFalta = 0
+    let totalPermiso = 0
+    allAtt.forEach((a: any) => {
+      if (a.estado === 'asistio') totalAsistio++
+      if (a.estado === 'atraso') totalAtraso++
+      if (a.estado === 'falta') totalFalta++
+      if (a.estado === 'permiso') totalPermiso++
+    })
+    const totalRecords = allAtt.length
+    const generalPct = totalRecords > 0 ? Math.round(((totalAsistio + totalPermiso) / totalRecords) * 100) : 0
+
+    // Average score of the group
+    let totalScoreSum = 0
+    participants.forEach((p: any) => {
+      let pScoreSum = 0
+      let pCount = 0
+      registeredDays.forEach(d => {
+        const record = allAtt.find(a => a.participante_id === p.participante_id && a.dia === d)
+        pCount++
+        const status = record ? record.estado : 'falta'
+        if (status === 'asistio' || status === 'permiso') pScoreSum += 10
+        else if (status === 'atraso') pScoreSum += 8
+        else if (status === 'falta') pScoreSum += 0
+      })
+      const avg = pCount > 0 ? pScoreSum / pCount : 0
+      totalScoreSum += avg
+    })
+    const groupAvgScore = participants.length > 0 ? (totalScoreSum / participants.length).toFixed(2) : '0.00'
 
     autoTable(doc, {
-      startY: statsStartY + 6,
-      head: [[{ content: 'INDICADORES ESTADÍSTICOS DE LA JORNADA', colSpan: 5, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
+      startY: statsStartY + 9,
+      head: [[{ content: 'INDICADORES ESTADÍSTICOS MODULARES', colSpan: 5, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
       body: [
         [
           { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'ASISTENCIA (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'ATRASOS', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'FALTAS', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'PERMISOS', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
+          { content: 'JORNADAS REGISTRADAS', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+          { content: 'PROMEDIO GRUPAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+          { content: 'ASISTENCIA PROMEDIO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+          { content: 'ESTADO MÓDULO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
         ],
         [
           participants.length,
-          `${stats.asistieron} (${pct}%)`,
-          stats.atrasos,
-          stats.faltas,
-          stats.permisos
+          `${registeredDays.length} de 6`,
+          `${groupAvgScore} / 10 pts`,
+          `${generalPct}%`,
+          registeredDays.length >= 6 ? 'COMPLETADO' : 'EN DESARROLLO'
         ]
       ],
       theme: 'grid',
@@ -651,45 +937,45 @@ export default function AttendanceClient({
     const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
 
     // --- SECCIÓN DE FIRMA DEL FACILITADOR ---
-    // Tighter 10mm gap for premium layout
-    let signatureY = statsFinalY + 10
+    let signatureY = statsFinalY + 22
     if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
       doc.addPage()
-      try {
-        doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
-      } catch (e) {
-        console.warn("Background image not found")
-      }
+      addPdfBackground(doc)
       signatureY = 45 // Safe Y coordinates on fresh page
     }
 
-    // Centered Facilitator Signature Block with premium design detailing
-    const sigCenterX = pageWidth / 2
+    // Side-by-side Double Signature Layout
+    const sigCenterXLeft = pageWidth * 0.3
+    const sigCenterXRight = pageWidth * 0.7
 
-    // Smooth dark grey signature line
+    // Left Signature: FACILITADOR(A)
     doc.setDrawColor(40, 40, 40)
     doc.setLineWidth(0.3)
-    doc.line(sigCenterX - 35, signatureY + 12, sigCenterX + 35, signatureY + 12)
+    doc.line(sigCenterXLeft - 25, signatureY + 12, sigCenterXLeft + 25, signatureY + 12)
 
-    // Beautiful institutional gold dot centered on the line for high-end detail
     doc.setFillColor(187, 151, 58)
-    doc.circle(sigCenterX, signatureY + 12, 1, 'F')
+    doc.circle(sigCenterXLeft, signatureY + 12, 1, 'F')
 
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(187, 151, 58) // Gold Accent Title
-    doc.text('FACILITADOR(A)', sigCenterX, signatureY + 17, { align: 'center' })
+    doc.setTextColor(187, 151, 58)
+    doc.text('FACILITADOR(A)', sigCenterXLeft, signatureY + 17, { align: 'center' })
 
-    doc.setFont('helvetica', 'bold')
+    // Right Signature: RESPONSABLE DEPARTAMENTAL
+    doc.setDrawColor(40, 40, 40)
+    doc.setLineWidth(0.3)
+    doc.line(sigCenterXRight - 25, signatureY + 12, sigCenterXRight + 25, signatureY + 12)
+
+    doc.setFillColor(187, 151, 58)
+    doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
+
     doc.setFontSize(8)
-    doc.setTextColor(40, 40, 40)
-    doc.text(selectedFacilitator.toUpperCase(), sigCenterX, signatureY + 21, { align: 'center' })
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(187, 151, 58)
+    doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
-    // Pie de página institucional
-    doc.setFontSize(6)
-    doc.setTextColor(150)
-
-    doc.save(`ASISTENCIA_${groupName.replace(/\s+/g, '_')}_DIA_${dayNumber}.pdf`)
+    doc.save(`ASISTENCIA_MODULAR_${groupName.replace(/\s+/g, '_')}_${moduleName.replace(/\s+/g, '_')}.pdf`)
+    setLoading(false)
   }
 
   return (
@@ -826,7 +1112,14 @@ export default function AttendanceClient({
                     const action = () => {
                       const today = new Date().toISOString().split('T')[0];
                       setSelectedDate(today);
-                      const nextDay = historyDays.length > 0 ? Math.max(...historyDays.map(h => h.dia)) + 1 : 1;
+                      // Find first missing day between 1 and 6
+                      let nextDay = 1;
+                      for (let d = 1; d <= 6; d++) {
+                        if (!historyDays.some(h => h.dia === d)) {
+                          nextDay = d;
+                          break;
+                        }
+                      }
                       setDayNumber(nextDay);
                     };
                     if (isDirty) {

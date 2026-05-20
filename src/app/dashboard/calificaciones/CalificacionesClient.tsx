@@ -4,11 +4,23 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import {
   Building2, Users, GraduationCap, ChevronRight, Download,
-  Database, Info, AlertTriangle, FileSpreadsheet, FileText, BarChart3, Award
+  Database, Info, AlertTriangle, FileSpreadsheet, FileText, BarChart3, Award,
+  BookOpen, Calculator, X
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
+
+async function getBase64ImageFromUrl(imageUrl: string): Promise<string> {
+  const res = await fetch(imageUrl)
+  const blob = await res.blob()
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(reader.result as string), false)
+    reader.addEventListener('error', () => reject(new Error('Failed to read blob')))
+    reader.readAsDataURL(blob)
+  })
+}
 
 export default function CalificacionesClient({
   departamentos,
@@ -27,6 +39,8 @@ export default function CalificacionesClient({
   const [selectedProgram, setSelectedProgram] = useState('')
   const [modules, setModules] = useState<any[]>([])
   const [selectedModule, setSelectedModule] = useState('')
+  const [selectedModuleGroup, setSelectedModuleGroup] = useState<string>('1')
+  const [showModuleGroupModal, setShowModuleGroupModal] = useState(false)
 
   // Facilitators for PDF Signature Selection
   const [facilitators, setFacilitators] = useState<{ name: string, depto: string }[]>([])
@@ -103,10 +117,15 @@ export default function CalificacionesClient({
         .from('programa_modulos')
         .select('*')
         .eq('programa_id', selectedProgram)
-        .order('titulo_modulo')
-      setModules(data || [])
-      if (data && data.length > 0) {
-        setSelectedModule(data[0].id)
+        .order('orden', { ascending: true })
+
+      const sortedData = data || []
+      setModules(sortedData)
+
+      if (sortedData.length > 0) {
+        const todayStr = new Date().toISOString().split('T')[0]
+        const currentModule = sortedData.find(m => todayStr >= m.fecha_inicio && todayStr <= m.fecha_fin)
+        setSelectedModule(currentModule ? currentModule.id : sortedData[0].id)
       } else {
         setSelectedModule('')
       }
@@ -217,7 +236,7 @@ export default function CalificacionesClient({
     participants.forEach(p => {
       if (p.hasGrade) gradedCount++
       sum += p.total
-      if (p.total >= 61) totalPassing++
+      if (p.total >= 51) totalPassing++
     })
     averageScore = gradedCount > 0 ? Math.round((sum / gradedCount) * 10) / 10 : 0
   }
@@ -237,7 +256,7 @@ export default function CalificacionesClient({
       'Asistencia (10 pt)': p.hasGrade ? p.asistencia : 'Sin Nota',
       'Evaluación Módulo (30 pt)': p.hasGrade ? p.evaluacion : 'Sin Nota',
       'Total (100 pt)': p.hasGrade ? p.total : 'Sin Nota',
-      'Estado': p.hasGrade ? (p.total >= 61 ? 'APROBADO' : 'REPROBADO') : 'Sin Registro'
+      'Estado': p.hasGrade ? (p.total >= 51 ? 'APROBADO' : 'REPROBADO') : 'Sin Registro'
     }))
 
     const worksheet = XLSX.utils.json_to_sheet(dataRows)
@@ -247,7 +266,7 @@ export default function CalificacionesClient({
     // Add metadata/headers dynamically
     XLSX.utils.sheet_add_aoa(worksheet, [
       [`REPORTE DE CALIFICACIONES - GRUPO ${selectedGroupDetails?.name || ''}`],
-      [`Módulo: ${selectedModuleDetails?.titulo_modulo || ''}`],
+      [`${selectedModuleDetails?.titulo_modulo || ''}`],
       [`Fecha de Reporte: ${new Date().toLocaleDateString('es-ES')}`],
       []
     ], { origin: 'A1' })
@@ -255,259 +274,857 @@ export default function CalificacionesClient({
     XLSX.writeFile(workbook, `Calificaciones_${selectedGroupDetails?.name || 'Grupo'}_Mod.xlsx`)
   }
 
-  const handleExportPDF = () => {
-    if (participants.length === 0) return
-
-    const doc = new jsPDF('p', 'mm', 'a4')
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-
-    // 1. Full Page Background image
-    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
-
+  const handleExportPDF = async (reportType: 'modulo' | 'grupo' | 'general', moduleGroupFilter?: number) => {
+    setLoading(true)
     try {
-      doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
-    } catch (e) {
-      console.warn("Background image not found")
-    }
+      const orientation = (reportType === 'general') ? 'l' : 'p'
+      const doc = new jsPDF(orientation, 'mm', 'a4')
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
 
-    const groupName = selectedGroupDetails?.name || 'N/A'
-    const programName = programs.find(p => p.id === selectedProgram)?.titulo || ''
-    const moduleName = selectedModuleDetails?.titulo_modulo || ''
-    const currentFac = facilitators.find(f => f.name === selectedFacilitator)
-    const deptoName = currentFac?.depto || selectedGroupDetails?.departamentos?.name || 'N/A'
+      // Full Page Background image (Landscape or Portrait depending on layout)
+      const backgroundImage = (orientation === 'l')
+        ? 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc_vertical.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2NfdmVydGljYWwuanBnIiwiaWF0IjoxNzc5Mjg3ODA5LCJleHAiOjE4MTA4MjM4MDl9.58xHabXO1Y_ZL-ASUhvQcGLENV-Eazj3q5QtUS2yy4E'
+        : 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
 
-    // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
-    doc.setFillColor(187, 151, 58) // Dorado institucional #bb973a
-    doc.rect(14, 40, 182, 10, 'F')
-    doc.setFontSize(12)
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.text('CALIFICACIONES DE ESTUDIANTES / PARTICIPANTES', pageWidth / 2, 46.5, { align: 'center' })
+      let bgBase64 = ''
+      try {
+        bgBase64 = await getBase64ImageFromUrl(backgroundImage)
+      } catch (err) {
+        console.warn("Failed to pre-load background image as base64", err)
+      }
 
-    // --- BLOQUE DE METADATOS (TABLA DINÁMICA - AUTO AJUSTABLE) ---
-    autoTable(doc, {
-      startY: 53,
-      body: [
-        [
-          { content: `DEPARTAMENTO: ${deptoName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
-          { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
-        ],
-        [
-          { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
-          { content: `FECHA: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
-        ],
-        [
-          { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
-        ],
-        [
-          { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
-        ],
-        [
-          { content: `MÓDULO: ${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
-        ]
-      ],
-      theme: 'plain',
-      styles: {
-        fontSize: 7,
-        cellPadding: 1.3,
-        textColor: [40, 40, 40],
-        overflow: 'linebreak'
-      },
-      columnStyles: {
-        0: { cellWidth: 89.5 },
-        1: { cellWidth: 89.5 }
-      },
-      margin: { left: 17, right: 14 }
-    })
+      const addPdfBackground = (pdfDoc: any) => {
+        try {
+          const w = pdfDoc.internal.pageSize.getWidth()
+          const h = pdfDoc.internal.pageSize.getHeight()
+          if (bgBase64) {
+            let format = 'JPEG'
+            if (bgBase64.startsWith('data:image/png')) {
+              format = 'PNG'
+            } else if (bgBase64.startsWith('data:image/webp')) {
+              format = 'WEBP'
+            }
+            pdfDoc.addImage(bgBase64, format, 0, 0, w, h)
+          } else {
+            pdfDoc.addImage(backgroundImage, 'JPEG', 0, 0, w, h)
+          }
+        } catch (e) {
+          console.warn("Background image error:", e)
+        }
+      }
 
-    const metaFinalY = (doc as any).lastAutoTable.finalY
+      addPdfBackground(doc)
 
-    // Draw the luxury vertical gold accent bar next to the metadata block
-    doc.setFillColor(187, 151, 58) // dorado institucional #bb973a
-    doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
+      const programName = programs.find((p: any) => p.id === selectedProgram)?.titulo || ''
+      const currentFac = facilitators.find(f => f.name === selectedFacilitator)
+      const deptoName = currentFac?.depto || selectedGroupDetails?.departamentos?.name || 'N/A'
+      const groupName = selectedGroupDetails?.name || 'N/A'
 
-    const tableStartY = metaFinalY + 5
+      const formatDate = (dateStr?: string) => {
+        if (!dateStr) return 'N/A'
+        const parts = dateStr.split('-')
+        if (parts.length === 3) {
+          return `${parts[2]}/${parts[1]}/${parts[0]}`
+        }
+        return dateStr
+      }
 
-    // --- TABLA DE CALIFICACIONES ---
-    const tableData = participants.map((p, idx) => [
-      idx + 1,
-      p.ci,
-      `${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}`,
-      p.hasGrade ? p.autoformacion : '-',
-      p.hasGrade ? p.practica_guiada : '-',
-      p.hasGrade ? p.asistencia : '-',
-      p.hasGrade ? p.evaluacion : '-',
-      p.hasGrade ? p.total : 'S/R',
-      p.hasGrade ? (p.total >= 61 ? 'APROBADO' : 'REPROBADO') : 'SIN REGISTRO'
-    ])
+      if (reportType === 'modulo') {
+        if (participants.length === 0) {
+          setLoading(false)
+          return
+        }
 
-    autoTable(doc, {
-      startY: tableStartY,
-      head: [['Nro', 'C.I.', 'APELLIDOS, NOMBRES', 'AUT. (40)', 'PRÁC. (20)', 'ASIST. (10)', 'EVAL. (30)', 'TOTAL', 'ESTADO']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: {
-        fillColor: [187, 151, 58], // Elegant institutional gold
-        textColor: 255, // Clean white text
-        fontSize: 7,
-        halign: 'center',
-        lineWidth: 0.05,
-        lineColor: [120, 100, 40],
-        fontStyle: 'bold'
-      },
-      alternateRowStyles: {
-        fillColor: [253, 252, 248] // Subtle warm ivory zebra striping
-      },
-      styles: {
-        fontSize: 7,
-        cellPadding: 1.3,
-        textColor: [30, 30, 30],
-        lineWidth: 0.05,
-        lineColor: [200, 200, 200]
-      },
-      columnStyles: {
-        0: { halign: 'center', cellWidth: 8 },
-        1: { halign: 'center', cellWidth: 20 },
-        2: { fontStyle: 'bold' },
-        3: { halign: 'center', cellWidth: 15 },
-        4: { halign: 'center', cellWidth: 15 },
-        5: { halign: 'center', cellWidth: 15 },
-        6: { halign: 'center', cellWidth: 15 },
-        7: { halign: 'center', cellWidth: 15, fontStyle: 'bold' },
-        8: { halign: 'center', cellWidth: 25, fontStyle: 'bold' }
-      },
-      margin: { left: 14, right: 14 },
-      didParseCell: (data: any) => {
-        if (data.section === 'body') {
-          // Highlight TOTAL grade cell with gold/green accent color
-          if (data.column.index === 7) {
-            const score = Number(data.cell.raw);
-            if (!isNaN(score)) {
-              data.cell.styles.fontStyle = 'bold';
-              if (score >= 61) {
-                data.cell.styles.textColor = [16, 185, 129]; // Elite green
-              } else {
-                data.cell.styles.textColor = [239, 68, 68]; // Failed red
+        const moduleName = selectedModuleDetails?.titulo_modulo || ''
+
+        // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
+        doc.setFillColor(187, 151, 58)
+        doc.rect(14, 40, pageWidth - 28, 10, 'F')
+        doc.setFontSize(12)
+        doc.setTextColor(255, 255, 255)
+        doc.setFont('helvetica', 'bold')
+        doc.text('CALIFICACIONES DE ESTUDIANTES / PARTICIPANTES', pageWidth / 2, 46.5, { align: 'center' })
+
+        // --- BLOQUE DE METADATOS (TABLA DINÁMICA - AUTO AJUSTABLE) ---
+        autoTable(doc, {
+          startY: 53,
+          body: [
+            [
+              { content: `DEPARTAMENTO: ${deptoName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
+              { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
+              { content: `FECHA: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `FECHA INICIO MÓDULO: ${formatDate(selectedModuleDetails?.fecha_inicio)}`, styles: { fontStyle: 'bold' } },
+              { content: `FECHA FIN MÓDULO: ${formatDate(selectedModuleDetails?.fecha_fin)}`, styles: { fontStyle: 'bold' } }
+            ]
+          ],
+          theme: 'plain',
+          styles: { fontSize: 7, cellPadding: 1.3, textColor: [40, 40, 40], overflow: 'linebreak' },
+          columnStyles: { 0: { cellWidth: 89.5 }, 1: { cellWidth: 89.5 } },
+          margin: { left: 17, right: 14 }
+        })
+
+        const metaFinalY = (doc as any).lastAutoTable.finalY
+        doc.setFillColor(187, 151, 58)
+        doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
+
+        const tableStartY = metaFinalY + 5
+
+        // --- TABLA DE CALIFICACIONES ---
+        const tableData = participants.map((p, idx) => [
+          idx + 1,
+          p.ci,
+          `${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}`,
+          p.hasGrade ? p.autoformacion : '-',
+          p.hasGrade ? p.practica_guiada : '-',
+          p.hasGrade ? p.asistencia : '-',
+          p.hasGrade ? p.evaluacion : '-',
+          p.hasGrade ? p.total : 'S/R',
+          p.hasGrade ? (p.total >= 51 ? 'APROBADO' : 'REPROBADO') : 'SIN REGISTRO'
+        ])
+
+        autoTable(doc, {
+          startY: tableStartY,
+          head: [['Nro', 'C.I.', 'APELLIDOS, NOMBRES', 'AUT. (40)', 'PRÁC. (20)', 'ASIST. (10)', 'EVAL. (30)', 'TOTAL', 'ESTADO']],
+          body: tableData,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [187, 151, 58],
+            textColor: 255,
+            fontSize: 7,
+            halign: 'center',
+            lineWidth: 0.05,
+            lineColor: [120, 100, 40],
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: { fillColor: [253, 252, 248] },
+          styles: { fontSize: 7, cellPadding: 1.3, textColor: [30, 30, 30], lineWidth: 0.05, lineColor: [200, 200, 200] },
+          columnStyles: {
+            0: { halign: 'center', cellWidth: 8 },
+            1: { halign: 'center', cellWidth: 20 },
+            2: { fontStyle: 'bold' },
+            3: { halign: 'center', cellWidth: 15 },
+            4: { halign: 'center', cellWidth: 15 },
+            5: { halign: 'center', cellWidth: 15 },
+            6: { halign: 'center', cellWidth: 15 },
+            7: { halign: 'center', cellWidth: 15, fontStyle: 'bold' },
+            8: { halign: 'center', cellWidth: 25, fontStyle: 'bold' }
+          },
+          margin: { left: 14, right: 14 },
+          didParseCell: (data: any) => {
+            if (data.section === 'body') {
+              if (data.column.index === 7) {
+                const score = Number(data.cell.raw);
+                if (!isNaN(score)) {
+                  data.cell.styles.fontStyle = 'bold';
+                  data.cell.styles.textColor = score >= 51 ? [16, 185, 129] : [239, 68, 68];
+                }
+              }
+              if (data.column.index === 8) {
+                const val = data.cell.raw;
+                if (val === 'APROBADO') {
+                  data.cell.styles.fillColor = [240, 253, 250];
+                  data.cell.styles.textColor = [13, 148, 136];
+                  data.cell.styles.fontStyle = 'bold';
+                } else if (val === 'REPROBADO') {
+                  data.cell.styles.fillColor = [254, 242, 242];
+                  data.cell.styles.textColor = [220, 38, 38];
+                  data.cell.styles.fontStyle = 'bold';
+                } else {
+                  data.cell.styles.textColor = [100, 100, 100];
+                }
               }
             }
           }
-          // Premium badge-style highlighting for ESTADO cell
-          if (data.column.index === 8) {
-            const val = data.cell.raw;
-            if (val === 'APROBADO') {
-              data.cell.styles.fillColor = [240, 253, 250]; // Soft mint background
-              data.cell.styles.textColor = [13, 148, 136]; // Dark green-teal text
-              data.cell.styles.fontStyle = 'bold';
-            } else if (val === 'REPROBADO') {
-              data.cell.styles.fillColor = [254, 242, 242]; // Soft rose background
-              data.cell.styles.textColor = [220, 38, 38]; // Deep crimson red text
-              data.cell.styles.fontStyle = 'bold';
-            } else {
-              data.cell.styles.textColor = [100, 100, 100];
+        })
+
+        const finalY = (doc as any).lastAutoTable.finalY || 150
+        const pctPassing = totalStudents > 0 ? Math.round((totalPassing / totalStudents) * 100) : 0
+
+        const spaceNeededForEnding = 75
+        let statsStartY = finalY + 4
+        let hasAddedPageForEnding = false
+
+        if (pageHeight - finalY < spaceNeededForEnding) {
+          doc.addPage()
+          addPdfBackground(doc)
+          statsStartY = 40
+          hasAddedPageForEnding = true
+        }
+
+        // --- INDICADORES ACADÉMICOS ---
+        autoTable(doc, {
+          startY: statsStartY,
+          head: [[{ content: 'INDICADORES ACADÉMICOS DEL MÓDULO', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
+          body: [
+            [
+              { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'PROMEDIO GRUPAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
+            ],
+            [
+              totalStudents,
+              averageScore,
+              `${totalPassing} (${pctPassing}%)`,
+              `${totalStudents - totalPassing} (${100 - pctPassing}%)`
+            ]
+          ],
+          theme: 'grid',
+          styles: { fontSize: 7, cellPadding: 1.3, halign: 'center', lineWidth: 0.1, lineColor: [180, 180, 180], textColor: [0, 0, 0] },
+          margin: { left: 14, right: 14 }
+        })
+
+        const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
+
+        let signatureY = statsFinalY + 22
+        if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
+          doc.addPage()
+          addPdfBackground(doc)
+          signatureY = 45
+        }
+
+        const sigCenterXLeft = pageWidth * 0.3
+        const sigCenterXRight = pageWidth * 0.7
+
+        doc.setDrawColor(40, 40, 40)
+        doc.setLineWidth(0.3)
+        doc.line(sigCenterXLeft - 25, signatureY + 12, sigCenterXLeft + 25, signatureY + 12)
+        doc.setFillColor(187, 151, 58)
+        doc.circle(sigCenterXLeft, signatureY + 12, 1, 'F')
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(187, 151, 58)
+        doc.text('FACILITADOR(A)', sigCenterXLeft, signatureY + 17, { align: 'center' })
+
+        doc.setDrawColor(40, 40, 40)
+        doc.setLineWidth(0.3)
+        doc.line(sigCenterXRight - 25, signatureY + 12, sigCenterXRight + 25, signatureY + 12)
+        doc.setFillColor(187, 151, 58)
+        doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(187, 151, 58)
+        doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
+
+        doc.save(`CALIFICACIONES_MODULO_${groupName.replace(/\s+/g, '_')}_${moduleName.replace(/\s+/g, '_')}.pdf`)
+      }
+
+      else if (reportType === 'grupo') {
+        // --- CONSOLIDADO POR GRUPO ---
+        // 1. Fetch modules of the program ordered by 'orden'
+        const { data: programModules, error: mErr } = await supabase
+          .from('programa_modulos')
+          .select('*')
+          .eq('programa_id', selectedProgram)
+          .eq('grupo', Number(moduleGroupFilter || 1))
+          .order('orden', { ascending: true })
+        if (mErr) throw mErr
+        const sortedModules = programModules || []
+
+        // 2. Fetch active participants of the selected group
+        const { data: enrolled, error: eErr } = await supabase
+          .from('inscripciones')
+          .select('participantes(id, nombre, apellido, ci)')
+          .eq('grupo_id', selectedGroup)
+          .eq('programa_id', selectedProgram)
+          .eq('estado', 'inscrito')
+        if (eErr) throw eErr
+
+        const list = enrolled?.map((e: any) => e.participantes).filter(Boolean)
+          .sort((a: any, b: any) => `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`)) || []
+
+        if (list.length === 0) {
+          setLoading(false)
+          return
+        }
+
+        // 3. Fetch all grades of these participants in program modules
+        const { data: grades, error: gErr } = await supabase
+          .from('calificaciones')
+          .select('*')
+          .in('modulo_id', sortedModules.map((m: any) => m.id))
+          .in('participante_id', list.map((p: any) => p.id))
+        if (gErr) throw gErr
+
+        // --- TITULO CONSOLIDADO ---
+        doc.setFillColor(187, 151, 58)
+        doc.rect(14, 40, pageWidth - 28, 10, 'F')
+        doc.setFontSize(12)
+        doc.setTextColor(255, 255, 255)
+        doc.setFont('helvetica', 'bold')
+        const specialtyName = moduleGroupFilter === 2 ? 'MATEMÁTICA' : 'LENGUAJE'
+        doc.text(`CONSOLIDADO DE CALIFICACIONES - ${specialtyName}`, pageWidth / 2, 46.5, { align: 'center' })
+
+        const firstModuleDate = sortedModules.length > 0 ? sortedModules[0].fecha_inicio : ''
+        const lastModuleDate = sortedModules.length > 0 ? sortedModules[sortedModules.length - 1].fecha_fin : ''
+
+        // Metadata block (No Module Name since it's consolidated)
+        autoTable(doc, {
+          startY: 53,
+          body: [
+            [
+              { content: `DEPARTAMENTO: ${deptoName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
+              { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
+              { content: `FECHA DE REPORTE: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+            ],
+            [
+              { content: `FECHA INICIO GRUPO: ${formatDate(firstModuleDate)}`, styles: { fontStyle: 'bold' } },
+              { content: `FECHA FIN GRUPO: ${formatDate(lastModuleDate)}`, styles: { fontStyle: 'bold' } }
+            ]
+          ],
+          theme: 'plain',
+          styles: { fontSize: 7, cellPadding: 1.3, textColor: [40, 40, 40], overflow: 'linebreak' },
+          columnStyles: { 0: { cellWidth: (pageWidth - 28) / 2 }, 1: { cellWidth: (pageWidth - 28) / 2 } },
+          margin: { left: 17, right: 14 }
+        })
+
+        const metaFinalY = (doc as any).lastAutoTable.finalY
+        doc.setFillColor(187, 151, 58)
+        doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
+
+        const tableStartY = metaFinalY + 5
+
+        // Build header row: Nro, C.I., Apellidos y Nombres, M1, M2... Promedio, Estado
+        const headRow = ['Nro', 'C.I.', 'APELLIDOS, NOMBRES']
+        sortedModules.forEach((m, idx) => {
+          headRow.push(m.orden ? `MÓD. ${m.orden}` : `MÓD. ${idx + 1}`)
+        })
+        headRow.push('PROMEDIO', 'ESTADO')
+
+        // Build body rows
+        let sumAverages = 0
+        let approvedAveragesCount = 0
+
+        const tableData = list.map((p: any, idx: number) => {
+          let totalScoreSum = 0
+          const moduleScores = sortedModules.map(m => {
+            const g = grades?.find((x: any) => x.participante_id === p.id && x.modulo_id === m.id)
+            if (g) {
+              totalScoreSum += Number(g.total)
+              return Number(g.total)
+            }
+            return 0
+          })
+
+          const average = sortedModules.length > 0 ? (totalScoreSum / sortedModules.length) : 0
+          sumAverages += average
+          if (average >= 51) approvedAveragesCount++
+
+          const formattedScores = sortedModules.map(m => {
+            const g = grades?.find((x: any) => x.participante_id === p.id && x.modulo_id === m.id)
+            return g ? g.total : '-'
+          })
+
+          return [
+            idx + 1,
+            p.ci,
+            `${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}`,
+            ...formattedScores,
+            average > 0 ? average.toFixed(2) : '0.00',
+            average >= 51 ? 'APROBADO' : 'REPROBADO'
+          ]
+        })
+
+        // Column styles dynamically
+        const colStyles: any = {
+          0: { halign: 'center', cellWidth: 8 },
+          1: { halign: 'center', cellWidth: 20 },
+          2: { fontStyle: 'bold' }
+        }
+        sortedModules.forEach((_, idx) => {
+          colStyles[idx + 3] = { halign: 'center', cellWidth: 15 }
+        })
+        colStyles[sortedModules.length + 3] = { halign: 'center', cellWidth: 16, fontStyle: 'bold' }
+        colStyles[sortedModules.length + 4] = { halign: 'center', cellWidth: 22, fontStyle: 'bold' }
+
+        autoTable(doc, {
+          startY: tableStartY,
+          head: [headRow],
+          body: tableData,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [187, 151, 58],
+            textColor: 255,
+            fontSize: 7,
+            halign: 'center',
+            lineWidth: 0.05,
+            lineColor: [120, 100, 40],
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: { fillColor: [253, 252, 248] },
+          styles: { fontSize: 7, cellPadding: 1.3, textColor: [30, 30, 30], lineWidth: 0.05, lineColor: [200, 200, 200] },
+          columnStyles: colStyles,
+          margin: { left: 14, right: 14 },
+          didParseCell: (data: any) => {
+            if (data.section === 'body') {
+              const avgColIdx = sortedModules.length + 3
+              const statusColIdx = sortedModules.length + 4
+              if (data.column.index === avgColIdx) {
+                const score = Number(data.cell.raw)
+                if (!isNaN(score)) {
+                  data.cell.styles.fontStyle = 'bold'
+                  data.cell.styles.textColor = score >= 51 ? [16, 185, 129] : [239, 68, 68]
+                }
+              }
+              if (data.column.index === statusColIdx) {
+                const val = data.cell.raw
+                if (val === 'APROBADO') {
+                  data.cell.styles.fillColor = [240, 253, 250]
+                  data.cell.styles.textColor = [13, 148, 136]
+                  data.cell.styles.fontStyle = 'bold'
+                } else if (val === 'REPROBADO') {
+                  data.cell.styles.fillColor = [254, 242, 242]
+                  data.cell.styles.textColor = [220, 38, 38]
+                  data.cell.styles.fontStyle = 'bold'
+                }
+              }
             }
           }
+        })
+
+        const finalY = (doc as any).lastAutoTable.finalY || 150
+        const groupAvgScore = list.length > 0 ? (sumAverages / list.length).toFixed(2) : '0.00'
+        const pctPassing = list.length > 0 ? Math.round((approvedAveragesCount / list.length) * 100) : 0
+
+        // Module Legend (Compact Table format to prevent overflow!)
+        const legendData = sortedModules.map((m, idx) => [
+          `M${m.orden || idx + 1}:`,
+          m.titulo_modulo
+        ])
+
+        autoTable(doc, {
+          startY: finalY + 4,
+          body: [
+            [{ content: 'LISTA DE MÓDULOS:', colSpan: 2, styles: { fontStyle: 'bold', textColor: [100, 100, 100], fontSize: 6 } as any }],
+            ...legendData.map(([code, name]) => [
+              { content: code, styles: { fontStyle: 'bold', textColor: [120, 120, 120], fontSize: 5.5 } as any },
+              { content: name, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
+            ])
+          ],
+          theme: 'plain',
+          styles: { fontSize: 5.5, cellPadding: 0.3 },
+          columnStyles: {
+            0: { cellWidth: 8 },
+            1: { cellWidth: pageWidth - 36 }
+          },
+          margin: { left: 14, right: 14 }
+        })
+
+        const legendFinalY = (doc as any).lastAutoTable.finalY || finalY + 12
+
+        const spaceNeededForEnding = 65
+        let statsStartY = legendFinalY + 4
+        let hasAddedPageForEnding = false
+
+        if (pageHeight - legendFinalY < spaceNeededForEnding) {
+          doc.addPage()
+          addPdfBackground(doc)
+          statsStartY = 40
+          hasAddedPageForEnding = true
+        }
+
+        // --- INDICADORES ACADÉMICOS ---
+        autoTable(doc, {
+          startY: statsStartY,
+          head: [[{ content: 'INDICADORES ACADÉMICOS CONSOLIDADOS DEL GRUPO', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
+          body: [
+            [
+              { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'PROMEDIO GENERAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
+            ],
+            [
+              list.length,
+              groupAvgScore,
+              `${approvedAveragesCount} (${pctPassing}%)`,
+              `${list.length - approvedAveragesCount} (${100 - pctPassing}%)`
+            ]
+          ],
+          theme: 'grid',
+          styles: { fontSize: 7, cellPadding: 1.3, halign: 'center', lineWidth: 0.1, lineColor: [180, 180, 180], textColor: [0, 0, 0] },
+          margin: { left: 14, right: 14 }
+        })
+
+        const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
+
+        let signatureY = statsFinalY + 22
+        if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
+          doc.addPage()
+          addPdfBackground(doc)
+          signatureY = 45
+        }
+
+        const sigCenterXLeft = pageWidth * 0.3
+        const sigCenterXRight = pageWidth * 0.7
+
+        doc.setDrawColor(40, 40, 40)
+        doc.setLineWidth(0.3)
+        doc.line(sigCenterXLeft - 25, signatureY + 12, sigCenterXLeft + 25, signatureY + 12)
+        doc.setFillColor(187, 151, 58)
+        doc.circle(sigCenterXLeft, signatureY + 12, 1, 'F')
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(187, 151, 58)
+        doc.text('FACILITADOR(A)', sigCenterXLeft, signatureY + 17, { align: 'center' })
+
+        doc.setDrawColor(40, 40, 40)
+        doc.setLineWidth(0.3)
+        doc.line(sigCenterXRight - 25, signatureY + 12, sigCenterXRight + 25, signatureY + 12)
+        doc.setFillColor(187, 151, 58)
+        doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(187, 151, 58)
+        doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
+
+        doc.save(`CALIFICACIONES_CONSOLIDADO_GRUPO_${groupName.replace(/\s+/g, '_')}.pdf`)
+      }
+
+      else if (reportType === 'general') {
+        // --- GENERAL (TODO EN GENERAL POR DEPARTAMENTO/PROGRAMA - SEPARADOS POR GRUPO) ---
+        // 1. Fetch modules
+        const { data: programModules, error: mErr } = await supabase
+          .from('programa_modulos')
+          .select('*')
+          .eq('programa_id', selectedProgram)
+          .order('orden', { ascending: true })
+        if (mErr) throw mErr
+        const sortedModules = programModules || []
+
+        // 2. Allowed groups
+        const allowedGroups = userRole === 'facilitador' ? facilitadorGroups : groups
+
+        if (!allowedGroups || allowedGroups.length === 0) {
+          setLoading(false)
+          return
+        }
+
+        // Loop through each group to generate a separate PDF as a senior developer
+        for (const grp of allowedGroups) {
+          const doc = new jsPDF(orientation, 'mm', 'a4')
+          const pageWidth = doc.internal.pageSize.getWidth()
+          const pageHeight = doc.internal.pageSize.getHeight()
+
+          addPdfBackground(doc)
+
+          // Fetch enrolled participants for this specific group
+          const { data: enrolled, error: eErr } = await supabase
+            .from('inscripciones')
+            .select('participantes(id, nombre, apellido, ci)')
+            .eq('grupo_id', grp.id)
+            .eq('programa_id', selectedProgram)
+            .eq('estado', 'inscrito')
+          if (eErr) continue
+
+          const list = enrolled?.map((e: any) => e.participantes).filter(Boolean)
+            .sort((a: any, b: any) => `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`)) || []
+
+          if (list.length === 0) continue
+
+          // Fetch grades of these participants in program modules
+          const { data: grades, error: gErr } = await supabase
+            .from('calificaciones')
+            .select('*')
+            .in('modulo_id', sortedModules.map((m: any) => m.id))
+            .in('participante_id', list.map((p: any) => p.id))
+          if (gErr) continue
+
+          // Fetch attendance records of these participants in program modules
+          const { data: attData, error: attErr } = await supabase
+            .from('asistencias')
+            .select('*')
+            .in('modulo_id', sortedModules.map((m: any) => m.id))
+            .in('participante_id', list.map((p: any) => p.id))
+          if (attErr) {
+            console.warn("Error fetching attendance for general report:", attErr)
+          }
+
+          // --- TITULO CONSOLIDADO ---
+          doc.setFillColor(187, 151, 58)
+          doc.rect(14, 40, pageWidth - 28, 10, 'F')
+          doc.setFontSize(12)
+          doc.setTextColor(255, 255, 255)
+          doc.setFont('helvetica', 'bold')
+          doc.text(`PLANILLA CONSOLIDADA - GRUPO ${grp.name.toUpperCase()}`, pageWidth / 2, 46.5, { align: 'center' })
+
+          const firstModuleDate = sortedModules.length > 0 ? sortedModules[0].fecha_inicio : ''
+          const lastModuleDate = sortedModules.length > 0 ? sortedModules[sortedModules.length - 1].fecha_fin : ''
+
+          // Metadata block
+          autoTable(doc, {
+            startY: 53,
+            body: [
+              [
+                { content: `DEPARTAMENTO: ${deptoName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
+                { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
+              ],
+              [
+                { content: `GRUPO: ${grp.name.toUpperCase()}`, styles: { fontStyle: 'bold' } },
+                { content: `FECHA DE REPORTE: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
+              ],
+              [
+                { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+              ],
+              [
+                { content: `FECHA INICIO GENERAL: ${formatDate(firstModuleDate)}`, styles: { fontStyle: 'bold' } },
+                { content: `FECHA FIN GENERAL: ${formatDate(lastModuleDate)}`, styles: { fontStyle: 'bold' } }
+              ]
+            ],
+            theme: 'plain',
+            styles: { fontSize: 7, cellPadding: 1.3, textColor: [40, 40, 40], overflow: 'linebreak' },
+            columnStyles: { 0: { cellWidth: (pageWidth - 28) / 2 }, 1: { cellWidth: (pageWidth - 28) / 2 } },
+            margin: { left: 17, right: 14 }
+          })
+
+          const metaFinalY = (doc as any).lastAutoTable.finalY
+          doc.setFillColor(187, 151, 58)
+          doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
+
+          const tableStartY = metaFinalY + 5
+
+          // Build header row
+          const headRow = ['Nro', 'C.I.', 'APELLIDOS, NOMBRES']
+          sortedModules.forEach((m, idx) => {
+            headRow.push(m.orden ? `MÓD. ${m.orden}` : `MÓD. ${idx + 1}`)
+          })
+          headRow.push('PROMEDIO', 'ESTADO', '% ASIST.')
+
+          // Build body rows
+          let sumAverages = 0
+          let approvedAveragesCount = 0
+
+          const tableData = list.map((p: any, idx: number) => {
+            let totalScoreSum = 0
+            sortedModules.forEach(m => {
+              const g = grades?.find((x: any) => x.participante_id === p.id && x.modulo_id === m.id)
+              if (g) totalScoreSum += Number(g.total)
+            })
+
+            const average = sortedModules.length > 0 ? (totalScoreSum / sortedModules.length) : 0
+            sumAverages += average
+            if (average >= 51) approvedAveragesCount++
+
+            const formattedScores = sortedModules.map(m => {
+              const g = grades?.find((x: any) => x.participante_id === p.id && x.modulo_id === m.id)
+              return g ? g.total : '-'
+            })
+
+            // Calculate attendance percentage across all modules
+            const pAttRecords = attData?.filter((a: any) => a.participante_id === p.id) || []
+            let attendancePctString = '-'
+            if (pAttRecords.length > 0) {
+              let scoreSum = 0
+              pAttRecords.forEach((a: any) => {
+                if (a.estado === 'asistio' || a.estado === 'permiso') scoreSum += 10
+                else if (a.estado === 'atraso') scoreSum += 8
+                else if (a.estado === 'falta') scoreSum += 0
+              })
+              const pct = Math.round((scoreSum / (pAttRecords.length * 10)) * 100)
+              attendancePctString = `${pct}%`
+            }
+
+            return [
+              idx + 1,
+              p.ci,
+              `${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}`,
+              ...formattedScores,
+              average > 0 ? average.toFixed(2) : '0.00',
+              average >= 51 ? 'APROBADO' : 'REPROBADO',
+              attendancePctString
+            ]
+          })
+
+          // Column styles dynamically
+          const colStyles: any = {
+            0: { halign: 'center', cellWidth: 8 },
+            1: { halign: 'center', cellWidth: 20 },
+            2: { fontStyle: 'bold' }
+          }
+          sortedModules.forEach((_, idx) => {
+            colStyles[idx + 3] = { halign: 'center', cellWidth: 12 }
+          })
+          colStyles[sortedModules.length + 3] = { halign: 'center', cellWidth: 14, fontStyle: 'bold' }
+          colStyles[sortedModules.length + 4] = { halign: 'center', cellWidth: 20, fontStyle: 'bold' }
+          colStyles[sortedModules.length + 5] = { halign: 'center', cellWidth: 16, fontStyle: 'bold' }
+
+          autoTable(doc, {
+            startY: tableStartY,
+            head: [headRow],
+            body: tableData,
+            theme: 'grid',
+            headStyles: {
+              fillColor: [187, 151, 58],
+              textColor: 255,
+              fontSize: 7,
+              halign: 'center',
+              lineWidth: 0.05,
+              lineColor: [120, 100, 40],
+              fontStyle: 'bold'
+            },
+            alternateRowStyles: { fillColor: [253, 252, 248] },
+            styles: { fontSize: 7, cellPadding: 1.3, textColor: [30, 30, 30], lineWidth: 0.05, lineColor: [200, 200, 200] },
+            columnStyles: colStyles,
+            margin: { left: 14, right: 14 },
+            didParseCell: (data: any) => {
+              if (data.section === 'body') {
+                const avgColIdx = sortedModules.length + 3
+                const statusColIdx = sortedModules.length + 4
+                const assistColIdx = sortedModules.length + 5
+                if (data.column.index === avgColIdx) {
+                  const score = Number(data.cell.raw)
+                  if (!isNaN(score)) {
+                    data.cell.styles.fontStyle = 'bold'
+                    data.cell.styles.textColor = score >= 51 ? [16, 185, 129] : [239, 68, 68]
+                  }
+                }
+                if (data.column.index === statusColIdx) {
+                  const val = data.cell.raw
+                  if (val === 'APROBADO') {
+                    data.cell.styles.fillColor = [240, 253, 250]
+                    data.cell.styles.textColor = [13, 148, 136]
+                    data.cell.styles.fontStyle = 'bold'
+                  } else if (val === 'REPROBADO') {
+                    data.cell.styles.fillColor = [254, 242, 242]
+                    data.cell.styles.textColor = [220, 38, 38]
+                    data.cell.styles.fontStyle = 'bold'
+                  }
+                }
+                if (data.column.index === assistColIdx) {
+                  data.cell.styles.fontStyle = 'normal'
+                }
+              }
+            }
+          })
+
+          const finalY = (doc as any).lastAutoTable.finalY || 150
+
+          // Module Legend (Compact Table format to prevent overflow!)
+          const legendData = sortedModules.map((m, idx) => [
+            `M${m.orden || idx + 1}:`,
+            m.titulo_modulo
+          ])
+
+          autoTable(doc, {
+            startY: finalY + 4,
+            body: [
+              [{ content: 'LISTA DE MÓDULOS:', colSpan: 2, styles: { fontStyle: 'bold', textColor: [100, 100, 100], fontSize: 6 } as any }],
+              ...legendData.map(([code, name]) => [
+                { content: code, styles: { fontStyle: 'bold', textColor: [120, 120, 120], fontSize: 5.5 } as any },
+                { content: name, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
+              ])
+            ],
+            theme: 'plain',
+            styles: { fontSize: 5.5, cellPadding: 0.3 },
+            columnStyles: {
+              0: { cellWidth: 8 },
+              1: { cellWidth: pageWidth - 36 }
+            },
+            margin: { left: 14, right: 14 }
+          })
+
+          const legendFinalY = (doc as any).lastAutoTable.finalY || finalY + 12
+          const groupAvgScore = list.length > 0 ? (sumAverages / list.length).toFixed(2) : '0.00'
+          const pctPassing = list.length > 0 ? Math.round((approvedAveragesCount / list.length) * 100) : 0
+
+          const spaceNeededForEnding = 65
+          let statsStartY = legendFinalY + 4
+          let hasAddedPageForEnding = false
+
+          if (pageHeight - legendFinalY < spaceNeededForEnding) {
+            doc.addPage()
+            addPdfBackground(doc)
+            statsStartY = 40
+            hasAddedPageForEnding = true
+          }
+
+          // --- INDICADORES ACADÉMICOS ---
+          autoTable(doc, {
+            startY: statsStartY,
+            head: [[{ content: 'INDICADORES ACADÉMICOS CONSOLIDADOS DEL GRUPO', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
+            body: [
+              [
+                { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+                { content: 'PROMEDIO GENERAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+                { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+                { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
+              ],
+              [
+                list.length,
+                groupAvgScore,
+                `${approvedAveragesCount} (${pctPassing}%)`,
+                `${list.length - approvedAveragesCount} (${100 - pctPassing}%)`
+              ]
+            ],
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 1.3, halign: 'center', lineWidth: 0.1, lineColor: [180, 180, 180], textColor: [0, 0, 0] },
+            margin: { left: 14, right: 14 }
+          })
+
+          const statsFinalY = (doc as any).lastAutoTable.finalY || statsStartY + 15
+
+          let signatureY = statsFinalY + 18
+          if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
+            doc.addPage()
+            addPdfBackground(doc)
+            signatureY = 45
+          }
+
+          const sigCenterXLeft = pageWidth * 0.3
+          const sigCenterXRight = pageWidth * 0.7
+
+          doc.setDrawColor(40, 40, 40)
+          doc.setLineWidth(0.3)
+          doc.line(sigCenterXLeft - 25, signatureY + 12, sigCenterXLeft + 25, signatureY + 12)
+          doc.setFillColor(187, 151, 58)
+          doc.circle(sigCenterXLeft, signatureY + 12, 1, 'F')
+          doc.setFontSize(8)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(187, 151, 58)
+          doc.text('FACILITADOR(A)', sigCenterXLeft, signatureY + 17, { align: 'center' })
+
+          doc.setDrawColor(40, 40, 40)
+          doc.setLineWidth(0.3)
+          doc.line(sigCenterXRight - 25, signatureY + 12, sigCenterXRight + 25, signatureY + 12)
+          doc.setFillColor(187, 151, 58)
+          doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
+          doc.setFontSize(8)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(187, 151, 58)
+          doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
+
+          doc.save(`CALIFICACIONES_CONSOLIDADO_GRUPO_${grp.name.replace(/\s+/g, '_')}.pdf`)
         }
       }
-    })
-
-    const finalY = (doc as any).lastAutoTable.finalY || 150
-    const pctPassing = totalStudents > 0 ? Math.round((totalPassing / totalStudents) * 100) : 0
-
-    // --- INDICADORES ACADÉMICOS Y SECCIÓN DE FIRMA ---
-    // Senior Page-Budgeting Algorithm: Prevent orphan signature blocks
-    // Compacted space required for both: ~55mm
-    const spaceNeededForEnding = 55
-    let statsStartY = finalY + 4
-    let hasAddedPageForEnding = false
-
-    if (pageHeight - finalY < spaceNeededForEnding) {
-      doc.addPage()
-      try {
-        doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
-      } catch (e) {
-        console.warn("Background image not found")
-      }
-      statsStartY = 40 // Safe margin on new page
-      hasAddedPageForEnding = true
+    } catch (error: any) {
+      console.error("Error generating PDF:", error)
+    } finally {
+      setLoading(false)
     }
-
-    // --- INDICADORES ACADÉMICOS ---
-    autoTable(doc, {
-      startY: statsStartY,
-      head: [[{ content: 'INDICADORES ACADÉMICOS DEL MÓDULO', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
-      body: [
-        [
-          { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'PROMEDIO GRUPAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
-        ],
-        [
-          totalStudents,
-          averageScore,
-          `${totalPassing} (${pctPassing}%)`,
-          `${totalStudents - totalPassing} (${100 - pctPassing}%)`
-        ]
-      ],
-      theme: 'grid',
-      styles: {
-        fontSize: 7,
-        cellPadding: 1.3,
-        halign: 'center',
-        lineWidth: 0.1,
-        lineColor: [180, 180, 180],
-        textColor: [0, 0, 0]
-      },
-      margin: { left: 14, right: 14 }
-    })
-
-    const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
-
-    // --- SECCIÓN DE FIRMA DEL FACILITADOR ---
-    // Tighter 10mm gap for premium layout
-    let signatureY = statsFinalY + 10
-    if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
-      doc.addPage()
-      try {
-        doc.addImage(backgroundImage, 'JPEG', 0, 0, pageWidth, pageHeight)
-      } catch (e) {
-        console.warn("Background image not found")
-      }
-      signatureY = 45 // Safe Y coordinates on fresh page
-    }
-
-    // Centered Facilitator Signature Block with premium design detailing
-    const sigCenterX = pageWidth / 2
-
-    // Smooth dark grey signature line
-    doc.setDrawColor(40, 40, 40)
-    doc.setLineWidth(0.3)
-    doc.line(sigCenterX - 35, signatureY + 12, sigCenterX + 35, signatureY + 12)
-
-    // Beautiful institutional gold dot centered on the line for high-end detail
-    doc.setFillColor(187, 151, 58)
-    doc.circle(sigCenterX, signatureY + 12, 1, 'F')
-
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(187, 151, 58) // Gold Accent Title
-    doc.text('FACILITADOR(A)', sigCenterX, signatureY + 17, { align: 'center' })
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.setTextColor(40, 40, 40)
-    doc.text(selectedFacilitator.toUpperCase(), sigCenterX, signatureY + 21, { align: 'center' })
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6.5)
-    doc.setTextColor(120, 120, 120)
-
-    // Pie de página institucional
-    doc.setFontSize(6)
-    doc.setTextColor(150)
-
-    doc.save(`CALIFICACIONES_${groupName.replace(/\s+/g, '_')}.pdf`)
   }
 
   return (
@@ -613,6 +1230,7 @@ export default function CalificacionesClient({
             </select>
           </div>
 
+
           {/* Module Selection */}
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 800, color: 'var(--foreground-2)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
@@ -704,7 +1322,7 @@ export default function CalificacionesClient({
                       <FileSpreadsheet size={14} /> Excel
                     </button>
                     <button
-                      onClick={handleExportPDF}
+                      onClick={() => handleExportPDF('modulo')}
                       className="btn btn-ghost"
                       style={{
                         padding: '0.5rem 0.85rem',
@@ -718,7 +1336,41 @@ export default function CalificacionesClient({
                         color: 'var(--danger)'
                       }}
                     >
-                      <FileText size={14} /> PDF
+                      <FileText size={14} /> PDF Módulo
+                    </button>
+                    <button
+                      onClick={() => setShowModuleGroupModal(true)}
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '0.5rem 0.85rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        border: '1px solid var(--border)',
+                        borderRadius: '0.5rem',
+                        color: 'var(--danger)'
+                      }}
+                    >
+                      <Award size={14} /> PDF Grupo
+                    </button>
+                    <button
+                      onClick={() => handleExportPDF('general')}
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '0.5rem 0.85rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        border: '1px solid var(--border)',
+                        borderRadius: '0.5rem',
+                        color: 'var(--danger)'
+                      }}
+                    >
+                      <Database size={14} /> PDF General
                     </button>
                   </div>
                 </div>
@@ -753,7 +1405,7 @@ export default function CalificacionesClient({
                   </thead>
                   <tbody>
                     {participants.map((p) => {
-                      const isPassing = p.total >= 61
+                      const isPassing = p.total >= 51
 
                       return (
                         <tr key={p.id}>
@@ -886,7 +1538,7 @@ export default function CalificacionesClient({
                 <li>Prácticas Guiadas (20 pt max)</li>
                 <li>Asistencia Académica (10 pt max)</li>
                 <li>Evaluación Final (30 pt max)</li>
-                <li><strong>Suficiencia: 61 pt o superior</strong>.</li>
+                <li><strong>Suficiencia: 51 pt o superior</strong>.</li>
               </ul>
             </div>
 
@@ -929,6 +1581,209 @@ export default function CalificacionesClient({
             <p style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: '480px', margin: '0 auto', lineHeight: '1.6' }}>
               Selecciona un **Grupo Académico**, **Programa** y **Módulo** en el panel superior para cargar la planilla de notas del curso y generar los reportes.
             </p>
+          </div>
+        </div>
+      )}
+      {/* Modal para selección de Grupo de Módulos (al exportar PDF Grupo) */}
+      {showModuleGroupModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+        }}>
+          <div style={{
+            position: 'relative',
+            width: '580px',
+            padding: '2.5rem 2rem 2.25rem 2rem',
+            borderRadius: '1.5rem',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            background: '#ffffff',
+            color: '#1f2937',
+            textAlign: 'center',
+          }}>
+            {/* Close Button */}
+            <button
+              onClick={() => setShowModuleGroupModal(false)}
+              style={{
+                position: 'absolute',
+                top: '1.25rem',
+                right: '1.25rem',
+                background: 'transparent',
+                border: 'none',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                padding: '0.25rem',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#111827';
+                e.currentTarget.style.background = '#f3f4f6';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#9ca3af';
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            {/* Title / Header */}
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#111827', marginBottom: '0.5rem' }}>
+                Seleccionar Especialidad de Reporte
+              </h3>
+              <p style={{ fontSize: '0.875rem', color: '#6b7280', lineHeight: '1.5', maxWidth: '440px', margin: '0 auto' }}>
+                Por favor, elija el área y grupo de módulos que desea incluir en el consolidado en formato vertical (Portrait).
+              </p>
+            </div>
+
+            {/* Cards Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              {/* Card 1: Lenguaje */}
+              <div
+                onClick={() => {
+                  setShowModuleGroupModal(false);
+                  handleExportPDF('grupo', 1);
+                }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '2rem 1.5rem',
+                  borderRadius: '1.25rem',
+                  background: '#f9fafb',
+                  border: '2px solid #e5e7eb',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease-in-out',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.borderColor = '#bb973a';
+                  e.currentTarget.style.background = 'rgba(187, 151, 58, 0.04)';
+                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(187, 151, 58, 0.1), 0 4px 6px -2px rgba(187, 151, 58, 0.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                  e.currentTarget.style.background = '#f9fafb';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: 'rgba(187, 151, 58, 0.12)',
+                  color: '#bb973a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '1.25rem',
+                }}>
+                  <BookOpen size={28} />
+                </div>
+                <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', marginBottom: '0.25rem' }}>
+                  LENGUAJE
+                </h4>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#bb973a', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  Grupo de Módulos 1
+                </span>
+              </div>
+
+              {/* Card 2: Matemática */}
+              <div
+                onClick={() => {
+                  setShowModuleGroupModal(false);
+                  handleExportPDF('grupo', 2);
+                }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '2rem 1.5rem',
+                  borderRadius: '1.25rem',
+                  background: '#f9fafb',
+                  border: '2px solid #e5e7eb',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease-in-out',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.borderColor = '#bb973a';
+                  e.currentTarget.style.background = 'rgba(187, 151, 58, 0.04)';
+                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(187, 151, 58, 0.1), 0 4px 6px -2px rgba(187, 151, 58, 0.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                  e.currentTarget.style.background = '#f9fafb';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: 'rgba(187, 151, 58, 0.12)',
+                  color: '#bb973a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '1.25rem',
+                }}>
+                  <Calculator size={28} />
+                </div>
+                <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', marginBottom: '0.25rem' }}>
+                  MATEMÁTICA
+                </h4>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#bb973a', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  Grupo de Módulos 2
+                </span>
+              </div>
+            </div>
+
+            {/* Cancel Button */}
+            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+              <button
+                onClick={() => setShowModuleGroupModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#6b7280',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '0.5rem',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#111827';
+                  e.currentTarget.style.background = '#f3f4f6';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#6b7280';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
