@@ -203,17 +203,17 @@ export default function SubirCalificacionClient({
           mappedGrades[p.id] = {
             autoformacion: Number(existing.autoformacion),
             practica_guiada: Number(existing.practica_guiada),
-            asistencia: Number(existing.asistencia),
+            // asistencia siempre como entero sin decimales
+            asistencia: Math.round(Number(existing.asistencia)),
             evaluacion: Number(existing.evaluacion),
           }
         } else {
-          // Automatic suggest for attendance score (scale of 10)
+          // Calcula asistencia sugerida como entero (escala 0-10)
           const pStats = attendanceStats[p.id]
-          let suggestedAttendance = 0
+          let suggestedAttendance = 10 // Default 10 si no hay registros
           if (pStats && pStats.total > 0) {
-            suggestedAttendance = Math.min(10, Math.round(((pStats.scoreSum / pStats.total) * 10) * 10) / 10)
-          } else {
-            suggestedAttendance = 10 // Default to 10 if no attendance registered yet
+            // Redondea a entero: sin decimales
+            suggestedAttendance = Math.min(10, Math.round((pStats.scoreSum / pStats.total) * 10))
           }
 
           mappedGrades[p.id] = {
@@ -266,6 +266,11 @@ export default function SubirCalificacionClient({
 
     if (num < 0) num = 0
     if (num > maxVal) num = maxVal
+
+    // Asistencia es siempre entero (sin decimales)
+    if (field === 'asistencia') {
+      num = Math.round(num)
+    }
 
     setGradeData(prev => ({
       ...prev,
@@ -687,15 +692,16 @@ ON public.calificaciones FOR ALL USING (
                             />
                           </td>
 
-                          {/* Asistencia 10 */}
+                          {/* Asistencia 10 - Solo enteros */}
                           <td style={{ textAlign: 'center' }}>
                             <input
                               type="number"
                               min="0"
                               max="10"
-                              step="0.5"
+                              step="1"
                               value={scores.asistencia ?? ''}
                               onChange={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
+                              onBlur={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
                               placeholder="0"
                               style={{
                                 width: '68px',

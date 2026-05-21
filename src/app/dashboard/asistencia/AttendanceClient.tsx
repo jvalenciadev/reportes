@@ -171,6 +171,7 @@ export default function AttendanceClient({
         .from('programa_modulos')
         .select('*')
         .eq('programa_id', selectedProgram)
+        .order('grupo', { ascending: true })
         .order('orden', { ascending: true })
 
       const sortedData = data || []
@@ -674,6 +675,23 @@ export default function AttendanceClient({
       }
     }
 
+    const addPdfFooter = (pdfDoc: any) => {
+      const totalPages = pdfDoc.internal.getNumberOfPages()
+      const w = pdfDoc.internal.pageSize.getWidth()
+      const h = pdfDoc.internal.pageSize.getHeight()
+      const now = new Date()
+      const dateStr = now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+      const footerText = `Impreso por: ${(currentUser || 'N/A').toUpperCase()} | ${dateStr} ${timeStr}`
+      for (let i = 1; i <= totalPages; i++) {
+        pdfDoc.setPage(i)
+        pdfDoc.setFontSize(6)
+        pdfDoc.setFont('helvetica', 'italic')
+        pdfDoc.setTextColor(150, 150, 150)
+        pdfDoc.text(footerText, w / 2, h - 4, { align: 'center' })
+      }
+    }
+
     addPdfBackground(doc)
 
     const group = groups.find(g => g.id === selectedGroup)
@@ -716,7 +734,7 @@ export default function AttendanceClient({
           { content: `TIPO DE REPORTE: MODULAR (DÍAS 1 AL 6)`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `GRUPO: ${groupName.toUpperCase()}`, styles: { fontStyle: 'bold' } }
+          { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
         ],
         [
           { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -725,8 +743,8 @@ export default function AttendanceClient({
           { content: `${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `FECHA INICIO MÓDULO: ${formatDate(currentModuleObj?.fecha_inicio)}`, styles: { fontStyle: 'bold' } },
-          { content: `FECHA FIN MÓDULO: ${formatDate(currentModuleObj?.fecha_fin)}`, styles: { fontStyle: 'bold' } }
+          { content: `FECHA INICIO: ${formatDate(currentModuleObj?.fecha_inicio)}`, styles: { fontStyle: 'bold' } },
+          { content: `FECHA FIN: ${formatDate(currentModuleObj?.fecha_fin)}`, styles: { fontStyle: 'bold' } }
         ]
       ],
       theme: 'plain',
@@ -974,6 +992,7 @@ export default function AttendanceClient({
     doc.setTextColor(187, 151, 58)
     doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
+    addPdfFooter(doc)
     doc.save(`ASISTENCIA_MODULAR_${groupName.replace(/\s+/g, '_')}_${moduleName.replace(/\s+/g, '_')}.pdf`)
     setLoading(false)
   }
@@ -1033,7 +1052,7 @@ export default function AttendanceClient({
                 {programs.map((p: any) => <option key={p.id} value={p.id}>{p.titulo}</option>)}
               </select>
               <select value={selectedModule} onChange={e => setSelectedModule(e.target.value)} style={{ width: '100%', padding: '0.4rem', borderRadius: '0.4rem', background: 'transparent', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
-                {modules.map((m: any) => <option key={m.id} value={m.id}>{m.titulo_modulo}</option>)}
+                {modules.map((m: any) => <option key={m.id} value={m.id}>{m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : ''}{m.titulo_modulo}</option>)}
               </select>
             </div>
           </div>

@@ -117,6 +117,7 @@ export default function CalificacionesClient({
         .from('programa_modulos')
         .select('*')
         .eq('programa_id', selectedProgram)
+        .order('grupo', { ascending: true })
         .order('orden', { ascending: true })
 
       const sortedData = data || []
@@ -195,7 +196,7 @@ export default function CalificacionesClient({
 
       if (gErr) throw gErr
 
-      // Map everything
+      // Map everything — asistencia siempre entero
       const mappedList = list.map((p: any) => {
         const rowGrade = grades?.find((g: any) => g.participante_id === p.id)
         return {
@@ -205,7 +206,8 @@ export default function CalificacionesClient({
           ci: p.ci,
           autoformacion: rowGrade ? Number(rowGrade.autoformacion) : 0,
           practica_guiada: rowGrade ? Number(rowGrade.practica_guiada) : 0,
-          asistencia: rowGrade ? Number(rowGrade.asistencia) : 0,
+          // Asistencia: siempre entero (sin decimales), escala 0-10
+          asistencia: rowGrade ? Math.round(Number(rowGrade.asistencia)) : 0,
           evaluacion: rowGrade ? Number(rowGrade.evaluacion) : 0,
           total: rowGrade ? Number(rowGrade.total) : 0,
           hasGrade: !!rowGrade
@@ -253,7 +255,8 @@ export default function CalificacionesClient({
       'C.I.': p.ci,
       'Autoformación (40 pt)': p.hasGrade ? p.autoformacion : 'Sin Nota',
       'Prácticas Guiadas (20 pt)': p.hasGrade ? p.practica_guiada : 'Sin Nota',
-      'Asistencia (10 pt)': p.hasGrade ? p.asistencia : 'Sin Nota',
+      // Asistencia como entero en Excel
+      'Asistencia (10 pt)': p.hasGrade ? Math.round(p.asistencia) : 'Sin Nota',
       'Evaluación Módulo (30 pt)': p.hasGrade ? p.evaluacion : 'Sin Nota',
       'Total (100 pt)': p.hasGrade ? p.total : 'Sin Nota',
       'Estado': p.hasGrade ? (p.total >= 51 ? 'APROBADO' : 'REPROBADO') : 'Sin Registro'
@@ -314,6 +317,23 @@ export default function CalificacionesClient({
         }
       }
 
+      const addPdfFooter = (pdfDoc: any) => {
+        const totalPages = pdfDoc.internal.getNumberOfPages()
+        const w = pdfDoc.internal.pageSize.getWidth()
+        const h = pdfDoc.internal.pageSize.getHeight()
+        const now = new Date()
+        const dateStr = now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+        const footerText = `Impreso por: ${(currentUser || 'N/A').toUpperCase()} | ${dateStr} ${timeStr}`
+        for (let i = 1; i <= totalPages; i++) {
+          pdfDoc.setPage(i)
+          pdfDoc.setFontSize(6)
+          pdfDoc.setFont('helvetica', 'italic')
+          pdfDoc.setTextColor(150, 150, 150)
+          pdfDoc.text(footerText, w / 2, h - 4, { align: 'center' })
+        }
+      }
+
       addPdfBackground(doc)
 
       const programName = programs.find((p: any) => p.id === selectedProgram)?.titulo || ''
@@ -355,8 +375,7 @@ export default function CalificacionesClient({
               { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
             ],
             [
-              { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
-              { content: `FECHA: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
+              { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, colSpan: 2, styles: { fontStyle: 'bold' } }
             ],
             [
               { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -368,8 +387,8 @@ export default function CalificacionesClient({
               { content: `${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
             ],
             [
-              { content: `FECHA INICIO MÓDULO: ${formatDate(selectedModuleDetails?.fecha_inicio)}`, styles: { fontStyle: 'bold' } },
-              { content: `FECHA FIN MÓDULO: ${formatDate(selectedModuleDetails?.fecha_fin)}`, styles: { fontStyle: 'bold' } }
+              { content: `FECHA INICIO: ${formatDate(selectedModuleDetails?.fecha_inicio)}`, styles: { fontStyle: 'bold' } },
+              { content: `FECHA FIN: ${formatDate(selectedModuleDetails?.fecha_fin)}`, styles: { fontStyle: 'bold' } }
             ]
           ],
           theme: 'plain',
@@ -384,14 +403,14 @@ export default function CalificacionesClient({
 
         const tableStartY = metaFinalY + 5
 
-        // --- TABLA DE CALIFICACIONES ---
+        // --- TABLA DE CALIFICACIONES --- (asistencia siempre entero)
         const tableData = participants.map((p, idx) => [
           idx + 1,
           p.ci,
           `${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}`,
           p.hasGrade ? p.autoformacion : '-',
           p.hasGrade ? p.practica_guiada : '-',
-          p.hasGrade ? p.asistencia : '-',
+          p.hasGrade ? Math.round(p.asistencia) : '-',
           p.hasGrade ? p.evaluacion : '-',
           p.hasGrade ? p.total : 'S/R',
           p.hasGrade ? (p.total >= 51 ? 'APROBADO' : 'REPROBADO') : 'SIN REGISTRO'
@@ -521,6 +540,7 @@ export default function CalificacionesClient({
         doc.setTextColor(187, 151, 58)
         doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
+        addPdfFooter(doc)
         doc.save(`CALIFICACIONES_MODULO_${groupName.replace(/\s+/g, '_')}_${moduleName.replace(/\s+/g, '_')}.pdf`)
       }
 
@@ -582,8 +602,7 @@ export default function CalificacionesClient({
               { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
             ],
             [
-              { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
-              { content: `FECHA DE REPORTE: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
+              { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, colSpan: 2, styles: { fontStyle: 'bold' } }
             ],
             [
               { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -592,8 +611,8 @@ export default function CalificacionesClient({
               { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
             ],
             [
-              { content: `FECHA INICIO GRUPO: ${formatDate(firstModuleDate)}`, styles: { fontStyle: 'bold' } },
-              { content: `FECHA FIN GRUPO: ${formatDate(lastModuleDate)}`, styles: { fontStyle: 'bold' } }
+              { content: `FECHA INICIO: ${formatDate(firstModuleDate)}`, styles: { fontStyle: 'bold' } },
+              { content: `FECHA FIN: ${formatDate(lastModuleDate)}`, styles: { fontStyle: 'bold' } }
             ]
           ],
           theme: 'plain',
@@ -802,6 +821,7 @@ export default function CalificacionesClient({
         doc.setTextColor(187, 151, 58)
         doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
+        addPdfFooter(doc)
         doc.save(`CALIFICACIONES_CONSOLIDADO_GRUPO_${groupName.replace(/\s+/g, '_')}.pdf`)
       }
 
@@ -812,6 +832,7 @@ export default function CalificacionesClient({
           .from('programa_modulos')
           .select('*')
           .eq('programa_id', selectedProgram)
+          .order('grupo', { ascending: true })
           .order('orden', { ascending: true })
         if (mErr) throw mErr
         const sortedModules = programModules || []
@@ -884,15 +905,17 @@ export default function CalificacionesClient({
                 { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
               ],
               [
-                { content: `GRUPO: ${grp.name.toUpperCase()}`, styles: { fontStyle: 'bold' } },
-                { content: `FECHA DE REPORTE: ${new Date().toLocaleDateString('es-ES')}`, styles: { fontStyle: 'bold' } }
+                { content: `FACILITADOR(A): ${(selectedFacilitator || currentUser || 'N/A').toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+              ],
+              [
+                { content: `GRUPO: ${grp.name.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
               ],
               [
                 { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
               ],
               [
-                { content: `FECHA INICIO GENERAL: ${formatDate(firstModuleDate)}`, styles: { fontStyle: 'bold' } },
-                { content: `FECHA FIN GENERAL: ${formatDate(lastModuleDate)}`, styles: { fontStyle: 'bold' } }
+                { content: `FECHA INICIO: ${formatDate(firstModuleDate)}`, styles: { fontStyle: 'bold' } },
+                { content: `FECHA FIN: ${formatDate(lastModuleDate)}`, styles: { fontStyle: 'bold' } }
               ]
             ],
             theme: 'plain',
@@ -907,12 +930,38 @@ export default function CalificacionesClient({
 
           const tableStartY = metaFinalY + 5
 
-          // Build header row
-          const headRow = ['Nro', 'C.I.', 'APELLIDOS, NOMBRES']
-          sortedModules.forEach((m, idx) => {
-            headRow.push(m.orden ? `MÓD. ${m.orden}` : `MÓD. ${idx + 1}`)
-          })
-          headRow.push('PROMEDIO', 'ESTADO', '% ASIST.')
+          // Build header rows
+          const grupo1Modules = sortedModules.filter((m: any) => m.grupo === 1)
+          const grupo2Modules = sortedModules.filter((m: any) => m.grupo === 2)
+
+          const headRow1: any[] = [
+            { content: 'Nro', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+            { content: 'C.I.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+            { content: 'APELLIDOS, NOMBRES', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+          ]
+          const headRow2: any[] = []
+
+          if (grupo1Modules.length > 0) {
+            headRow1.push({ content: 'LENGUAJE', colSpan: grupo1Modules.length, styles: { halign: 'center' } })
+            grupo1Modules.forEach((m: any) => {
+              headRow2.push(m.orden ? `M${m.orden}` : `M`)
+            })
+          }
+
+          if (grupo2Modules.length > 0) {
+            headRow1.push({ content: 'MATEMÁTICA', colSpan: grupo2Modules.length, styles: { halign: 'center' } })
+            grupo2Modules.forEach((m: any) => {
+              headRow2.push(m.orden ? `M${m.orden}` : `M`)
+            })
+          }
+
+          headRow1.push(
+            { content: 'PROMEDIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+            { content: 'ESTADO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+            { content: '% ASIST.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+          )
+
+          const headRows = [headRow1, headRow2]
 
           // Build body rows
           let sumAverages = 0
@@ -974,7 +1023,7 @@ export default function CalificacionesClient({
 
           autoTable(doc, {
             startY: tableStartY,
-            head: [headRow],
+            head: headRows,
             body: tableData,
             theme: 'grid',
             headStyles: {
@@ -1023,21 +1072,34 @@ export default function CalificacionesClient({
 
           const finalY = (doc as any).lastAutoTable.finalY || 150
 
-          // Module Legend (Compact Table format to prevent overflow!)
-          const legendData = sortedModules.map((m, idx) => [
-            `M${m.orden || idx + 1}:`,
-            m.titulo_modulo
-          ])
+          // Module Legend separated by specialities
+          const legendBody: any[] = [
+            [{ content: 'LISTA DE MÓDULOS:', colSpan: 2, styles: { fontStyle: 'bold', textColor: [100, 100, 100], fontSize: 6 } as any }]
+          ]
+
+          if (grupo1Modules.length > 0) {
+            legendBody.push([{ content: 'LENGUAJE:', colSpan: 2, styles: { fontStyle: 'bold', textColor: [60, 60, 60], fontSize: 6 } as any }])
+            grupo1Modules.forEach((m: any) => {
+              legendBody.push([
+                { content: `M${m.orden}:`, styles: { fontStyle: 'bold', textColor: [120, 120, 120], fontSize: 5.5 } as any },
+                { content: m.titulo_modulo, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
+              ])
+            })
+          }
+
+          if (grupo2Modules.length > 0) {
+            legendBody.push([{ content: 'MATEMÁTICA:', colSpan: 2, styles: { fontStyle: 'bold', textColor: [60, 60, 60], fontSize: 6 } as any }])
+            grupo2Modules.forEach((m: any) => {
+              legendBody.push([
+                { content: `M${m.orden}:`, styles: { fontStyle: 'bold', textColor: [120, 120, 120], fontSize: 5.5 } as any },
+                { content: m.titulo_modulo, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
+              ])
+            })
+          }
 
           autoTable(doc, {
             startY: finalY + 4,
-            body: [
-              [{ content: 'LISTA DE MÓDULOS:', colSpan: 2, styles: { fontStyle: 'bold', textColor: [100, 100, 100], fontSize: 6 } as any }],
-              ...legendData.map(([code, name]) => [
-                { content: code, styles: { fontStyle: 'bold', textColor: [120, 120, 120], fontSize: 5.5 } as any },
-                { content: name, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
-              ])
-            ],
+            body: legendBody,
             theme: 'plain',
             styles: { fontSize: 5.5, cellPadding: 0.3 },
             columnStyles: {
@@ -1094,8 +1156,9 @@ export default function CalificacionesClient({
             signatureY = 45
           }
 
-          const sigCenterXLeft = pageWidth * 0.3
-          const sigCenterXRight = pageWidth * 0.7
+          const sigCenterXLeft = pageWidth * 0.2
+          const sigCenterXCenter = pageWidth * 0.5
+          const sigCenterXRight = pageWidth * 0.8
 
           doc.setDrawColor(40, 40, 40)
           doc.setLineWidth(0.3)
@@ -1109,14 +1172,24 @@ export default function CalificacionesClient({
 
           doc.setDrawColor(40, 40, 40)
           doc.setLineWidth(0.3)
-          doc.line(sigCenterXRight - 25, signatureY + 12, sigCenterXRight + 25, signatureY + 12)
+          doc.line(sigCenterXCenter - 25, signatureY + 12, sigCenterXCenter + 25, signatureY + 12)
+          doc.setFillColor(187, 151, 58)
+          doc.circle(sigCenterXCenter, signatureY + 12, 1, 'F')
+          doc.setFontSize(8)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(187, 151, 58)
+          doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXCenter, signatureY + 17, { align: 'center' })
+
+          doc.setDrawColor(40, 40, 40)
+          doc.setLineWidth(0.3)
+          doc.line(sigCenterXRight - 30, signatureY + 12, sigCenterXRight + 30, signatureY + 12)
           doc.setFillColor(187, 151, 58)
           doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
           doc.setFontSize(8)
           doc.setFont('helvetica', 'bold')
           doc.setTextColor(187, 151, 58)
-          doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
-
+          doc.text('COORDINADOR DE PROGRAMAS EDUCATIVOS', sigCenterXRight, signatureY + 17, { align: 'center' })
+          addPdfFooter(doc)
           doc.save(`CALIFICACIONES_CONSOLIDADO_GRUPO_${grp.name.replace(/\s+/g, '_')}.pdf`)
         }
       }
@@ -1243,7 +1316,9 @@ export default function CalificacionesClient({
             >
               {modules.length === 0 && <option value="">No hay módulos</option>}
               {modules.map((m: any) => (
-                <option key={m.id} value={m.id}>{m.titulo_modulo}</option>
+                <option key={m.id} value={m.id}>
+                  {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : ''}{m.titulo_modulo}
+                </option>
               ))}
             </select>
           </div>
