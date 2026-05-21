@@ -79,7 +79,6 @@ export default function AttendanceClient({
   const [showDirtyModal, setShowDirtyModal] = useState(false)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const [historyDays, setHistoryDays] = useState<{ dia: number, fecha: string, asistio: number, atraso: number, falta: number, permiso: number, total: number }[]>([])
-  const [isEditingDate, setIsEditingDate] = useState(false)
 
   // Inline table row editing state
   const [editingRowDia, setEditingRowDia] = useState<number | null>(null)
@@ -405,7 +404,15 @@ export default function AttendanceClient({
     setParticipants(sortedEnrolled)
     setAttendanceData(attMap)
     setInitialAttendance(attMap)
-    setInitialDate(selectedDate)
+
+    // Auto-sync selectedDate to the actual registered date of this day if it exists
+    let activeDate = selectedDate
+    if (currentSessionAttendance.length > 0) {
+      activeDate = currentSessionAttendance[0].fecha
+      setSelectedDate(activeDate)
+    }
+
+    setInitialDate(activeDate)
     setHistoryDays(historyList)
 
     setLoading(false)
@@ -417,7 +424,7 @@ export default function AttendanceClient({
 
   // Sync dayNumber if date changes (Look for existing session on that date)
   useEffect(() => {
-    if (!historyDays.length || isEditingDate) return
+    if (!historyDays.length) return
 
     // Si la jornada actual ya coincide con la fecha seleccionada, no hacemos nada
     // Esto evita saltos automáticos cuando dos jornadas tienen la misma fecha
@@ -514,6 +521,7 @@ export default function AttendanceClient({
       setAttendanceData(savedStates)
       setInitialAttendance(savedStates) // Reset dirty state
       setInitialDate(selectedDate)
+      setEditingRowDia(null)
       loadAttendanceSession()
       setSaving(false)
       return true
@@ -531,13 +539,27 @@ export default function AttendanceClient({
       return;
     }
 
+    const isDraft = !historyDays.some(h => h.dia === oldDia);
+
     // 1. Temporarily build rows to validate before updating
-    const simulatedRows = historyDays.map(h => {
-      if (h.dia === oldDia) {
-        return { ...h, dia: editRowNewDia, fecha: editRowNewFecha };
+    const simulatedRows = [...historyDays];
+    if (isDraft) {
+      simulatedRows.push({
+        dia: editRowNewDia,
+        fecha: editRowNewFecha,
+        asistio: stats.asistieron,
+        atraso: stats.atrasos,
+        falta: stats.faltas,
+        permiso: stats.permisos,
+        total: participants.length
+      } as any);
+    } else {
+      for (let i = 0; i < simulatedRows.length; i++) {
+        if (simulatedRows[i].dia === oldDia) {
+          simulatedRows[i] = { ...simulatedRows[i], dia: editRowNewDia, fecha: editRowNewFecha };
+        }
       }
-      return h;
-    });
+    }
 
     // Validate simulatedRows for duplicates
     const seenDates = new Map<string, number[]>();
@@ -578,6 +600,15 @@ export default function AttendanceClient({
 
     if (hasChronoError) {
       setSaving(false);
+      return;
+    }
+
+    if (isDraft) {
+      setDayNumber(editRowNewDia);
+      setSelectedDate(editRowNewFecha);
+      setEditingRowDia(null);
+      setSaving(false);
+      showNotif('success', '¡Borrador Actualizado!', 'Se ha actualizado la fecha y jornada del borrador actual.');
       return;
     }
 
@@ -1016,32 +1047,16 @@ export default function AttendanceClient({
           <div className="card glass" style={{ padding: '1.5rem', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 800 }}>Fecha de Registro</label>
-              <button
-                onClick={() => setIsEditingDate(!isEditingDate)}
-                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem', fontWeight: 700 }}
-              >
-                {isEditingDate ? <><Save size={12} /> Listo</> : <><Edit2 size={12} /> Editar</>}
-              </button>
             </div>
 
-            {isEditingDate ? (
-              <input
-                type="date"
-                value={selectedDate}
-                autoFocus
-                onChange={e => setSelectedDate(e.target.value)}
-                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--primary)', borderRadius: '0.5rem', padding: '0.6rem', color: 'var(--foreground)', fontSize: '0.9rem' }}
-              />
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0' }}>
-                <CalendarDays size={20} color="var(--primary)" />
-                <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>
-                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0' }}>
+              <CalendarDays size={20} color="var(--primary)" />
+              <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
               </div>
-            )}
+            </div>
             <div style={{ fontSize: '0.6rem', color: 'var(--muted)', marginTop: '0.4rem', fontStyle: 'italic' }}>
-              {isEditingDate ? 'Selecciona la fecha para el pase de lista' : 'La jornada se registrará con esta fecha oficial'}
+              La jornada se registrará con esta fecha oficial
             </div>
           </div>
 
@@ -1140,6 +1155,9 @@ export default function AttendanceClient({
                         }
                       }
                       setDayNumber(nextDay);
+                      setEditingRowDia(nextDay);
+                      setEditRowNewDia(nextDay);
+                      setEditRowNewFecha(today);
                     };
                     if (isDirty) {
                       setPendingAction(() => action);
@@ -1348,9 +1366,22 @@ export default function AttendanceClient({
                                     </button>
                                   </div>
                                 ) : isPreview ? (
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700, fontStyle: 'italic', paddingRight: '0.5rem' }}>
-                                    Borrador
-                                  </span>
+                                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700, fontStyle: 'italic', paddingRight: '0.5rem' }}>
+                                      Borrador
+                                    </span>
+                                    <button
+                                      className="btn btn-ghost"
+                                      onClick={() => {
+                                        setEditingRowDia(h.dia);
+                                        setEditRowNewDia(h.dia);
+                                        setEditRowNewFecha(h.fecha);
+                                      }}
+                                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid var(--border)', color: 'var(--info)', fontWeight: 700 }}
+                                    >
+                                      Editar Día
+                                    </button>
+                                  </div>
                                 ) : (
                                   <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                     <button
