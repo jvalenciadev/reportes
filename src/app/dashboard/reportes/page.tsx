@@ -85,8 +85,8 @@ export default async function ReportesPage({
     const inscripcion = a.participantes?.inscripciones?.[0]
     if (!inscripcion) return
 
-    // FILTRO REQUERIDO: Solo inscritos activos que entregaron documentos
-    if (inscripcion.estado !== 'inscrito' || !inscripcion.entrego_documento) return
+    // FILTRO REQUERIDO: Solo inscritos activos
+    if (inscripcion.estado !== 'inscrito') return
 
     const group = inscripcion.grupos
     if (!group) return
@@ -141,8 +141,8 @@ export default async function ReportesPage({
     const inscripcion = g.participantes?.inscripciones?.[0]
     if (!inscripcion) return
 
-    // FILTRO REQUERIDO: Solo inscritos activos que entregaron documentos
-    if (inscripcion.estado !== 'inscrito' || !inscripcion.entrego_documento) return
+    // FILTRO REQUERIDO: Solo inscritos activos
+    if (inscripcion.estado !== 'inscrito') return
 
     const group = inscripcion.grupos
     if (!group) return

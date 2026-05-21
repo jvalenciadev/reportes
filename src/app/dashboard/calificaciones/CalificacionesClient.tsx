@@ -90,7 +90,7 @@ export default function CalificacionesClient({
         .select('*, departamentos(name)')
         .eq('departamento_id', selectedDept)
         .order('name')
-      
+
       const sorted = (data || []).sort((a: any, b: any) =>
         (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
       )
@@ -172,7 +172,7 @@ export default function CalificacionesClient({
         setSelectedFacilitator(currentUser || 'N/A')
       }
 
-      // Fetch all participants registered in this group and program (Only active 'inscritos' who delivered documents)
+      // Fetch all participants registered in this group and program (Only active 'inscritos')
       const { data: inscripcionesData, error: iErr } = await supabase
         .from('inscripciones')
         .select('estado, participantes(id, nombre, apellido, ci)')
@@ -255,14 +255,14 @@ export default function CalificacionesClient({
   // Filtered list for the table (search by name/CI). Stats always use the full participants array.
   const filteredParticipants = searchStudent.trim()
     ? participants.filter((p) => {
-        const q = searchStudent.toLowerCase()
-        return (
-          p.nombre?.toLowerCase().includes(q) ||
-          p.apellido?.toLowerCase().includes(q) ||
-          `${p.apellido} ${p.nombre}`.toLowerCase().includes(q) ||
-          String(p.ci).toLowerCase().includes(q)
-        )
-      })
+      const q = searchStudent.toLowerCase()
+      return (
+        p.nombre?.toLowerCase().includes(q) ||
+        p.apellido?.toLowerCase().includes(q) ||
+        `${p.apellido} ${p.nombre}`.toLowerCase().includes(q) ||
+        String(p.ci).toLowerCase().includes(q)
+      )
+    })
     : participants
 
   // ----------------------------------------------------
@@ -578,7 +578,7 @@ export default function CalificacionesClient({
         if (mErr) throw mErr
         const sortedModules = programModules || []
 
-        // 2. Fetch active participants of the selected group who delivered documents
+        // 2. Fetch active participants of the selected group
         const { data: enrolled, error: eErr } = await supabase
           .from('inscripciones')
           .select('participantes(id, nombre, apellido, ci)')
@@ -877,14 +877,13 @@ export default function CalificacionesClient({
 
           addPdfBackground(doc)
 
-          // Fetch enrolled participants for this specific group (Only active 'inscritos' who delivered documents)
+          // Fetch enrolled participants for this specific group (Only active 'inscritos')
           const { data: enrolled, error: eErr } = await supabase
             .from('inscripciones')
             .select('participantes(id, nombre, apellido, ci)')
             .eq('grupo_id', grp.id)
             .eq('programa_id', selectedProgram)
             .eq('estado', 'inscrito')
-            .eq('entrego_documento', true)
           if (eErr) continue
 
           const list = enrolled?.map((e: any) => e.participantes).filter(Boolean)
