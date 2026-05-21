@@ -208,13 +208,14 @@ export default function AttendanceClient({
       return
     }
 
-    // A. Fetch Participants enrolled in this group/program (Only active 'inscritos')
+    // A. Fetch Participants enrolled in this group/program (Only active 'inscritos' who delivered documents)
     const { data: enrolled, error: pErr } = await supabase
       .from('inscripciones')
       .select('*, participantes(*)')
       .eq('grupo_id', selectedGroup)
       .eq('programa_id', selectedProgram)
       .eq('estado', 'inscrito')
+      .eq('entrego_documento', true)
 
     if (pErr) {
       console.error('Error cargando participantes:', pErr)

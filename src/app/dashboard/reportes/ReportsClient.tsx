@@ -11,7 +11,8 @@ import {
   FileDown, LayoutDashboard, Users, CheckSquare, TrendingUp,
   Activity, Building2, Database, PieChart as PieIcon,
   BarChart3, Calendar, ArrowUpRight, ArrowDownRight,
-  Filter, Layers, Group, AlertTriangle, Zap, Target, MousePointer2
+  Filter, Layers, Group, AlertTriangle, Zap, Target, MousePointer2, UserCheck,
+  Search
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
@@ -53,17 +54,26 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export default function ReportsClient({
   attendanceData = [],
-  enrollmentData = []
+  enrollmentData = [],
+  attendanceByModulesData = [],
+  gradesData = []
 }: {
   attendanceData: any[],
-  enrollmentData: any[]
+  enrollmentData: any[],
+  attendanceByModulesData?: any[],
+  gradesData?: any[]
 }) {
   const [mounted, setMounted] = useState(false)
-  const [tab, setTab] = useState<'resumen' | 'asistencia' | 'inscripcion' | 'analisis' | 'operativo'>('resumen')
+  const [tab, setTab] = useState<'resumen' | 'asistencia' | 'inscripcion' | 'analisis' | 'operativo' | 'asistencia_modulos' | 'calificaciones_modulos'>('resumen')
   const [selectedDept, setSelectedDept] = useState('all')
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState('all')
   const [selectedDay, setSelectedDay] = useState<'all' | number>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [localCategory, setLocalCategory] = useState<'all' | 'asistencia' | 'inscripcion'>('all')
+  const [selectedModuleFilter, setSelectedModuleFilter] = useState('all')
+  // --- MATRIX CONTROLS ---
+  const [matrixDimension, setMatrixDimension] = useState<'grupo' | 'sede' | 'modulo'>('grupo')
+  const [quadrantMode, setQuadrantMode] = useState<'mean' | 'median' | 'fixed'>('mean')
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -95,22 +105,185 @@ export default function ReportsClient({
     return [...new Set(attendanceData.map(a => a.dia))].sort((a, b) => a - b)
   }, [attendanceData])
 
+  const groupList = useMemo(() => {
+    let data = enrollmentData
+    if (selectedDept !== 'all') {
+      data = data.filter(e => e.dept_name === selectedDept)
+    }
+    return [...new Set(data.map(g => g.group_name))].sort()
+  }, [enrollmentData, selectedDept])
+
   const filteredAttendance = useMemo(() => {
-    let data = selectedDept === 'all' ? attendanceData : attendanceData.filter(a => a.dept_name === selectedDept)
+    let data = attendanceData
+    if (selectedDept !== 'all') {
+      data = data.filter(a => a.dept_name === selectedDept)
+    }
+    if (selectedGroupFilter !== 'all') {
+      data = data.filter(a => a.group_name === selectedGroupFilter)
+    }
     if (selectedDay !== 'all') {
       data = data.filter(a => a.dia === selectedDay)
     }
     return data
-  }, [attendanceData, selectedDept, selectedDay])
+  }, [attendanceData, selectedDept, selectedGroupFilter, selectedDay])
+
+  const resolvedAttendanceData = useMemo(() => {
+    let data = selectedModuleFilter !== 'all' ? (attendanceByModulesData || []) : attendanceData
+    if (selectedDept !== 'all') {
+      data = data.filter(a => a.dept_name === selectedDept)
+    }
+    if (selectedGroupFilter !== 'all') {
+      data = data.filter(a => a.group_name === selectedGroupFilter)
+    }
+    if (selectedDay !== 'all') {
+      data = data.filter(a => a.dia === selectedDay)
+    }
+    if (selectedModuleFilter !== 'all') {
+      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    }
+    return data
+  }, [attendanceData, attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModuleFilter])
 
   const filteredEnrollment = useMemo(() => {
-    if (selectedDept === 'all') return enrollmentData
-    return enrollmentData.filter(e => e.dept_name === selectedDept)
-  }, [enrollmentData, selectedDept])
+    let data = enrollmentData
+    if (selectedDept !== 'all') {
+      data = data.filter(e => e.dept_name === selectedDept)
+    }
+    if (selectedGroupFilter !== 'all') {
+      data = data.filter(e => e.group_name === selectedGroupFilter)
+    }
+    return data
+  }, [enrollmentData, selectedDept, selectedGroupFilter])
+
+  const moduleList = useMemo(() => {
+    const list = [...new Set([
+      ...(attendanceByModulesData || []).map(a => a.modulo_name),
+      ...(gradesData || []).map(g => g.modulo_name)
+    ])].filter(Boolean).sort()
+    return list
+  }, [attendanceByModulesData, gradesData])
+
+  const filteredAttendanceByModules = useMemo(() => {
+    let data = attendanceByModulesData || []
+    if (selectedDept !== 'all') {
+      data = data.filter(a => a.dept_name === selectedDept)
+    }
+    if (selectedGroupFilter !== 'all') {
+      data = data.filter(a => a.group_name === selectedGroupFilter)
+    }
+    if (selectedDay !== 'all') {
+      data = data.filter(a => a.dia === selectedDay)
+    }
+    if (selectedModuleFilter !== 'all') {
+      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    }
+    return data
+  }, [attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModuleFilter])
+
+  const filteredGrades = useMemo(() => {
+    let data = gradesData || []
+    if (selectedDept !== 'all') {
+      data = data.filter(g => g.dept_name === selectedDept)
+    }
+    if (selectedGroupFilter !== 'all') {
+      data = data.filter(g => g.group_name === selectedGroupFilter)
+    }
+    if (selectedModuleFilter !== 'all') {
+      data = data.filter(g => g.modulo_name === selectedModuleFilter)
+    }
+    return data
+  }, [gradesData, selectedDept, selectedGroupFilter, selectedModuleFilter])
+
+  // --- DEDICATED MATRIX DATASETS (dept + group + day, conditional module/day filters) ---
+  const activeModulesForSelectedDay = useMemo(() => {
+    if (selectedDay === 'all') return null
+    const dayAtt = (attendanceByModulesData || []).filter(a => a.dia === selectedDay)
+    return [...new Set(dayAtt.map(a => a.modulo_name))].filter(Boolean)
+  }, [attendanceByModulesData, selectedDay])
+
+  const matrixAttendanceData = useMemo(() => {
+    let data = selectedModuleFilter !== 'all' ? (attendanceByModulesData || []) : attendanceData
+    if (selectedDept !== 'all') data = data.filter(a => a.dept_name === selectedDept)
+    if (selectedGroupFilter !== 'all') data = data.filter(a => a.group_name === selectedGroupFilter)
+    if (selectedDay !== 'all') data = data.filter(a => a.dia === selectedDay)
+
+    if (matrixDimension !== 'modulo' && selectedModuleFilter !== 'all') {
+      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    }
+    return data
+  }, [attendanceData, attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModuleFilter, matrixDimension])
+
+  const matrixAttendanceByModulesData = useMemo(() => {
+    let data = attendanceByModulesData || []
+    if (selectedDept !== 'all') data = data.filter(a => a.dept_name === selectedDept)
+    if (selectedGroupFilter !== 'all') data = data.filter(a => a.group_name === selectedGroupFilter)
+    if (selectedDay !== 'all') data = data.filter(a => a.dia === selectedDay)
+
+    if (matrixDimension !== 'modulo' && selectedModuleFilter !== 'all') {
+      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    }
+    return data
+  }, [attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModuleFilter, matrixDimension])
+
+  const matrixGradesData = useMemo(() => {
+    let data = gradesData || []
+    if (selectedDept !== 'all') data = data.filter(g => g.dept_name === selectedDept)
+    if (selectedGroupFilter !== 'all') data = data.filter(g => g.group_name === selectedGroupFilter)
+
+    if (matrixDimension !== 'modulo' && selectedModuleFilter !== 'all') {
+      data = data.filter(g => g.modulo_name === selectedModuleFilter)
+    }
+
+    if (selectedDay !== 'all' && activeModulesForSelectedDay && activeModulesForSelectedDay.length > 0) {
+      data = data.filter(g => activeModulesForSelectedDay.includes(g.modulo_name))
+    }
+    return data
+  }, [gradesData, selectedDept, selectedGroupFilter, selectedModuleFilter, selectedDay, activeModulesForSelectedDay, matrixDimension])
+
+  const filteredAttendanceByModulesSearched = useMemo(() => {
+    const filtered = filteredAttendanceByModules.filter(row => {
+      const term = searchTerm.toLowerCase()
+      return row.group_name?.toLowerCase().includes(term) ||
+        row.modulo_name?.toLowerCase().includes(term) ||
+        row.dept_name?.toLowerCase().includes(term)
+    })
+    return [...filtered].sort((a, b) => {
+      const deptCompare = (a.dept_name || '').localeCompare(b.dept_name || '', undefined, { sensitivity: 'base' })
+      if (deptCompare !== 0) return deptCompare
+
+      const groupCompare = (a.group_name || '').localeCompare(b.group_name || '', undefined, { numeric: true, sensitivity: 'base' })
+      if (groupCompare !== 0) return groupCompare
+
+      const moduloCompare = (a.modulo_name || '').localeCompare(b.modulo_name || '', undefined, { sensitivity: 'base' })
+      if (moduloCompare !== 0) return moduloCompare
+
+      const diaA = typeof a.dia === 'number' ? a.dia : parseInt(a.dia) || 0
+      const diaB = typeof b.dia === 'number' ? b.dia : parseInt(b.dia) || 0
+      return diaA - diaB
+    })
+  }, [filteredAttendanceByModules, searchTerm])
+
+  const filteredGradesSearched = useMemo(() => {
+    const filtered = filteredGrades.filter(row => {
+      const term = searchTerm.toLowerCase()
+      return row.group_name?.toLowerCase().includes(term) ||
+        row.modulo_name?.toLowerCase().includes(term) ||
+        row.dept_name?.toLowerCase().includes(term)
+    })
+    return [...filtered].sort((a, b) => {
+      const deptCompare = (a.dept_name || '').localeCompare(b.dept_name || '', undefined, { sensitivity: 'base' })
+      if (deptCompare !== 0) return deptCompare
+
+      const groupCompare = (a.group_name || '').localeCompare(b.group_name || '', undefined, { numeric: true, sensitivity: 'base' })
+      if (groupCompare !== 0) return groupCompare
+
+      return (a.modulo_name || '').localeCompare(b.modulo_name || '', undefined, { sensitivity: 'base' })
+    })
+  }, [filteredGrades, searchTerm])
 
   // --- SENIOR METRICS ENGINE ---
   const metrics = useMemo(() => {
-    const att = filteredAttendance
+    const att = resolvedAttendanceData
     const enr = filteredEnrollment
 
     const total_inscritos = enr.reduce((acc, curr) => acc + (curr.total_inscritos || 0), 0)
@@ -130,6 +303,11 @@ export default function ReportsClient({
     // Efficiency Index: Combines confirmation and attendance
     const efficiency_score = (confirmation_rate * (attendance_rate / 100))
 
+    const activeDays = [...new Set(att.map(a => a.dia))]
+    const avg_per_day = selectedDay === 'all'
+      ? Math.round(total_asistieron / (activeDays.length || 1))
+      : total_asistieron
+
     return {
       total_inscritos,
       total_confirmados,
@@ -143,11 +321,9 @@ export default function ReportsClient({
       confirmation_rate: confirmation_rate.toFixed(1),
       efficiency_score: efficiency_score.toFixed(1),
       dropout_rate: (100 - attendance_rate).toFixed(1),
-      avg_per_day: selectedDay === 'all'
-        ? Math.round(total_asistieron / (dayList.length || 1))
-        : total_asistieron
+      avg_per_day: avg_per_day
     }
-  }, [filteredAttendance, filteredEnrollment, selectedDay, dayList])
+  }, [resolvedAttendanceData, filteredEnrollment, selectedDay])
 
   // --- CHART DATA GENERATION ---
 
@@ -177,19 +353,33 @@ export default function ReportsClient({
     })
   }, [enrollmentData, deptoList])
 
-  // 3. Daily Attendance Trend (Area Chart)
+  // 3. Daily Attendance Trend (Area Chart) - Shows overall days context with specific day highlighted
   const dailyTrend = useMemo(() => {
-    const days = [...new Set(filteredAttendance.map(a => a.dia))].sort((a, b) => a - b)
+    let data = selectedModuleFilter !== 'all' ? (attendanceByModulesData || []) : attendanceData
+    if (selectedDept !== 'all') {
+      data = data.filter(a => a.dept_name === selectedDept)
+    }
+    if (selectedGroupFilter !== 'all') {
+      data = data.filter(a => a.group_name === selectedGroupFilter)
+    }
+    if (selectedModuleFilter !== 'all') {
+      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    }
+
+    const days = [...new Set(data.map(a => a.dia))].sort((a, b) => a - b)
     return days.map(dia => {
-      const dayData = filteredAttendance.filter(a => a.dia === dia)
+      const dayData = data.filter(a => a.dia === dia)
       return {
         name: `Día ${dia}`,
+        diaNumber: dia,
         Asistieron: dayData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
         Atrasos: dayData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
+        Faltas: dayData.reduce((acc, curr) => acc + (curr.falta || 0), 0),
+        Permisos: dayData.reduce((acc, curr) => acc + (curr.permiso || 0), 0),
         Total: dayData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
       }
     })
-  }, [filteredAttendance])
+  }, [attendanceData, attendanceByModulesData, selectedDept, selectedGroupFilter, selectedModuleFilter])
 
   const funnelData = useMemo(() => [
     { name: 'Preinscritos', value: metrics.total_inscritos, fill: COLORS.primary, icon: Users },
@@ -199,39 +389,200 @@ export default function ReportsClient({
 
   // --- ANOMALY DETECTION (Senior Feature) ---
   const anomalies = useMemo(() => {
-    const groupStats = [...new Set(filteredAttendance.map(a => a.group_name))].map(gn => {
-      const gData = filteredAttendance.filter(a => a.group_name === gn)
+    const groupStats = [...new Set(resolvedAttendanceData.map(a => a.group_name))].map(gn => {
+      const gData = resolvedAttendanceData.filter(a => a.group_name === gn)
       const ok = gData.reduce((acc, curr) => acc + curr.asistieron, 0)
       const err = gData.reduce((acc, curr) => acc + curr.falta, 0)
       const total = ok + err || 1
       return { name: gn, rate: (ok / total) * 100, count: gData.length }
     })
     return groupStats.filter(g => g.rate < 60 && g.count > 0).sort((a, b) => a.rate - b.rate).slice(0, 5)
-  }, [filteredAttendance])
+  }, [resolvedAttendanceData])
 
-  // --- COMPARATIVE PERFORMANCE (Scatter Plot) ---
+  // --- COMPARATIVE PERFORMANCE (Dimensional Scatter Plot) ---
+  // Uses dedicated matrix datasets that are NOT affected by selectedModuleFilter,
+  // so the matrix always has full coverage across all dimensions (grupo/sede/modulo).
   const performanceMatrix = useMemo(() => {
-    return filteredEnrollment.map(g => {
-      const gAtt = filteredAttendance.filter(a => a.group_name === g.group_name)
-      const ok = gAtt.reduce((acc, curr) => acc + curr.asistieron, 0)
-      const total = gAtt.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+    if (matrixDimension === 'grupo') {
+      return filteredEnrollment.map(g => {
+        // Use matrixAttendanceData: main attendance filtered by dept+group+day only
+        const gAtt = matrixAttendanceData.filter(a => a.group_name === g.group_name)
+        const ok = gAtt.reduce((acc, curr) => acc + curr.asistieron, 0)
+        const total = gAtt.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+        // Use matrixGradesData: grades filtered by dept+group only (no module filter)
+        const gGrades = matrixGradesData.filter(gr => gr.group_name === g.group_name)
+        const totalCalificados = gGrades.reduce((acc, curr) => acc + (curr.total_calificados || 0), 0)
+        const aprobados = gGrades.reduce((acc, curr) => acc + (curr.aprobados || 0), 0)
+        const sumaTotal = gGrades.reduce((acc, curr) => acc + (curr.suma_total || 0), 0)
+        const asistenciaRate = total > 0 ? (ok / total) * 100 : 0
+        const notaPromedio = totalCalificados > 0 ? (sumaTotal / totalCalificados) : 0
+        const tasaAprobacion = totalCalificados > 0 ? (aprobados / totalCalificados) * 100 : 0
+        return {
+          name: g.group_name,
+          dept: g.dept_name,
+          asistencia: parseFloat(asistenciaRate.toFixed(1)),
+          nota: parseFloat(notaPromedio.toFixed(1)),
+          aprobacion: parseFloat(tasaAprobacion.toFixed(1)),
+          size: g.total_confirmados || 1
+        }
+      }).filter(item => item.asistencia > 0 || item.nota > 0)
+    }
+
+    if (matrixDimension === 'sede') {
+      const depts = [...new Set(filteredEnrollment.map(e => e.dept_name))].filter(Boolean)
+      return depts.map(dept => {
+        const dEnr = filteredEnrollment.filter(e => e.dept_name === dept)
+        const dAtt = matrixAttendanceData.filter(a => a.dept_name === dept)
+        const ok = dAtt.reduce((acc, curr) => acc + curr.asistieron, 0)
+        const total = dAtt.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+        const dGrades = matrixGradesData.filter(gr => gr.dept_name === dept)
+        const totalCalificados = dGrades.reduce((acc, curr) => acc + (curr.total_calificados || 0), 0)
+        const sumaTotal = dGrades.reduce((acc, curr) => acc + (curr.suma_total || 0), 0)
+        const aprobados = dGrades.reduce((acc, curr) => acc + (curr.aprobados || 0), 0)
+        const size = dEnr.reduce((acc, curr) => acc + (curr.total_confirmados || 0), 0)
+        return {
+          name: dept,
+          dept,
+          asistencia: parseFloat(total > 0 ? ((ok / total) * 100).toFixed(1) : '0'),
+          nota: parseFloat(totalCalificados > 0 ? (sumaTotal / totalCalificados).toFixed(1) : '0'),
+          aprobacion: parseFloat(totalCalificados > 0 ? ((aprobados / totalCalificados) * 100).toFixed(1) : '0'),
+          size: size || 1
+        }
+      }).filter(item => item.asistencia > 0 || item.nota > 0)
+    }
+
+    // matrixDimension === 'modulo'
+    // Uses matrixGradesData + matrixAttendanceByModulesData (NO module filter applied)
+    // so ALL modules are visible regardless of the global module selector
+    const mods = [...new Set(matrixGradesData.map(g => g.modulo_name))].filter(Boolean)
+    return mods.map(mod => {
+      const mGrades = matrixGradesData.filter(gr => gr.modulo_name === mod)
+      const mAtt = matrixAttendanceByModulesData.filter(a => a.modulo_name === mod)
+      const ok = mAtt.reduce((acc, curr) => acc + curr.asistieron, 0)
+      const total = mAtt.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+      const totalCalificados = mGrades.reduce((acc, curr) => acc + (curr.total_calificados || 0), 0)
+      const sumaTotal = mGrades.reduce((acc, curr) => acc + (curr.suma_total || 0), 0)
+      const aprobados = mGrades.reduce((acc, curr) => acc + (curr.aprobados || 0), 0)
       return {
-        name: g.group_name,
-        inscripcion: g.total_inscritos > 0 ? Math.min((g.total_confirmados / g.total_inscritos) * 100, 100) : 0,
-        asistencia: total > 0 ? Math.min((ok / total) * 100, 100) : 0,
-        size: g.total_inscritos
+        name: mod,
+        dept: '',
+        asistencia: parseFloat(total > 0 ? ((ok / total) * 100).toFixed(1) : '0'),
+        nota: parseFloat(totalCalificados > 0 ? (sumaTotal / totalCalificados).toFixed(1) : '0'),
+        aprobacion: parseFloat(totalCalificados > 0 ? ((aprobados / totalCalificados) * 100).toFixed(1) : '0'),
+        size: totalCalificados || 1
+      }
+    }).filter(item => item.asistencia > 0 || item.nota > 0)
+  }, [filteredEnrollment, matrixAttendanceData, matrixAttendanceByModulesData, matrixGradesData, matrixDimension])
+
+  // --- ADVANCED STATISTICAL ENGINE ---
+  const matrixStats = useMemo(() => {
+    const data = performanceMatrix
+    const n = data.length
+    if (n === 0) return {
+      meanAsistencia: 75, meanNota: 70,
+      medianAsistencia: 75, medianNota: 70,
+      stdAsistencia: 0, stdNota: 0,
+      pearsonR: 0, rSquared: 0,
+      regressionLine: [] as { x: number, y: number }[],
+      interpretation: 'Sin datos suficientes'
+    }
+
+    // Means
+    const sumA = data.reduce((acc, d) => acc + d.asistencia, 0)
+    const sumN = data.reduce((acc, d) => acc + d.nota, 0)
+    const meanA = sumA / n
+    const meanN = sumN / n
+
+    // Medians
+    const sortedA = [...data].sort((a, b) => a.asistencia - b.asistencia).map(d => d.asistencia)
+    const sortedN = [...data].sort((a, b) => a.nota - b.nota).map(d => d.nota)
+    const midA = Math.floor(n / 2)
+    const midN = Math.floor(n / 2)
+    const medianA = n % 2 !== 0 ? sortedA[midA] : (sortedA[midA - 1] + sortedA[midA]) / 2
+    const medianN = n % 2 !== 0 ? sortedN[midN] : (sortedN[midN - 1] + sortedN[midN]) / 2
+
+    // Standard Deviations
+    const varA = data.reduce((acc, d) => acc + Math.pow(d.asistencia - meanA, 2), 0) / n
+    const varN = data.reduce((acc, d) => acc + Math.pow(d.nota - meanN, 2), 0) / n
+    const stdA = Math.sqrt(varA)
+    const stdN = Math.sqrt(varN)
+
+    // Pearson Correlation Coefficient
+    const covAN = data.reduce((acc, d) => acc + (d.asistencia - meanA) * (d.nota - meanN), 0) / n
+    const pearsonR = (stdA > 0 && stdN > 0) ? covAN / (stdA * stdN) : 0
+    const rSquared = pearsonR * pearsonR
+
+    // Linear Regression: y = m*x + b
+    const sxx = data.reduce((acc, d) => acc + Math.pow(d.asistencia - meanA, 2), 0)
+    const sxy = data.reduce((acc, d) => acc + (d.asistencia - meanA) * (d.nota - meanN), 0)
+    const m = sxx > 0 ? sxy / sxx : 0
+    const b = meanN - m * meanA
+
+    // Generate 12 points for the regression line across x domain
+    const xMin = Math.max(0, Math.min(...data.map(d => d.asistencia)) - 5)
+    const xMax = Math.min(100, Math.max(...data.map(d => d.asistencia)) + 5)
+    const step = (xMax - xMin) / 11
+    const regressionLine = Array.from({ length: 12 }, (_, i) => {
+      const x = parseFloat((xMin + i * step).toFixed(1))
+      const y = parseFloat(Math.min(100, Math.max(0, m * x + b)).toFixed(1))
+      return { x, y }
+    })
+
+    // Semantic interpretation of Pearson R
+    let interpretation = ''
+    const absR = Math.abs(pearsonR)
+    if (absR >= 0.7) interpretation = pearsonR > 0 ? 'Correlación positiva fuerte: la asistencia predice sólidamente el rendimiento académico.' : 'Correlación negativa fuerte: a mayor asistencia, menor nota (paradoja o sesgo en datos).'
+    else if (absR >= 0.4) interpretation = pearsonR > 0 ? 'Correlación positiva moderada: la asistencia influye parcialmente en las notas.' : 'Correlación negativa moderada: revisar grupos de alto absentismo y buenas notas.'
+    else if (absR >= 0.2) interpretation = 'Correlación débil: otros factores (calidad docente, modalidad) dominan el rendimiento.'
+    else interpretation = 'Correlación nula o muy baja: la asistencia no explica las diferencias de nota en este cohorte.'
+
+    return {
+      meanAsistencia: parseFloat(meanA.toFixed(1)),
+      meanNota: parseFloat(meanN.toFixed(1)),
+      medianAsistencia: parseFloat(medianA.toFixed(1)),
+      medianNota: parseFloat(medianN.toFixed(1)),
+      stdAsistencia: parseFloat(stdA.toFixed(1)),
+      stdNota: parseFloat(stdN.toFixed(1)),
+      pearsonR: parseFloat(pearsonR.toFixed(3)),
+      rSquared: parseFloat(rSquared.toFixed(3)),
+      regressionLine,
+      interpretation
+    }
+  }, [performanceMatrix])
+
+  const gradesPerformanceData = useMemo(() => {
+    const data = filteredGrades
+    const groupByField = selectedModuleFilter !== 'all' ? 'group_name' : 'modulo_name'
+    const uniqueKeys = [...new Set(data.map(g => g[groupByField]))].filter(Boolean)
+    return uniqueKeys.map(key => {
+      const groupData = data.filter(g => g[groupByField] === key)
+      const calificados = groupData.reduce((acc, curr) => acc + (curr.total_calificados || 0), 0)
+      const aprobados = groupData.reduce((acc, curr) => acc + (curr.aprobados || 0), 0)
+      const reprobados = groupData.reduce((acc, curr) => acc + (curr.reprobados || 0), 0)
+      const suma_total = groupData.reduce((acc, curr) => acc + (curr.suma_total || 0), 0)
+      const promedio = calificados > 0 ? (suma_total / calificados) : 0
+      return {
+        name: key,
+        Aprobados: aprobados,
+        Reprobados: reprobados,
+        Calificados: calificados,
+        Promedio: parseFloat(promedio.toFixed(1))
       }
     })
-  }, [filteredEnrollment, filteredAttendance])
+  }, [filteredGrades, selectedModuleFilter])
 
   if (!mounted) return null
 
   const exportAll = () => {
     const ws1 = XLSX.utils.json_to_sheet(attendanceData)
     const ws2 = XLSX.utils.json_to_sheet(enrollmentData)
+    const ws3 = XLSX.utils.json_to_sheet(attendanceByModulesData)
+    const ws4 = XLSX.utils.json_to_sheet(gradesData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws1, "Asistencias")
     XLSX.utils.book_append_sheet(wb, ws2, "Inscripciones")
+    XLSX.utils.book_append_sheet(wb, ws3, "Asistencias por Módulos")
+    XLSX.utils.book_append_sheet(wb, ws4, "Calificaciones por Módulos")
     XLSX.writeFile(wb, `PROFE_Master_Report_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
@@ -244,6 +595,8 @@ export default function ReportsClient({
           <TabBtn active={tab === 'resumen'} onClick={() => setTab('resumen')} icon={LayoutDashboard} label="Dashboard" />
           <TabBtn active={tab === 'analisis'} onClick={() => setTab('analisis')} icon={Zap} label="Análisis Estratégico" />
           <TabBtn active={tab === 'operativo'} onClick={() => setTab('operativo')} icon={Layers} label="Ficha Operativa" />
+          <TabBtn active={tab === 'asistencia_modulos'} onClick={() => setTab('asistencia_modulos')} icon={CheckSquare} label="Asistencia por Módulos" />
+          <TabBtn active={tab === 'calificaciones_modulos'} onClick={() => setTab('calificaciones_modulos')} icon={TrendingUp} label="Calificaciones por Módulos" />
           <TabBtn active={tab === 'asistencia'} onClick={() => setTab('asistencia')} icon={Database} label="Data Source" />
         </div>
 
@@ -252,7 +605,10 @@ export default function ReportsClient({
             <Filter size={16} color="var(--primary)" />
             <select
               value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
+              onChange={(e) => {
+                setSelectedDept(e.target.value)
+                setSelectedGroupFilter('all')
+              }}
               style={{ border: 'none', background: 'transparent', fontWeight: 700, outline: 'none', color: 'var(--foreground)' }}
             >
               <option value="all">Filtro Nacional</option>
@@ -265,15 +621,96 @@ export default function ReportsClient({
         </div>
       </div>
 
+      {/* Centralized Slice & Dice BI Control Panel */}
+      {(tab === 'resumen' || tab === 'analisis') && (
+        <div className="glass card animate-fade-up" style={{
+          padding: '1.25rem 1.5rem',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '1.25rem',
+          borderLeft: '4px solid var(--primary)',
+          background: 'linear-gradient(to right, var(--surface), transparent)',
+          boxShadow: 'var(--shadow-md)',
+          borderRadius: '1rem',
+          marginTop: '-0.5rem'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--foreground-3)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Building2 size={13} color="var(--primary)" /> Sede (Departamento)
+            </span>
+            <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
+              <select
+                value={selectedDept}
+                onChange={(e) => {
+                  setSelectedDept(e.target.value)
+                  setSelectedGroupFilter('all')
+                }}
+                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', fontWeight: 700, color: 'var(--foreground)', cursor: 'pointer' }}
+              >
+                <option value="all">Todas las Sedes (Nacional)</option>
+                {deptoList.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--foreground-3)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Group size={13} color="var(--success)" /> Grupo de Alumnos
+            </span>
+            <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
+              <select
+                value={selectedGroupFilter}
+                onChange={(e) => setSelectedGroupFilter(e.target.value)}
+                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', fontWeight: 700, color: 'var(--foreground)', cursor: 'pointer' }}
+              >
+                <option value="all">Todos los Grupos</option>
+                {groupList.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--foreground-3)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Layers size={13} color="var(--info)" /> Módulo Temático
+            </span>
+            <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
+              <select
+                value={selectedModuleFilter}
+                onChange={(e) => setSelectedModuleFilter(e.target.value)}
+                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', fontWeight: 700, color: 'var(--foreground)', cursor: 'pointer' }}
+              >
+                <option value="all">Todos los Módulos</option>
+                {moduleList.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--foreground-3)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Calendar size={13} color="var(--warning)" /> Jornada de Día
+            </span>
+            <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
+              <select
+                value={selectedDay}
+                onChange={(e) => setSelectedDay(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', fontWeight: 700, color: 'var(--foreground)', cursor: 'pointer' }}
+              >
+                <option value="all">Todas las Jornadas (Promedio)</option>
+                {dayList.map(d => <option key={d} value={d}>Día {d}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main KPI Dashboard */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
         <KPI title="Población Total" value={metrics.total_inscritos} icon={Users} color={COLORS.primary} subtitle="Preinscritos registrados" />
+        <KPI title="Inscritos Total" value={metrics.total_confirmados} icon={UserCheck} color={COLORS.success} subtitle="Inscritos confirmados" />
         <KPI title="Tasa de Inscripción" value={`${metrics.confirmation_rate}%`} icon={Target} color={COLORS.info} subtitle="Compromiso inicial" />
-        <KPI title="Docs (Preinscritos)" value={metrics.total_docs_pre} icon={CheckSquare} color={COLORS.purple} subtitle="Entregados por preinscritos" />
         <KPI title="Docs (Inscritos)" value={metrics.total_docs_ins} icon={CheckSquare} color={COLORS.success} subtitle="Entregados por inscritos" />
         <KPI title="Efectividad de Asistencia" value={`${metrics.attendance_rate}%`} icon={Zap} color={COLORS.success} subtitle="Asistencia real vs esperada" />
         <KPI title="Score de Eficiencia" value={metrics.efficiency_score} icon={MousePointer2} color={COLORS.gold} subtitle="Cálculo algorítmico" />
-        <KPI title="Tasa de Deserción" value={`${metrics.dropout_rate}%`} icon={AlertTriangle} color={COLORS.danger} subtitle="Faltas y permisos" />
       </div>
 
       {tab === 'resumen' ? (
@@ -287,7 +724,7 @@ export default function ReportsClient({
               <select
                 value={selectedDay}
                 onChange={(e) => setSelectedDay(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
-                style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '6px', background: 'var(--surface)', border: '1px solid var(--border)' }}
+                style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '6px', background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}
               >
                 <option value="all">Vista Promedio</option>
                 {dayList.map(d => <option key={d} value={d}>Día {d}</option>)}
@@ -330,9 +767,40 @@ export default function ReportsClient({
                 <XAxis dataKey="name" stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} />
                 <YAxis stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="Total" fill={COLORS.primary} fillOpacity={0.05} stroke="transparent" />
-                <Bar dataKey="Asistieron" fill={COLORS.success} radius={[4, 4, 0, 0]} barSize={30} />
-                <Line type="monotone" dataKey="Atrasos" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 4 }} />
+                <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingBottom: '10px' }} />
+                <Bar dataKey="Asistieron" name="Asistencias" stackId="a" fill={COLORS.success} barSize={30} />
+                <Bar dataKey="Atrasos" name="Atrasos" stackId="a" fill={COLORS.warning} />
+                <Bar dataKey="Faltas" name="Faltas" stackId="a" fill={COLORS.danger} />
+                <Bar dataKey="Permisos" name="Permisos" stackId="a" fill={COLORS.muted} />
+                {selectedDay !== 'all' && (
+                  <ReferenceLine
+                    x={`Día ${selectedDay}`}
+                    stroke={COLORS.purple}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    label={{ position: 'top', value: 'DÍA SELECCIONADO', fill: COLORS.purple, fontSize: 9, fontWeight: 900 }}
+                  />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Rendimiento Académico por Módulo / Grupo */}
+          <ChartCard
+            title={selectedModuleFilter !== 'all' ? `Rendimiento Académico: ${selectedModuleFilter} (por Grupo)` : "Rendimiento Académico por Módulo"}
+            icon={Target}
+          >
+            <ResponsiveContainer width="100%" height={320}>
+              <ComposedChart data={gradesPerformanceData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis dataKey="name" stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} label={{ value: 'Estudiantes', angle: -90, position: 'insideLeft', style: { fill: 'var(--chart-text)', fontSize: 10, fontWeight: 700 } }} />
+                <YAxis yAxisId="right" orientation="right" stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} domain={[0, 100]} label={{ value: 'Promedio Nota', angle: 90, position: 'insideRight', style: { fill: 'var(--chart-text)', fontSize: 10, fontWeight: 700 } }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingBottom: '10px' }} />
+                <Bar yAxisId="left" dataKey="Aprobados" name="Aprobados" stackId="g" fill={COLORS.success} barSize={30} />
+                <Bar yAxisId="left" dataKey="Reprobados" name="Reprobados" stackId="g" fill={COLORS.danger} />
+                <Line yAxisId="right" type="monotone" dataKey="Promedio" name="Nota Promedio" stroke={COLORS.primary} strokeWidth={3} dot={{ r: 5, fill: COLORS.primary }} activeDot={{ r: 7 }} unit="/100" />
               </ComposedChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -405,102 +873,293 @@ export default function ReportsClient({
             </div>
           </div>
 
-          {/* Performance Bubble Chart (Senior Visualization) */}
+          {/* ===== PERFORMANCE BUBBLE MATRIX - SENIOR UPGRADE ===== */}
           <ChartCard
             title="Matriz de Rendimiento Estratégico (Bubble View)"
             icon={Target}
             span={2}
             extra={
-              <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <TrendingUp size={14} color="var(--primary)" />
-                <select
-                  value={selectedDay}
-                  onChange={(e) => setSelectedDay(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground)' }}
-                >
-                  <option value="all">Consolidado Total</option>
-                  {dayList.map(d => <option key={d} value={d}>Jornada Día {d}</option>)}
-                </select>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Dimension Selector */}
+                <div className="glass" style={{ padding: '0.3rem 0.7rem', borderRadius: '0.5rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Layers size={13} color="var(--primary)" />
+                  <select
+                    value={matrixDimension}
+                    onChange={(e) => setMatrixDimension(e.target.value as any)}
+                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.72rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
+                  >
+                    <option value="grupo">Por Grupo</option>
+                    <option value="sede">Por Sede</option>
+                    <option value="modulo">Por Módulo</option>
+                  </select>
+                </div>
+                {/* Quadrant Mode Selector */}
+                <div className="glass" style={{ padding: '0.3rem 0.7rem', borderRadius: '0.5rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Target size={13} color="var(--warning)" />
+                  <select
+                    value={quadrantMode}
+                    onChange={(e) => setQuadrantMode(e.target.value as any)}
+                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.72rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
+                  >
+                    <option value="mean">Límites: Media (μ)</option>
+                    <option value="median">Límites: Mediana (Md)</option>
+                    <option value="fixed">Límites: Fijos (80%/70)</option>
+                  </select>
+                </div>
+                {/* Day selector */}
+                <div className="glass" style={{ padding: '0.3rem 0.7rem', borderRadius: '0.5rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Calendar size={13} color="var(--success)" />
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.72rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
+                  >
+                    <option value="all">Consolidado Total</option>
+                    {dayList.map(d => <option key={d} value={d}>Día {d}</option>)}
+                  </select>
+                </div>
               </div>
             }
           >
-            <p style={{ fontSize: '0.85rem', color: 'var(--foreground-2)', marginBottom: '1.5rem', maxWidth: '600px' }}>
-              El <b>tamaño</b> de la burbuja representa el volumen de inscritos. Se han filtrado etiquetas para resaltar solo grupos de alto impacto y anomalías críticas.
-            </p>
-            <div style={{ position: 'relative', background: 'var(--surface)', borderRadius: '1rem', padding: '1.5rem' }}>
-              <ResponsiveContainer width="100%" height={500}>
-                <ScatterChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" opacity={0.4} />
-                  <XAxis type="number" dataKey="inscripcion" name="Inscripción" unit="%" domain={[0, 100]} stroke="var(--chart-text)" fontSize={12} />
-                  <YAxis type="number" dataKey="asistencia" name="Asistencia" unit="%" domain={[0, 100]} stroke="var(--chart-text)" fontSize={12} />
-                  <ZAxis type="number" dataKey="size" range={[30, 400]} name="Población" />
+            {/* Description banner */}
+            <div style={{ padding: '0.85rem 1.1rem', borderRadius: '0.75rem', background: 'rgba(79, 142, 247, 0.05)', border: '1px solid rgba(79, 142, 247, 0.15)', marginBottom: '1.5rem', fontSize: '0.82rem', color: 'var(--foreground-2)', lineHeight: '1.5' }}>
+              <b style={{ color: 'var(--primary)' }}>Análisis Bidimensional de Cohorte</b> · Eje X = Asistencia Promedio (%) · Eje Y = Nota Promedio (pts) · Tamaño = Población inscrita confirmada.
+              {' '}Las líneas discontinuas son los límites de cuadrante (<b>{quadrantMode === 'mean' ? `Media μ` : quadrantMode === 'median' ? 'Mediana Md' : 'Fijos'}</b>).
+              {' '}La línea diagonal punteada es la <b>recta de regresión lineal OLS</b> (mínimos cuadrados).
+            </div>
 
-                  {/* Strategic Quadrants */}
-                  <ReferenceArea x1={75} x2={100} y1={75} y2={100} fill="rgba(16, 217, 139, 0.05)" />
-                  <ReferenceArea x1={0} x2={75} y1={0} y2={75} fill="rgba(239, 68, 68, 0.05)" />
-                  <ReferenceArea x1={75} x2={100} y1={0} y2={75} fill="rgba(245, 166, 35, 0.05)" />
-                  <ReferenceArea x1={0} x2={75} y1={75} y2={100} fill="rgba(79, 142, 247, 0.05)" />
+            {/* Main Grid: Chart (70%) + Stats Panel (30%) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '1.5rem', alignItems: 'start' }}>
 
-                  <Tooltip content={<CustomTooltip />} />
-                  <ReferenceLine x={75} stroke="var(--foreground-3)" strokeDasharray="5 5" label={{ position: 'top', value: 'META INSCR.', fill: 'var(--foreground-3)', fontSize: 9, fontWeight: 800 }} />
-                  <ReferenceLine y={75} stroke="var(--foreground-3)" strokeDasharray="5 5" label={{ position: 'right', value: 'META ASIST.', fill: 'var(--foreground-3)', fontSize: 9, fontWeight: 800 }} />
+              {/* === SCATTER CHART === */}
+              <div style={{ background: 'var(--surface)', borderRadius: '1rem', padding: '1rem' }}>
+                {(() => {
+                  // Compute active thresholds
+                  const threshA = quadrantMode === 'mean' ? matrixStats.meanAsistencia
+                    : quadrantMode === 'median' ? matrixStats.medianAsistencia
+                      : 80
+                  const threshN = quadrantMode === 'mean' ? matrixStats.meanNota
+                    : quadrantMode === 'median' ? matrixStats.medianNota
+                      : 70
+                  const threshLabel = quadrantMode === 'mean'
+                    ? `μ = ${threshA}%`
+                    : quadrantMode === 'median'
+                      ? `Md = ${threshA}%`
+                      : `Fijo = 80%`
+                  const threshLabelN = quadrantMode === 'mean'
+                    ? `μ = ${threshN} pts`
+                    : quadrantMode === 'median'
+                      ? `Md = ${threshN} pts`
+                      : `Fijo = 70 pts`
 
-                  <Scatter name="Grupos" data={performanceMatrix} fill={COLORS.primary}>
-                    {performanceMatrix.map((entry, index) => {
-                      // Logic for color based on strategic position
-                      const isLeader = entry.asistencia >= 75 && entry.inscripcion >= 75;
-                      const isRisk = entry.asistencia < 60 || entry.inscripcion < 40;
-
-                      return (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={isLeader ? COLORS.success : isRisk ? COLORS.danger : COLORS.info}
-                          fillOpacity={0.6}
-                          stroke={isLeader ? COLORS.success : isRisk ? COLORS.danger : COLORS.info}
-                          strokeWidth={2}
+                  return (
+                    <ResponsiveContainer width="100%" height={480}>
+                      <ScatterChart margin={{ top: 24, right: 24, left: 10, bottom: 30 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" opacity={0.35} />
+                        <XAxis
+                          type="number" dataKey="asistencia" name="Asistencia" unit="%"
+                          domain={[0, 100]} stroke="var(--chart-text)" fontSize={11}
+                          label={{ value: 'Asistencia Promedio (%)', position: 'bottom', offset: 10, style: { fill: 'var(--chart-text)', fontSize: 10, fontWeight: 700 } }}
                         />
-                      )
-                    })}
-                    {/* Senior Filtering: Only show labels for outliers or high volume groups */}
-                    <LabelList
-                      dataKey="name"
-                      content={(props: any) => {
-                        const { x, y, value, payload } = props;
-                        if (!payload) return null;
-                        // Only show if in extreme quadrant or large group
-                        const isHighImpact = payload.asistencia >= 85 || payload.asistencia <= 40 || payload.size > 20;
-                        if (!isHighImpact) return null;
-                        return (
-                          <text x={x} y={y - 12} fill="var(--foreground)" fontSize="0.65rem" fontWeight="900" textAnchor="middle">
-                            {value}
-                          </text>
-                        );
-                      }}
-                    />
-                  </Scatter>
-                </ScatterChart>
-              </ResponsiveContainer>
+                        <YAxis
+                          type="number" dataKey="nota" name="Nota Promedio"
+                          domain={[0, 100]} stroke="var(--chart-text)" fontSize={11}
+                          label={{ value: 'Nota Promedio (pts)', angle: -90, position: 'insideLeft', offset: 10, style: { fill: 'var(--chart-text)', fontSize: 10, fontWeight: 700 } }}
+                        />
+                        <ZAxis type="number" dataKey="size" range={[60, 700]} name="Inscritos" />
+
+                        {/* Quadrant background fills */}
+                        <ReferenceArea x1={threshA} x2={100} y1={threshN} y2={100} fill="rgba(16,217,139,0.06)" stroke="none" />
+                        <ReferenceArea x1={0} x2={threshA} y1={0} y2={threshN} fill="rgba(247,79,107,0.06)" stroke="none" />
+                        <ReferenceArea x1={threshA} x2={100} y1={0} y2={threshN} fill="rgba(245,166,35,0.06)" stroke="none" />
+                        <ReferenceArea x1={0} x2={threshA} y1={threshN} y2={100} fill="rgba(14,165,233,0.06)" stroke="none" />
+
+                        {/* Quadrant corner labels */}
+                        <ReferenceLine x={threshA} stroke="rgba(255,255,255,0.15)" strokeDasharray="6 3" strokeWidth={1.5}
+                          label={{ position: 'top', value: threshLabel, fill: 'var(--foreground-3)', fontSize: 9, fontWeight: 900 }}
+                        />
+                        <ReferenceLine y={threshN} stroke="rgba(255,255,255,0.15)" strokeDasharray="6 3" strokeWidth={1.5}
+                          label={{ position: 'right', value: threshLabelN, fill: 'var(--foreground-3)', fontSize: 9, fontWeight: 900 }}
+                        />
+
+                        <Tooltip content={<CustomTooltip />} />
+
+                        {/* Regression line as a Scatter with line shape */}
+                        {matrixStats.regressionLine.length > 1 && (
+                          <Scatter
+                            name="Tendencia OLS"
+                            data={matrixStats.regressionLine.map(p => ({ asistencia: p.x, nota: p.y, size: 0 }))}
+                            line={{ stroke: COLORS.primary, strokeWidth: 2, strokeDasharray: '6 3' }}
+                            lineType="joint"
+                            shape={() => null as any}
+                            fill="transparent"
+                          />
+                        )}
+
+                        {/* Data bubbles */}
+                        <Scatter name="Datos" data={performanceMatrix} fill={COLORS.primary}>
+                          {performanceMatrix.map((entry, index) => {
+                            const isLeader = entry.asistencia >= threshA && entry.nota >= threshN
+                            const isRisk = entry.asistencia < threshA && entry.nota < threshN
+                            const isStruggler = entry.asistencia >= threshA && entry.nota < threshN
+                            const color = isLeader ? COLORS.success : isRisk ? COLORS.danger : isStruggler ? COLORS.warning : COLORS.info
+                            return (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={color}
+                                fillOpacity={0.75}
+                                stroke={color}
+                                strokeWidth={2.5}
+                                style={{ cursor: 'pointer', filter: `drop-shadow(0 0 6px ${color}55)` }}
+                              />
+                            )
+                          })}
+                          <LabelList
+                            dataKey="name"
+                            content={(props: any) => {
+                              const { x, y, value } = props
+                              if (!x || !y) return null
+                              let cleanLabel = String(value)
+                              // Strip redundant prefixes to make labels fit better
+                              cleanLabel = cleanLabel.replace(/^(LENGUAJE|MATEMATICA)\s*-\s*/i, '')
+                              const isLargeDataset = performanceMatrix.length > 15
+                              const displayValue = isLargeDataset && cleanLabel.length > 18
+                                ? cleanLabel.slice(0, 16) + '…'
+                                : cleanLabel
+                              return (
+                                <text x={x} y={(y as number) - 12} fill="var(--foreground)" fontSize={8.5} fontWeight={900} textAnchor="middle" style={{ textShadow: '0 1.5px 3px rgba(0,0,0,0.8)' }}>
+                                  {displayValue}
+                                </text>
+                              )
+                            }}
+                          />
+                        </Scatter>
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  )
+                })()}
+              </div>
+
+              {/* === STATISTICAL SCORECARD PANEL === */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Correlation Card */}
+                <div style={{ padding: '1.1rem', borderRadius: '1rem', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--foreground-3)', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>Correlación de Pearson</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <span style={{
+                      fontSize: '2.2rem', fontWeight: 900,
+                      color: Math.abs(matrixStats.pearsonR) >= 0.7 ? COLORS.success : Math.abs(matrixStats.pearsonR) >= 0.4 ? COLORS.warning : COLORS.danger
+                    }}>
+                      {matrixStats.pearsonR > 0 ? '+' : ''}{matrixStats.pearsonR}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--foreground-3)', fontWeight: 700 }}>r</span>
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--foreground-2)', lineHeight: '1.4' }}>{matrixStats.interpretation}</div>
+                </div>
+
+                {/* R² Card */}
+                <div style={{ padding: '1.1rem', borderRadius: '1rem', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--foreground-3)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>Coef. Determinación (R²)</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 900, color: COLORS.purple }}>{(matrixStats.rSquared * 100).toFixed(1)}%</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--foreground-2)', lineHeight: '1.4', marginTop: '0.25rem' }}>
+                    La asistencia explica el <b>{(matrixStats.rSquared * 100).toFixed(1)}%</b> de la variación en notas.
+                  </div>
+                </div>
+
+                {/* Dispersion σ */}
+                <div style={{ padding: '1.1rem', borderRadius: '1rem', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--foreground-3)', marginBottom: '0.6rem', letterSpacing: '0.05em' }}>Dispersión (σ)</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>σ Asistencia</span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 900, color: COLORS.info }}>±{matrixStats.stdAsistencia}%</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>σ Nota</span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 900, color: COLORS.gold }}>±{matrixStats.stdNota} pts</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Threshold Summary */}
+                <div style={{ padding: '1.1rem', borderRadius: '1rem', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--foreground-3)', marginBottom: '0.6rem', letterSpacing: '0.05em' }}>Límites Activos</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {(['mean', 'median'] as const).map(mode => (
+                      <div key={mode} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem' }}>
+                        <span style={{ color: 'var(--foreground-3)' }}>{mode === 'mean' ? 'μ Media' : 'Md Mediana'} Asist.</span>
+                        <span style={{ fontWeight: 800, color: mode === 'mean' ? COLORS.primary : COLORS.info }}>
+                          {mode === 'mean' ? matrixStats.meanAsistencia : matrixStats.medianAsistencia}%
+                        </span>
+                      </div>
+                    ))}
+                    {(['mean', 'median'] as const).map(mode => (
+                      <div key={mode + 'n'} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem' }}>
+                        <span style={{ color: 'var(--foreground-3)' }}>{mode === 'mean' ? 'μ Media' : 'Md Mediana'} Nota</span>
+                        <span style={{ fontWeight: 800, color: mode === 'mean' ? COLORS.primary : COLORS.info }}>
+                          {mode === 'mean' ? matrixStats.meanNota : matrixStats.medianNota} pts
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Population */}
+                <div style={{ padding: '1.1rem', borderRadius: '1rem', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--foreground-3)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>Puntos Analizados</div>
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: COLORS.success }}>{performanceMatrix.length}</div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--foreground-3)' }}>
+                    {matrixDimension === 'grupo' ? 'grupos' : matrixDimension === 'sede' ? 'sedes' : 'módulos'} con datos
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Improved Legend Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '2rem' }}>
-              <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.danger}44`, background: `${COLORS.danger}11` }}>
-                <div style={{ fontWeight: 900, color: COLORS.danger, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA D: CRÍTICA</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Baja asistencia general. Requiere intervención urgente.</div>
-              </div>
-              <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.warning}44`, background: `${COLORS.warning}11` }}>
-                <div style={{ fontWeight: 900, color: COLORS.warning, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA B: DESERCIÓN</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Muchos inscritos que no llegan a las clases.</div>
-              </div>
-              <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.info}44`, background: `${COLORS.info}11` }}>
-                <div style={{ fontWeight: 900, color: COLORS.info, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA C: COMPROMISO</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Pocos inscritos pero con asistencia perfecta.</div>
-              </div>
-              <div style={{ padding: '0.75rem', borderRadius: '0.75rem', border: `1px solid ${COLORS.success}44`, background: `${COLORS.success}11` }}>
-                <div style={{ fontWeight: 900, color: COLORS.success, fontSize: '0.7rem', marginBottom: '0.2rem' }}>ZONA A: LÍDERES</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>Alta Inscripción + Alta Asistencia. Grupos modelo.</div>
-              </div>
-            </div>
+            {/* ===== INTELLIGENT COHORT LEGEND ===== */}
+            {(() => {
+              const threshA = quadrantMode === 'mean' ? matrixStats.meanAsistencia
+                : quadrantMode === 'median' ? matrixStats.medianAsistencia : 80
+              const threshN = quadrantMode === 'mean' ? matrixStats.meanNota
+                : quadrantMode === 'median' ? matrixStats.medianNota : 70
+
+              const leaders = performanceMatrix.filter(d => d.asistencia >= threshA && d.nota >= threshN)
+              const strugglers = performanceMatrix.filter(d => d.asistencia >= threshA && d.nota < threshN)
+              const outliers = performanceMatrix.filter(d => d.asistencia < threshA && d.nota >= threshN)
+              const critical = performanceMatrix.filter(d => d.asistencia < threshA && d.nota < threshN)
+
+              const ZoneBadge = ({ items, color, label, sublabel }: { items: any[], color: string, label: string, sublabel: string }) => (
+                <div style={{ padding: '1rem', borderRadius: '0.85rem', border: `1px solid ${color}30`, background: `${color}08`, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 900, color, fontSize: '0.73rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, boxShadow: `0 0 6px ${color}` }} />
+                      {label}
+                    </div>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 900, color }}>{items.length}</span>
+                  </div>
+                  <div style={{ fontSize: '0.67rem', color: 'var(--foreground-3)', fontStyle: 'italic' }}>{sublabel}</div>
+                  {items.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.1rem' }}>
+                      {items.slice(0, 8).map((d, i) => (
+                        <span key={i} style={{
+                          fontSize: '0.65rem', fontWeight: 800, padding: '0.15rem 0.5rem',
+                          borderRadius: '999px', background: `${color}18`, color, border: `1px solid ${color}40`
+                        }}>{d.name}</span>
+                      ))}
+                      {items.length > 8 && <span style={{ fontSize: '0.6rem', color: 'var(--foreground-3)', alignSelf: 'center' }}>+{items.length - 8} más</span>}
+                    </div>
+                  )}
+                </div>
+              )
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '2rem' }}>
+                  <ZoneBadge items={leaders} color={COLORS.success} label="ZONA A · Alto Rendimiento" sublabel={`Asistencia ≥ ${threshA}% y Nota ≥ ${threshN} pts. Alta retención y éxito académico.`} />
+                  <ZoneBadge items={strugglers} color={COLORS.warning} label="ZONA B · Refuerzo Académico" sublabel={`Asistencia ≥ ${threshA}% pero Nota < ${threshN} pts. Presentes pero con rezago.`} />
+                  <ZoneBadge items={outliers} color={COLORS.info} label="ZONA C · Independientes" sublabel={`Asistencia < ${threshA}% pero Nota ≥ ${threshN} pts. Baja asistencia pero buen rendimiento.`} />
+                  <ZoneBadge items={critical} color={COLORS.danger} label="ZONA D · Riesgo Crítico" sublabel={`Asistencia < ${threshA}% y Nota < ${threshN} pts. Deserción inminente. Intervención urgente.`} />
+                </div>
+              )
+            })()}
           </ChartCard>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
@@ -514,8 +1173,6 @@ export default function ReportsClient({
                   <Bar dataKey="Inscritos" fill={COLORS.info} radius={[0, 4, 4, 0]} stackId="a">
                     <LabelList dataKey="Inscritos" position="right" style={{ fill: 'var(--foreground)', fontSize: '0.7rem', fontWeight: 800 }} />
                   </Bar>
-                  <Bar dataKey="Docs_Ins" name="Docs (Inscritos)" fill={COLORS.success} radius={[0, 4, 4, 0]} stackId="b" />
-                  <Bar dataKey="Docs_Pre" name="Docs (Preinscritos)" fill={COLORS.purple} radius={[0, 4, 4, 0]} stackId="b" />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -561,7 +1218,6 @@ export default function ReportsClient({
                   <th>Identificador Grupo</th>
                   <th>Sede</th>
                   <th>Preinscritos</th>
-                  <th>Docs (Pre)</th>
                   <th>Inscritos</th>
                   <th>Docs (Ins)</th>
                   <th>Inscripción %</th>
@@ -574,7 +1230,6 @@ export default function ReportsClient({
                 <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderBottom: '2px solid var(--border-strong)' }}>
                   <td colSpan={2} style={{ color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Resumen de Selección</td>
                   <td style={{ fontSize: '1rem' }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_inscritos || 0), 0).toLocaleString()}</td>
-                  <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.preinscritos_entrego || 0), 0).toLocaleString()}</td>
                   <td style={{ fontSize: '1rem', color: COLORS.info }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_confirmados || 0), 0).toLocaleString()}</td>
                   <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.inscritos_entrego || 0), 0).toLocaleString()}</td>
                   <td>{metrics.confirmation_rate}%</td>
@@ -597,7 +1252,6 @@ export default function ReportsClient({
                       <td style={{ fontWeight: 800 }}>{g.group_name}</td>
                       <td style={{ color: 'var(--foreground-3)' }}>{g.dept_name}</td>
                       <td style={{ fontWeight: 700 }}>{g.total_inscritos}</td>
-                      <td style={{ color: COLORS.purple, fontWeight: 700 }}>{g.preinscritos_entrego || 0}</td>
                       <td style={{ color: COLORS.info, fontWeight: 700 }}>{g.total_confirmados}</td>
                       <td style={{ color: COLORS.purple, fontWeight: 700 }}>{g.inscritos_entrego || 0}</td>
                       <td>
@@ -626,7 +1280,6 @@ export default function ReportsClient({
                 <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderTop: '2px solid var(--border-strong)' }}>
                   <td colSpan={2} style={{ textAlign: 'right', color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Totales de Selección</td>
                   <td style={{ fontSize: '1rem' }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_inscritos || 0), 0).toLocaleString()}</td>
-                  <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.preinscritos_entrego || 0), 0).toLocaleString()}</td>
                   <td style={{ fontSize: '1rem', color: COLORS.info }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_confirmados || 0), 0).toLocaleString()}</td>
                   <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.inscritos_entrego || 0), 0).toLocaleString()}</td>
                   <td>{metrics.confirmation_rate}%</td>
@@ -638,6 +1291,344 @@ export default function ReportsClient({
                   </td>
                 </tr>
               </tfoot>
+            </table>
+          </div>
+        </div>
+      ) : tab === 'asistencia_modulos' ? (
+        /* Asistencia por Módulos */
+        <div className="glass card" style={{ padding: 0 }}>
+          <div style={{ padding: '2rem', borderBottom: '1px solid var(--border)', background: 'linear-gradient(to right, var(--surface), transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ marginBottom: '0.5rem' }}>Reporte de Asistencia por Módulos</h2>
+              <p style={{ color: 'var(--foreground-3)', fontSize: '0.9rem' }}>Detalle de asistencia diaria agrupada por módulo académico</p>
+              <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--primary)' }}>
+                <Zap size={12} />
+                <span>Solo participantes con estado "Inscrito" y documentos entregados.</span>
+              </div>
+            </div>
+            {/* Local Toolbar */}
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Sede selector */}
+              <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Building2 size={14} color="var(--primary)" />
+                <select
+                  value={selectedDept}
+                  onChange={(e) => {
+                    setSelectedDept(e.target.value)
+                    setSelectedGroupFilter('all')
+                  }}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
+                >
+                  <option value="all">Todas las Sedes</option>
+                  {deptoList.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Layers size={14} color="var(--primary)" />
+                <select
+                  value={selectedModuleFilter}
+                  onChange={(e) => setSelectedModuleFilter(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
+                >
+                  <option value="all">Todos los Módulos</option>
+                  {moduleList.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={14} color="var(--primary)" />
+                <select
+                  value={selectedDay}
+                  onChange={(e) => setSelectedDay(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
+                >
+                  <option value="all">Todos los Días</option>
+                  {dayList.map(d => <option key={d} value={d}>Día {d}</option>)}
+                </select>
+              </div>
+
+              {/* Search Bar */}
+              <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Search size={14} color="var(--primary)" />
+                <input
+                  type="text"
+                  placeholder="Buscar cohorte..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', color: 'var(--foreground)', width: '100px' }}
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.75rem', fontWeight: 900 }}>×</button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Grupo</th>
+                  <th>Sede</th>
+                  <th>Módulo</th>
+                  <th style={{ textAlign: 'center' }}>Día</th>
+                  <th style={{ textAlign: 'center' }}>Asistió</th>
+                  <th style={{ textAlign: 'center' }}>Atraso</th>
+                  <th style={{ textAlign: 'center' }}>Falta</th>
+                  <th style={{ textAlign: 'center' }}>Permiso</th>
+                  <th style={{ textAlign: 'center' }}>Total</th>
+                  <th style={{ textAlign: 'center' }}>% Asist.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const totAsistieron = filteredAttendanceByModulesSearched.reduce((acc, r) => acc + r.asistieron, 0)
+                  const totAtraso = filteredAttendanceByModulesSearched.reduce((acc, r) => acc + r.atraso, 0)
+                  const totFalta = filteredAttendanceByModulesSearched.reduce((acc, r) => acc + r.falta, 0)
+                  const totPermiso = filteredAttendanceByModulesSearched.reduce((acc, r) => acc + r.permiso, 0)
+                  const totExpected = totAsistieron + totAtraso + totFalta + totPermiso
+                  const overallRate = totExpected > 0 ? (totAsistieron / totExpected) * 100 : 0
+
+                  return (
+                    <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderBottom: '2px solid var(--border-strong)' }}>
+                      <td colSpan={3} style={{ color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Resumen de Selección</td>
+                      <td style={{ textAlign: 'center' }}>-</td>
+                      <td style={{ textAlign: 'center', color: COLORS.success }}>{totAsistieron}</td>
+                      <td style={{ textAlign: 'center', color: COLORS.warning }}>{totAtraso}</td>
+                      <td style={{ textAlign: 'center', color: COLORS.danger }}>{totFalta}</td>
+                      <td style={{ textAlign: 'center', color: COLORS.muted }}>{totPermiso}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 900 }}>{totExpected}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{
+                          background: overallRate >= 80 ? 'var(--success-light)' : overallRate >= 60 ? 'var(--warning-light)' : 'var(--danger-light)',
+                          color: overallRate >= 80 ? 'var(--success)' : overallRate >= 60 ? 'var(--warning)' : 'var(--danger)',
+                          fontWeight: 900
+                        }}>
+                          {overallRate.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })()}
+
+                {filteredAttendanceByModulesSearched.map((row, idx) => {
+                  const totalRow = row.asistieron + row.atraso + row.falta + row.permiso
+                  const rowRate = totalRow > 0 ? (row.asistieron / totalRow) * 100 : 0
+
+                  return (
+                    <tr key={idx} className="hover-row">
+                      <td style={{ fontWeight: 800 }}>{row.group_name}</td>
+                      <td style={{ color: 'var(--foreground-3)' }}>{row.dept_name}</td>
+                      <td style={{ fontWeight: 600 }}>{row.modulo_name}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 700 }}>Día {row.dia}</td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 800, color: COLORS.success }}>{row.asistieron}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
+                          {totalRow > 0 ? `${((row.asistieron / totalRow) * 100).toFixed(0)}%` : '0%'}
+                        </div>
+                      </td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 800, color: COLORS.warning }}>{row.atraso}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
+                          {totalRow > 0 ? `${((row.atraso / totalRow) * 100).toFixed(0)}%` : '0%'}
+                        </div>
+                      </td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 800, color: COLORS.danger }}>{row.falta}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
+                          {totalRow > 0 ? `${((row.falta / totalRow) * 100).toFixed(0)}%` : '0%'}
+                        </div>
+                      </td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 800, color: COLORS.muted }}>{row.permiso}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
+                          {totalRow > 0 ? `${((row.permiso / totalRow) * 100).toFixed(0)}%` : '0%'}
+                        </div>
+                      </td>
+
+                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{totalRow}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{
+                          background: rowRate >= 80 ? 'var(--success-light)' : rowRate >= 60 ? 'var(--warning-light)' : 'var(--danger-light)',
+                          color: rowRate >= 80 ? 'var(--success)' : rowRate >= 60 ? 'var(--warning)' : 'var(--danger)',
+                          fontWeight: 900
+                        }}>
+                          {rowRate.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+
+                {filteredAttendanceByModulesSearched.length === 0 && (
+                  <tr>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '3rem', color: 'var(--foreground-3)' }}>
+                      No se encontraron registros de asistencia para los filtros seleccionados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : tab === 'calificaciones_modulos' ? (
+        /* Calificaciones por Módulos */
+        <div className="glass card" style={{ padding: 0 }}>
+          <div style={{ padding: '2rem', borderBottom: '1px solid var(--border)', background: 'linear-gradient(to right, var(--surface), transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ marginBottom: '0.5rem' }}>Reporte de Calificaciones por Módulos</h2>
+              <p style={{ color: 'var(--foreground-3)', fontSize: '0.9rem' }}>Detalle de rendimiento académico agrupado por módulo y grupo</p>
+              <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--primary)' }}>
+                <Zap size={12} />
+                <span>Solo participantes con estado "Inscrito" y documentos entregados.</span>
+              </div>
+            </div>
+            {/* Local Toolbar */}
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Sede selector */}
+              <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Building2 size={14} color="var(--primary)" />
+                <select
+                  value={selectedDept}
+                  onChange={(e) => {
+                    setSelectedDept(e.target.value)
+                    setSelectedGroupFilter('all')
+                  }}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
+                >
+                  <option value="all">Todas las Sedes</option>
+                  {deptoList.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Layers size={14} color="var(--primary)" />
+                <select
+                  value={selectedModuleFilter}
+                  onChange={(e) => setSelectedModuleFilter(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
+                >
+                  <option value="all">Todos los Módulos</option>
+                  {moduleList.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              {/* Search Bar */}
+              <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Search size={14} color="var(--primary)" />
+                <input
+                  type="text"
+                  placeholder="Buscar cohorte..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', color: 'var(--foreground)', width: '100px' }}
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.75rem', fontWeight: 900 }}>×</button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Grupo</th>
+                  <th>Sede</th>
+                  <th>Módulo</th>
+                  <th style={{ textAlign: 'center' }}>Total Calificados</th>
+                  <th style={{ textAlign: 'center' }}>Aprobados (Nro / %)</th>
+                  <th style={{ textAlign: 'center' }}>Reprobados (Nro / %)</th>
+                  <th style={{ textAlign: 'center' }}>Promedio Módulo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const totCalificados = filteredGradesSearched.reduce((acc, r) => acc + r.total_calificados, 0)
+                  const totAprobados = filteredGradesSearched.reduce((acc, r) => acc + r.aprobados, 0)
+                  const totReprobados = filteredGradesSearched.reduce((acc, r) => acc + r.reprobados, 0)
+                  const sumTotal = filteredGradesSearched.reduce((acc, r) => acc + r.suma_total, 0)
+                  const avgNota = totCalificados > 0 ? sumTotal / totCalificados : 0
+                  const overallPassRate = totCalificados > 0 ? (totAprobados / totCalificados) * 100 : 0
+
+                  return (
+                    <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderBottom: '2px solid var(--border-strong)' }}>
+                      <td colSpan={3} style={{ color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Resumen de Selección</td>
+                      <td style={{ textAlign: 'center', fontWeight: 900 }}>{totCalificados}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 900, color: COLORS.success }}>{totAprobados}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>
+                          {totCalificados > 0 ? `${overallPassRate.toFixed(1)}%` : '0%'}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 900, color: COLORS.danger }}>{totReprobados}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>
+                          {totCalificados > 0 ? `${(100 - overallPassRate).toFixed(1)}%` : '0%'}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{ background: 'var(--primary)', color: 'white', fontWeight: 900 }}>
+                          {avgNota.toFixed(1)} / 100
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })()}
+
+                {filteredGradesSearched.map((row, idx) => {
+                  const passRate = row.total_calificados > 0 ? (row.aprobados / row.total_calificados) * 100 : 0
+                  const failRate = row.total_calificados > 0 ? (row.reprobados / row.total_calificados) * 100 : 0
+                  const avgRowNota = row.total_calificados > 0 ? row.suma_total / row.total_calificados : 0
+
+                  return (
+                    <tr key={idx} className="hover-row">
+                      <td style={{ fontWeight: 800 }}>{row.group_name}</td>
+                      <td style={{ color: 'var(--foreground-3)' }}>{row.dept_name}</td>
+                      <td style={{ fontWeight: 600 }}>{row.modulo_name}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 700 }}>{row.total_calificados}</td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 800, color: COLORS.success }}>{row.aprobados}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
+                          {passRate.toFixed(1)}%
+                        </div>
+                      </td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 800, color: COLORS.danger }}>{row.reprobados}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
+                          {failRate.toFixed(1)}%
+                        </div>
+                      </td>
+
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{
+                          background: avgRowNota >= 70 ? 'rgba(16, 217, 139, 0.1)' : avgRowNota >= 51 ? 'rgba(245, 166, 35, 0.1)' : 'rgba(247, 79, 107, 0.1)',
+                          color: avgRowNota >= 70 ? COLORS.success : avgRowNota >= 51 ? COLORS.warning : COLORS.danger,
+                          fontWeight: 900
+                        }}>
+                          {avgRowNota.toFixed(1)}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+
+                {filteredGradesSearched.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--foreground-3)' }}>
+                      No se encontraron registros de calificaciones para los filtros seleccionados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
             </table>
           </div>
         </div>

@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import {
   Building2, Users, GraduationCap, ChevronRight, Download,
   Database, Info, AlertTriangle, FileSpreadsheet, FileText, BarChart3, Award,
-  BookOpen, Calculator, X
+  BookOpen, Calculator, X, Search
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -48,6 +48,7 @@ export default function CalificacionesClient({
 
   // Main States
   const [participants, setParticipants] = useState<any[]>([])
+  const [searchStudent, setSearchStudent] = useState('')
   const [loading, setLoading] = useState(false)
   const [isTableMissing, setIsTableMissing] = useState(false)
   const [selectedGroupDetails, setSelectedGroupDetails] = useState<any>(null)
@@ -69,9 +70,12 @@ export default function CalificacionesClient({
   // 2. Load Groups based on selected department (for non-facilitadores)
   useEffect(() => {
     if (userRole === 'facilitador') {
-      setGroups(facilitadorGroups)
-      if (facilitadorGroups.length > 0) {
-        setSelectedGroup(facilitadorGroups[0].id)
+      const sortedFacGroups = [...(facilitadorGroups || [])].sort((a: any, b: any) =>
+        (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+      )
+      setGroups(sortedFacGroups)
+      if (sortedFacGroups.length > 0) {
+        setSelectedGroup(sortedFacGroups[0].id)
       }
       return
     }
@@ -86,7 +90,11 @@ export default function CalificacionesClient({
         .select('*, departamentos(name)')
         .eq('departamento_id', selectedDept)
         .order('name')
-      setGroups(data || [])
+      
+      const sorted = (data || []).sort((a: any, b: any) =>
+        (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' })
+      )
+      setGroups(sorted)
     }
     fetchGroups()
   }, [selectedDept, userRole, facilitadorGroups])
@@ -164,13 +172,14 @@ export default function CalificacionesClient({
         setSelectedFacilitator(currentUser || 'N/A')
       }
 
-      // Fetch all participants registered in this group and program (Only active 'inscritos')
+      // Fetch all participants registered in this group and program (Only active 'inscritos' who delivered documents)
       const { data: inscripcionesData, error: iErr } = await supabase
         .from('inscripciones')
         .select('estado, participantes(id, nombre, apellido, ci)')
         .eq('grupo_id', selectedGroup)
         .eq('programa_id', selectedProgram)
         .eq('estado', 'inscrito')
+        .eq('entrego_documento', true)
 
       if (iErr) throw iErr
 
@@ -242,6 +251,19 @@ export default function CalificacionesClient({
     })
     averageScore = gradedCount > 0 ? Math.round((sum / gradedCount) * 10) / 10 : 0
   }
+
+  // Filtered list for the table (search by name/CI). Stats always use the full participants array.
+  const filteredParticipants = searchStudent.trim()
+    ? participants.filter((p) => {
+        const q = searchStudent.toLowerCase()
+        return (
+          p.nombre?.toLowerCase().includes(q) ||
+          p.apellido?.toLowerCase().includes(q) ||
+          `${p.apellido} ${p.nombre}`.toLowerCase().includes(q) ||
+          String(p.ci).toLowerCase().includes(q)
+        )
+      })
+    : participants
 
   // ----------------------------------------------------
   // EXPORTS
@@ -556,13 +578,14 @@ export default function CalificacionesClient({
         if (mErr) throw mErr
         const sortedModules = programModules || []
 
-        // 2. Fetch active participants of the selected group
+        // 2. Fetch active participants of the selected group who delivered documents
         const { data: enrolled, error: eErr } = await supabase
           .from('inscripciones')
           .select('participantes(id, nombre, apellido, ci)')
           .eq('grupo_id', selectedGroup)
           .eq('programa_id', selectedProgram)
           .eq('estado', 'inscrito')
+          .eq('entrego_documento', true)
         if (eErr) throw eErr
 
         const list = enrolled?.map((e: any) => e.participantes).filter(Boolean)
@@ -837,8 +860,9 @@ export default function CalificacionesClient({
         if (mErr) throw mErr
         const sortedModules = programModules || []
 
-        // 2. Allowed groups
-        const allowedGroups = userRole === 'facilitador' ? facilitadorGroups : groups
+        // 2. Allowed groups (sorted naturally)
+        const allowedGroups = [...(userRole === 'facilitador' ? facilitadorGroups : groups)]
+          .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }))
 
         if (!allowedGroups || allowedGroups.length === 0) {
           setLoading(false)
@@ -853,13 +877,14 @@ export default function CalificacionesClient({
 
           addPdfBackground(doc)
 
-          // Fetch enrolled participants for this specific group
+          // Fetch enrolled participants for this specific group (Only active 'inscritos' who delivered documents)
           const { data: enrolled, error: eErr } = await supabase
             .from('inscripciones')
             .select('participantes(id, nombre, apellido, ci)')
             .eq('grupo_id', grp.id)
             .eq('programa_id', selectedProgram)
             .eq('estado', 'inscrito')
+            .eq('entrego_documento', true)
           if (eErr) continue
 
           const list = enrolled?.map((e: any) => e.participantes).filter(Boolean)
@@ -885,6 +910,8 @@ export default function CalificacionesClient({
             console.warn("Error fetching attendance for general report:", attErr)
           }
 
+          const grpDeptoName = grp.departamentos?.name || deptoName || 'N/A'
+
           // --- TITULO CONSOLIDADO ---
           doc.setFillColor(187, 151, 58)
           doc.rect(14, 40, pageWidth - 28, 10, 'F')
@@ -901,7 +928,7 @@ export default function CalificacionesClient({
             startY: 53,
             body: [
               [
-                { content: `DEPARTAMENTO: ${deptoName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
+                { content: `DEPARTAMENTO: ${grpDeptoName.toUpperCase()}`, styles: { fontStyle: 'bold' } },
                 { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
               ],
               [
@@ -1350,6 +1377,21 @@ export default function CalificacionesClient({
               {participants.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
 
+                  {/* Student Search Bar */}
+                  <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Search size={14} color="var(--primary)" />
+                    <input
+                      type="text"
+                      placeholder="Buscar estudiante..."
+                      value={searchStudent}
+                      onChange={(e) => setSearchStudent(e.target.value)}
+                      style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', color: 'var(--foreground)', width: '120px' }}
+                    />
+                    {searchStudent && (
+                      <button onClick={() => setSearchStudent('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.75rem', fontWeight: 900 }}>×</button>
+                    )}
+                  </div>
+
                   {/* Facilitator Sign Selection dropdown */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--muted)' }}>Firma:</span>
@@ -1479,76 +1521,84 @@ export default function CalificacionesClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {participants.map((p) => {
-                      const isPassing = p.total >= 51
+                    {filteredParticipants.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}>
+                          No se encontraron estudiantes que coincidan con la búsqueda.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredParticipants.map((p) => {
+                        const isPassing = p.total >= 51
 
-                      return (
-                        <tr key={p.id}>
-                          <td>
-                            <div style={{ fontWeight: 800, color: 'var(--foreground)' }}>{p.apellido}, {p.nombre}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>CI: {p.ci}</div>
-                          </td>
+                        return (
+                          <tr key={p.id}>
+                            <td>
+                              <div style={{ fontWeight: 800, color: 'var(--foreground)' }}>{p.apellido}, {p.nombre}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>CI: {p.ci}</div>
+                            </td>
 
-                          <td style={{ textAlign: 'center', fontWeight: 700 }}>
-                            {p.hasGrade ? p.autoformacion : '-'}
-                          </td>
-                          <td style={{ textAlign: 'center', fontWeight: 700 }}>
-                            {p.hasGrade ? p.practica_guiada : '-'}
-                          </td>
-                          <td style={{ textAlign: 'center', fontWeight: 700 }}>
-                            {p.hasGrade ? p.asistencia : '-'}
-                          </td>
-                          <td style={{ textAlign: 'center', fontWeight: 700 }}>
-                            {p.hasGrade ? p.evaluacion : '-'}
-                          </td>
+                            <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                              {p.hasGrade ? p.autoformacion : '-'}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                              {p.hasGrade ? p.practica_guiada : '-'}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                              {p.hasGrade ? p.asistencia : '-'}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                              {p.hasGrade ? p.evaluacion : '-'}
+                            </td>
 
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '55px',
-                              padding: '0.35rem 0.5rem',
-                              borderRadius: '0.4rem',
-                              fontWeight: 900,
-                              fontSize: '0.9rem',
-                              background: p.hasGrade ? (isPassing ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)') : 'var(--border)',
-                              color: p.hasGrade ? (isPassing ? '#10b981' : 'var(--danger)') : 'var(--muted)',
-                            }}>
-                              {p.hasGrade ? p.total : 'S/R'}
-                            </div>
-                          </td>
-
-                          <td style={{ textAlign: 'right' }}>
-                            {p.hasGrade ? (
-                              <span style={{
-                                fontSize: '0.7rem',
-                                background: isPassing ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                color: isPassing ? '#10b981' : 'var(--danger)',
-                                padding: '0.25rem 0.6rem',
-                                borderRadius: '99px',
-                                fontWeight: 800,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '55px',
+                                padding: '0.35rem 0.5rem',
+                                borderRadius: '0.4rem',
+                                fontWeight: 900,
+                                fontSize: '0.9rem',
+                                background: p.hasGrade ? (isPassing ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)') : 'var(--border)',
+                                color: p.hasGrade ? (isPassing ? '#10b981' : 'var(--danger)') : 'var(--muted)',
                               }}>
-                                {isPassing ? 'Aprobado' : 'Reprobado'}
-                              </span>
-                            ) : (
-                              <span style={{
-                                fontSize: '0.7rem',
-                                background: 'rgba(var(--foreground-rgb), 0.05)',
-                                color: 'var(--muted)',
-                                padding: '0.25rem 0.6rem',
-                                borderRadius: '99px',
-                                fontWeight: 800
-                              }}>
-                                Sin Registrar
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                                {p.hasGrade ? p.total : 'S/R'}
+                              </div>
+                            </td>
+
+                            <td style={{ textAlign: 'right' }}>
+                              {p.hasGrade ? (
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  background: isPassing ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                  color: isPassing ? '#10b981' : 'var(--danger)',
+                                  padding: '0.25rem 0.6rem',
+                                  borderRadius: '99px',
+                                  fontWeight: 800,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.05em'
+                                }}>
+                                  {isPassing ? 'Aprobado' : 'Reprobado'}
+                                </span>
+                              ) : (
+                                <span style={{
+                                  fontSize: '0.7rem',
+                                  background: 'rgba(var(--foreground-rgb), 0.05)',
+                                  color: 'var(--muted)',
+                                  padding: '0.25rem 0.6rem',
+                                  borderRadius: '99px',
+                                  fontWeight: 800
+                                }}>
+                                  Sin Registrar
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
