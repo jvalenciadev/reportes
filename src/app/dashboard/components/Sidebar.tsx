@@ -10,18 +10,18 @@ import {
 import { signOut } from '@/app/login/actions'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/programas', label: 'Programas', icon: GraduationCap, adminOnly: true },
-  { href: '/dashboard/departamentos', label: 'Departamentos', icon: Building2, adminOnly: true },
-  { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2, adminOnly: true },
-  { href: '/dashboard/inscripciones', label: 'Inscripciones', icon: Users },
-  { href: '/dashboard/asistencia', label: 'Asistencia', icon: CheckSquare },
-  { href: '/dashboard/calificaciones/subir', label: 'Subir Calificación', icon: ClipboardCheck },
-  { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: Award },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, reportesHidden: true },
+  { href: '/dashboard/programas', label: 'Programas', icon: GraduationCap, adminOnly: true, reportesHidden: true },
+  { href: '/dashboard/departamentos', label: 'Departamentos', icon: Building2, adminOnly: true, reportesHidden: true },
+  { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2, adminOnly: true, reportesHidden: true },
+  { href: '/dashboard/inscripciones', label: 'Inscripciones', icon: Users, reportesHidden: true },
+  { href: '/dashboard/asistencia', label: 'Asistencia', icon: CheckSquare, reportesHidden: true },
+  { href: '/dashboard/calificaciones/subir', label: 'Subir Calificación', icon: ClipboardCheck, reportesHidden: true },
+  { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: Award, reportesHidden: true },
   { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3, adminOnly: true },
-  { href: '/dashboard/facilitadores', label: 'Facilitadores', icon: UserPlus, adminOnly: true },
-  { href: '/dashboard/usuarios', label: 'Usuarios', icon: UserCog, adminOnly: true },
-  { href: '/dashboard/migracion', label: 'Migración', icon: Database, adminOnly: true },
+  { href: '/dashboard/facilitadores', label: 'Facilitadores', icon: UserPlus, adminOnly: true, reportesHidden: true },
+  { href: '/dashboard/usuarios', label: 'Usuarios', icon: UserCog, adminOnly: true, reportesHidden: true },
+  { href: '/dashboard/migracion', label: 'Migración', icon: Database, adminOnly: true, reportesHidden: true },
 ]
 
 export default function Sidebar({ role, departamentoId }: { role?: string; departamentoId?: string }) {
@@ -48,7 +48,7 @@ export default function Sidebar({ role, departamentoId }: { role?: string; depar
               PROFE
             </div>
             <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Admin Panel
+              {role === 'reportes' ? 'Reportes' : 'Admin Panel'}
             </div>
           </div>
         </div>
@@ -61,6 +61,9 @@ export default function Sidebar({ role, departamentoId }: { role?: string; depar
         </div>
         {navItems.map((item) => {
           const isFacilitador = role === 'facilitador'
+          const isReportes = role === 'reportes'
+          // Reportes role: only show the Reportes link
+          if (isReportes && item.reportesHidden) return null
           // Admin-only pages are hidden for facilitadores
           if (item.adminOnly && isFacilitador) return null
           // Departmental restrictions

@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
-import { 
-  Users, Building2, UserSquare2, CheckCircle2, 
+import { redirect } from 'next/navigation'
+import {
+  Users, Building2, UserSquare2, CheckCircle2,
   LayoutGrid, ArrowRight, Activity, Calendar,
   GraduationCap, UserCheck, Zap, Clock
 } from 'lucide-react'
@@ -9,16 +10,31 @@ import Link from 'next/link'
 export default async function DashboardPage() {
   const supabase = await createClient()
 
+  // Redirect 'reportes' role straight to the reports page
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('roles(name)')
+      .eq('id', user.id)
+      .single()
+    const role = (profile as any)?.roles?.name
+    if (role === 'reportes') {
+      return redirect('/dashboard/reportes')
+    }
+  }
+
+
   // 1. Fetch Real-time Metrics from Granular Tables
   const { count: participantCount } = await supabase.from('participantes').select('*', { count: 'exact', head: true })
   const { count: programCount } = await supabase.from('programas').select('*', { count: 'exact', head: true })
-  
+
   // Facilitadores: Count via roles join
   const { count: facilitatorCount } = await supabase
     .from('profiles')
     .select('*, roles!inner(name)', { count: 'exact', head: true })
     .eq('roles.name', 'facilitador')
-  
+
   // Attendance Today
   const today = new Date().toISOString().split('T')[0]
   const { count: attendanceToday } = await supabase.from('asistencias').select('*', { count: 'exact', head: true }).eq('fecha', today)
@@ -71,14 +87,14 @@ export default async function DashboardPage() {
       </div>
 
       <div style={{ marginTop: '3rem', padding: '2rem', background: 'var(--surface)', borderRadius: '1.5rem', border: '1px solid var(--border)', textAlign: 'center' }}>
-         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center', marginBottom: '1rem' }}>
-            <div className="animate-pulse" style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#10d98b' }}></div>
-            <span style={{ fontWeight: 800, color: 'var(--foreground-2)' }}>SISTEMA OPERATIVO Y MONITOREO EN VIVO</span>
-         </div>
-         <p style={{ color: 'var(--muted)', fontSize: '0.9rem', margin: 0 }}>
-            Los datos mostrados arriba representan el estado actual de la plataforma PROFE en tiempo real. 
-            Este panel es exclusivamente informativo.
-         </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center', marginBottom: '1rem' }}>
+          <div className="animate-pulse" style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#10d98b' }}></div>
+          <span style={{ fontWeight: 800, color: 'var(--foreground-2)' }}>SISTEMA OPERATIVO Y MONITOREO EN VIVO</span>
+        </div>
+        <p style={{ color: 'var(--muted)', fontSize: '0.9rem', margin: 0 }}>
+          Los datos mostrados arriba representan el estado actual de la plataforma PROFE en tiempo real.
+          Este panel es exclusivamente informativo.
+        </p>
       </div>
     </div>
   )
