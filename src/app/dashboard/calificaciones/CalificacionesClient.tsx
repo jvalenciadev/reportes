@@ -179,7 +179,6 @@ export default function CalificacionesClient({
         .eq('grupo_id', selectedGroup)
         .eq('programa_id', selectedProgram)
         .eq('estado', 'inscrito')
-        .eq('entrego_documento', true)
 
       if (iErr) throw iErr
 
@@ -337,7 +336,7 @@ export default function CalificacionesClient({
         try {
           const w = pdfDoc.internal.pageSize.getWidth()
           const h = pdfDoc.internal.pageSize.getHeight()
-          
+
           let drawW = w
           let drawH = h
           let x = 0
@@ -614,7 +613,6 @@ export default function CalificacionesClient({
           .eq('grupo_id', selectedGroup)
           .eq('programa_id', selectedProgram)
           .eq('estado', 'inscrito')
-          .eq('entrego_documento', true)
         if (eErr) throw eErr
 
         const list = enrolled?.map((e: any) => e.participantes).filter(Boolean)
