@@ -113,13 +113,13 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
   }
 
   return (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: '1fr 420px', 
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 420px',
       gap: '2.5rem',
-      alignItems: 'start' 
+      alignItems: 'start'
     }}>
-      
+
       {/* List of Programs */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div className="card glass animate-fade-up" style={{ padding: '2rem' }}>
@@ -130,41 +130,41 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
               </h3>
               <p style={{ color: 'var(--foreground-2)', fontSize: '0.85rem', marginTop: '0.25rem' }}>Define la oferta y las fechas de vigencia</p>
             </div>
-            <button 
-              className="btn btn-primary" 
-              onClick={addProgram} 
+            <button
+              className="btn btn-primary"
+              onClick={addProgram}
               disabled={loading}
               style={{ padding: '0.8rem 1.5rem', borderRadius: '1rem' }}
             >
               <Save size={18} /> Guardar
             </button>
           </div>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '1.25rem' }}>
             <div className="form-group">
               <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', fontWeight: 800, marginBottom: '0.5rem', display: 'block' }}>Título del Programa</label>
-              <input 
-                value={newProgram.titulo} 
-                onChange={e => setNewProgram({ ...newProgram, titulo: e.target.value })} 
-                placeholder="Ej: Programa de Nivelación..." 
+              <input
+                value={newProgram.titulo}
+                onChange={e => setNewProgram({ ...newProgram, titulo: e.target.value })}
+                placeholder="Ej: Programa de Nivelación..."
                 style={{ background: 'var(--bg)', borderRadius: '0.85rem' }}
               />
             </div>
             <div className="form-group">
               <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', fontWeight: 800, marginBottom: '0.5rem', display: 'block' }}>Fecha Inicio</label>
-              <input 
-                type="date" 
-                value={newProgram.fecha_inicio} 
-                onChange={e => setNewProgram({ ...newProgram, fecha_inicio: e.target.value })} 
+              <input
+                type="date"
+                value={newProgram.fecha_inicio}
+                onChange={e => setNewProgram({ ...newProgram, fecha_inicio: e.target.value })}
                 style={{ background: 'var(--bg)', borderRadius: '0.85rem' }}
               />
             </div>
             <div className="form-group">
               <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', fontWeight: 800, marginBottom: '0.5rem', display: 'block' }}>Fecha Fin</label>
-              <input 
-                type="date" 
-                value={newProgram.fecha_fin} 
-                onChange={e => setNewProgram({ ...newProgram, fecha_fin: e.target.value })} 
+              <input
+                type="date"
+                value={newProgram.fecha_fin}
+                onChange={e => setNewProgram({ ...newProgram, fecha_fin: e.target.value })}
                 style={{ background: 'var(--bg)', borderRadius: '0.85rem' }}
               />
             </div>
@@ -176,8 +176,8 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
             <div
               key={p.id}
               className={`card glass row-hover animate-fade-up ${selectedProgram?.id === p.id ? 'active-program-card' : ''}`}
-              style={{ 
-                cursor: 'pointer', 
+              style={{
+                cursor: 'pointer',
                 padding: '1.75rem',
                 borderLeft: `4px solid ${selectedProgram?.id === p.id ? 'var(--primary)' : 'var(--border)'}`,
                 animationDelay: `${idx * 0.05}s`
@@ -188,21 +188,21 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
                 <div style={{ flex: 1 }}>
                   <h4 style={{ fontWeight: 900, fontSize: '1.2rem', color: 'var(--foreground)', lineHeight: 1.3 }}>{p.titulo}</h4>
                 </div>
-                <button 
-                  className="btn-icon" 
-                  style={{ 
-                    background: 'var(--danger-light)', 
+                <button
+                  className="btn-icon"
+                  style={{
+                    background: 'var(--danger-light)',
                     color: 'var(--danger)',
                     border: 'none',
                     borderRadius: '0.75rem',
                     cursor: 'pointer'
-                  }} 
+                  }}
                   onClick={(e) => { e.stopPropagation(); deleteProgram(p.id); }}
                 >
                   <Trash2 size={16} />
                 </button>
               </div>
-              
+
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--foreground-2)' }}>
                   <Calendar size={14} color="var(--primary)" />
@@ -221,11 +221,11 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
                     {p.programa_modulos?.length || 0} Módulos
                   </span>
                 </div>
-                <span style={{ 
-                  fontSize: '0.65rem', 
-                  fontWeight: 900, 
-                  textTransform: 'uppercase', 
-                  padding: '0.35rem 0.75rem', 
+                <span style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 900,
+                  textTransform: 'uppercase',
+                  padding: '0.35rem 0.75rem',
                   borderRadius: '0.5rem',
                   background: p.estado === 'activo' ? 'var(--success-light)' : 'var(--surface)',
                   color: p.estado === 'activo' ? 'var(--success)' : 'var(--foreground-3)',
@@ -254,10 +254,10 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2.5rem' }}>
               <div className="form-group">
                 <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', fontWeight: 800, marginBottom: '0.5rem', display: 'block' }}>Nombre del Módulo</label>
-                <input 
-                  value={newModule.titulo_modulo} 
-                  onChange={e => setNewModule({ ...newModule, titulo_modulo: e.target.value })} 
-                  placeholder="Ej: Fundamentos de Redacción" 
+                <input
+                  value={newModule.titulo_modulo}
+                  onChange={e => setNewModule({ ...newModule, titulo_modulo: e.target.value })}
+                  placeholder="Ej: Fundamentos de Redacción"
                   style={{ background: 'var(--bg)', borderRadius: '0.85rem' }}
                 />
               </div>
@@ -289,16 +289,16 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', fontWeight: 800, marginBottom: '0.5rem', display: 'block' }}>Estructura Académica</label>
               {sortModules(selectedProgram.programa_modulos || []).map((m: any, idx: number) => (
-                <div 
-                  key={m.id} 
+                <div
+                  key={m.id}
                   className="animate-fade-up"
-                  style={{ 
-                    padding: '1.25rem', 
-                    background: 'var(--bg)', 
-                    borderRadius: '1rem', 
-                    border: '1px solid var(--border)', 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
+                  style={{
+                    padding: '1.25rem',
+                    background: 'var(--bg)',
+                    borderRadius: '1rem',
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     animationDelay: `${idx * 0.1}s`
                   }}
@@ -309,7 +309,7 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
                     </div>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--foreground)' }}>
-                        {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : ''}{m.titulo_modulo}
+                        {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMÁTICA - ' : ''}{m.titulo_modulo}
                         <span style={{ fontSize: '0.75rem', color: 'var(--primary)', marginLeft: '0.5rem', fontWeight: 600 }}>
                           (G{m.grupo || 0} - O{m.orden || 0})
                         </span>
@@ -350,7 +350,7 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
         }
       `}</style>
 
-      <StatusModal 
+      <StatusModal
         show={notif.show}
         type={notif.type}
         title={notif.title}

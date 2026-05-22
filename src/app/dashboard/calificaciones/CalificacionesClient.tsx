@@ -380,7 +380,7 @@ export default function CalificacionesClient({
           return
         }
 
-        const moduleName = (selectedModuleDetails?.grupo === 1 ? 'LENGUAJE - ' : selectedModuleDetails?.grupo === 2 ? 'MATEMATICA - ' : '') + (selectedModuleDetails?.titulo_modulo || '')
+        const moduleName = (selectedModuleDetails?.grupo === 1 ? 'LENGUAJE - ' : selectedModuleDetails?.grupo === 2 ? 'MATEMÁTICA - ' : '') + (selectedModuleDetails?.titulo_modulo || '')
 
         // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
         doc.setFillColor(187, 151, 58)
@@ -757,7 +757,7 @@ export default function CalificacionesClient({
         // Module Legend (Compact Table format to prevent overflow!)
         const legendData = sortedModules.map((m, idx) => [
           `M${m.orden || idx + 1}:`,
-          (m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : '') + m.titulo_modulo
+          (m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMÁTICA - ' : '') + m.titulo_modulo
         ])
 
         autoTable(doc, {
@@ -1105,7 +1105,7 @@ export default function CalificacionesClient({
             grupo2Modules.forEach((m: any) => {
               legendBody.push([
                 { content: `M${m.orden}:`, styles: { fontStyle: 'bold', textColor: [120, 120, 120], fontSize: 5.5 } as any },
-                { content: 'MATEMATICA - ' + m.titulo_modulo, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
+                { content: 'MATEMÁTICA - ' + m.titulo_modulo, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
               ])
             })
           }
@@ -1330,7 +1330,7 @@ export default function CalificacionesClient({
               {modules.length === 0 && <option value="">No hay módulos</option>}
               {modules.map((m: any) => (
                 <option key={m.id} value={m.id}>
-                  {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : ''}{m.titulo_modulo}
+                  {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMÁTICA - ' : ''}{m.titulo_modulo}
                 </option>
               ))}
             </select>

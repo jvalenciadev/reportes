@@ -1024,7 +1024,7 @@ export default function AttendanceClient({
     doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
     addPdfFooter(doc)
-    doc.save(`ASISTENCIA_MODULAR_${groupName.replace(/\s+/g, '_')}_${moduleName.replace(/\s+/g, '_')}.pdf`)
+    doc.save(`ASISTENCIA_MODULO_${groupName.replace(/\s+/g, '_')}_${moduleName.replace(/\s+/g, '_')}.pdf`)
     setLoading(false)
   }
 
@@ -1067,7 +1067,7 @@ export default function AttendanceClient({
                 {programs.map((p: any) => <option key={p.id} value={p.id}>{p.titulo}</option>)}
               </select>
               <select value={selectedModule} onChange={e => setSelectedModule(e.target.value)} style={{ width: '100%', padding: '0.4rem', borderRadius: '0.4rem', background: 'transparent', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
-                {modules.map((m: any) => <option key={m.id} value={m.id}>{m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : ''}{m.titulo_modulo}</option>)}
+                {modules.map((m: any) => <option key={m.id} value={m.id}>{m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMÁTICA - ' : ''}{m.titulo_modulo}</option>)}
               </select>
             </div>
           </div>

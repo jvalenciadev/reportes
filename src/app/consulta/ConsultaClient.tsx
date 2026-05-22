@@ -138,7 +138,7 @@ export default function ConsultaClient() {
 
           return {
             id: mod.id,
-            titulo: (mod.grupo === 1 ? 'LENGUAJE - ' : mod.grupo === 2 ? 'MATEMATICA - ' : '') + mod.titulo_modulo,
+            titulo: (mod.grupo === 1 ? 'LENGUAJE - ' : mod.grupo === 2 ? 'MATEMÁTICA - ' : '') + mod.titulo_modulo,
             grade: grade ? {
               autoformacion: grade.autoformacion,
               practica_guiada: grade.practica_guiada,

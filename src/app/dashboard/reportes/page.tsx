@@ -110,7 +110,7 @@ export default async function ReportesPage({
     // B. Agrupación por módulo
     const modulo_titulo = a.programa_modulos?.titulo_modulo || 'S/M'
     const modulo_grupo = a.programa_modulos?.grupo
-    const modulo_prefix = modulo_grupo === 1 ? 'LENGUAJE - ' : modulo_grupo === 2 ? 'MATEMATICA - ' : ''
+    const modulo_prefix = modulo_grupo === 1 ? 'LENGUAJE - ' : modulo_grupo === 2 ? 'MATEMÁTICA - ' : ''
     const full_modulo_name = `${modulo_prefix}${modulo_titulo}`
 
     const keyMod = `${a.dia}-${group.name}-${a.modulo_id || 'no-mod'}`
@@ -149,7 +149,7 @@ export default async function ReportesPage({
 
     const modulo_titulo = g.programa_modulos?.titulo_modulo || 'S/M'
     const modulo_grupo = g.programa_modulos?.grupo
-    const modulo_prefix = modulo_grupo === 1 ? 'LENGUAJE - ' : modulo_grupo === 2 ? 'MATEMATICA - ' : ''
+    const modulo_prefix = modulo_grupo === 1 ? 'LENGUAJE - ' : modulo_grupo === 2 ? 'MATEMÁTICA - ' : ''
     const full_modulo_name = `${modulo_prefix}${modulo_titulo}`
 
     const key = `${group.name}-${g.modulo_id || 'no-mod'}`

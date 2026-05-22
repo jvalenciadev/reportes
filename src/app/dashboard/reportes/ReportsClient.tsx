@@ -1021,7 +1021,7 @@ export default function ReportsClient({
                               if (!x || !y) return null
                               let cleanLabel = String(value)
                               // Strip redundant prefixes to make labels fit better
-                              cleanLabel = cleanLabel.replace(/^(LENGUAJE|MATEMATICA)\s*-\s*/i, '')
+                              cleanLabel = cleanLabel.replace(/^(LENGUAJE|MATEMÁTICA)\s*-\s*/i, '')
                               const isLargeDataset = performanceMatrix.length > 15
                               const displayValue = isLargeDataset && cleanLabel.length > 18
                                 ? cleanLabel.slice(0, 16) + '…'

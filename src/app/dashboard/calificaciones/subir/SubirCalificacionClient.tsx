@@ -526,7 +526,7 @@ ON public.calificaciones FOR ALL USING (
               {modules.length === 0 && <option value="">No hay módulos</option>}
               {modules.map((m: any) => (
                 <option key={m.id} value={m.id}>
-                  {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : ''}{m.titulo_modulo}
+                  {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMÁTICA - ' : ''}{m.titulo_modulo}
                 </option>
               ))}
             </select>
