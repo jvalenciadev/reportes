@@ -498,7 +498,7 @@ export default function CalificacionesClient({
         const finalY = (doc as any).lastAutoTable.finalY || 150
         const pctPassing = totalStudents > 0 ? Math.round((totalPassing / totalStudents) * 100) : 0
 
-        const spaceNeededForEnding = 75
+        const spaceNeededForEnding = 120
         let statsStartY = finalY + 4
         let hasAddedPageForEnding = false
 
@@ -535,7 +535,7 @@ export default function CalificacionesClient({
         const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
 
         let signatureY = statsFinalY + 22
-        if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
+        if (signatureY > pageHeight - 68 && !hasAddedPageForEnding) {
           doc.addPage()
           addPdfBackground(doc)
           signatureY = 45
@@ -780,7 +780,7 @@ export default function CalificacionesClient({
 
         const legendFinalY = (doc as any).lastAutoTable.finalY || finalY + 12
 
-        const spaceNeededForEnding = 65
+        const spaceNeededForEnding = 120
         let statsStartY = legendFinalY + 4
         let hasAddedPageForEnding = false
 
@@ -817,7 +817,7 @@ export default function CalificacionesClient({
         const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
 
         let signatureY = statsFinalY + 22
-        if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
+        if (signatureY > pageHeight - 68 && !hasAddedPageForEnding) {
           doc.addPage()
           addPdfBackground(doc)
           signatureY = 45
@@ -1126,7 +1126,7 @@ export default function CalificacionesClient({
           const groupAvgScore = list.length > 0 ? Math.round(sumAverages / list.length).toString() : '0'
           const pctPassing = list.length > 0 ? Math.round((approvedAveragesCount / list.length) * 100) : 0
 
-          const spaceNeededForEnding = 65
+          const spaceNeededForEnding = 100
           let statsStartY = legendFinalY + 4
           let hasAddedPageForEnding = false
 
@@ -1163,7 +1163,7 @@ export default function CalificacionesClient({
           const statsFinalY = (doc as any).lastAutoTable.finalY || statsStartY + 15
 
           let signatureY = statsFinalY + 18
-          if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
+          if (signatureY > pageHeight - 50 && !hasAddedPageForEnding) {
             doc.addPage()
             addPdfBackground(doc)
             signatureY = 45
@@ -1351,6 +1351,8 @@ export default function CalificacionesClient({
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem',
               background: 'linear-gradient(90deg, rgba(var(--primary-rgb), 0.05) 0%, transparent 100%)'
             }}>
               <div>
@@ -1361,11 +1363,11 @@ export default function CalificacionesClient({
               </div>
 
               {participants.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
 
                   {/* Student Search Bar */}
-                  <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Search size={14} color="var(--primary)" />
+                  <div className="glass" style={{ padding: '0.35rem 0.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Search size={13} color="var(--primary)" />
                     <input
                       type="text"
                       placeholder="Buscar estudiante..."
@@ -1385,7 +1387,7 @@ export default function CalificacionesClient({
                       value={selectedFacilitator}
                       onChange={(e) => setSelectedFacilitator(e.target.value)}
                       style={{
-                        padding: '0.4rem 0.6rem',
+                        padding: '0.35rem 0.5rem',
                         fontSize: '0.75rem',
                         fontWeight: 700,
                         borderRadius: '0.5rem',
@@ -1393,7 +1395,8 @@ export default function CalificacionesClient({
                         background: 'var(--surface)',
                         color: 'var(--foreground)',
                         outline: 'none',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        maxWidth: '280px'
                       }}
                     >
                       {facilitators.length === 0 ? (

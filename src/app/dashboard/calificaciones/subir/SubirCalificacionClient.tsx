@@ -550,7 +550,7 @@ ON public.calificaciones FOR ALL USING (
               background: 'linear-gradient(90deg, rgba(var(--primary-rgb), 0.05) 0%, transparent 100%)'
             }}>
               <div>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--foreground)' }}>Calificaciones Modulares</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--foreground)' }}>Calificaciones del Módulo</h3>
                 <p style={{ fontSize: '0.75rem', color: 'var(--muted)', margin: '0.1rem 0 0 0' }}>
                   Escala de evaluación sobre 100 puntos oficiales.
                 </p>
@@ -865,7 +865,7 @@ ON public.calificaciones FOR ALL USING (
                 <li><strong>Autoformación (40 pt max)</strong>: Tareas, investigaciones y aprendizaje autónomo.</li>
                 <li><strong>Prácticas Guiadas (20 pt max)</strong>: Proyectos guiados y trabajo práctico.</li>
                 <li><strong>Asistencia (10 pt max)</strong>: Registro manual de la nota de asistencia del participante (0 a 10 puntos).</li>
-                <li><strong>Evaluación (30 pt max)</strong>: Cuestionario o prueba final modular.</li>
+                <li><strong>Evaluación (30 pt max)</strong>: Cuestionario o prueba final.</li>
                 <li><strong>Aprobación (51 pt o más)</strong>: Requisito de suficiencia.</li>
               </ul>
             </div>
@@ -904,7 +904,7 @@ ON public.calificaciones FOR ALL USING (
           </div>
           <div>
             <h3 style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.5rem' }}>
-              Registro de Calificaciones Modulares
+              Registro de Calificaciones
             </h3>
             <p style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: '480px', margin: '0 auto', lineHeight: '1.6' }}>
               Selecciona un **Grupo Académico**, **Programa** y **Módulo** en el panel superior para cargar la planilla de participantes y registrar sus notas sobre 100 puntos.

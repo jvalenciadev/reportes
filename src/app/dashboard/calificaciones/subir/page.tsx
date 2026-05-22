@@ -3,7 +3,7 @@ import SubirCalificacionClient from './SubirCalificacionClient'
 
 export const metadata = {
   title: 'Subir Calificaciones | PROFE v2.1',
-  description: 'Registro de calificaciones modulares para participantes'
+  description: 'Registro de calificaciones para participantes'
 }
 
 export default async function SubirCalificacionPage() {
@@ -44,7 +44,7 @@ export default async function SubirCalificacionPage() {
           Subir <span style={{ color: 'var(--primary)' }}>Calificaciones</span>
         </h1>
         <p style={{ color: 'var(--muted)', fontSize: '1.05rem', marginTop: '0.4rem' }}>
-          {isFacilitador ? 'Registra las notas finales del módulo de tus grupos asignados' : 'Registro de calificaciones y notas modulares por participante'}
+          {isFacilitador ? 'Registra las notas finales del módulo de tus grupos asignados' : 'Registro de calificaciones y notas del módulo por participante'}
         </p>
       </header>
 

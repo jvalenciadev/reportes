@@ -737,7 +737,7 @@ export default function AttendanceClient({
     doc.setFontSize(12)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.text('REPORTE DE ASISTENCIA MODULAR CONSOLIDADA', pageWidth / 2, 46.5, { align: 'center' })
+    doc.text('REPORTE DE ASISTENCIA CONSOLIDADA', pageWidth / 2, 46.5, { align: 'center' })
 
     const currentFac = facilitators.find(f => f.name === selectedFacilitator)
     const facilitatorDepto = currentFac?.depto || 'N/A'
@@ -762,7 +762,7 @@ export default function AttendanceClient({
         ],
         [
           { content: `FACILITADOR(A): ${selectedFacilitator.toUpperCase() || 'N/A'}`, styles: { fontStyle: 'bold' } },
-          { content: `TIPO DE REPORTE: MODULAR (DÍAS 1 AL 6)`, styles: { fontStyle: 'bold' } }
+          { content: `TIPO DE REPORTE: MÓDULO (DÍAS 1 AL 6)`, styles: { fontStyle: 'bold' } }
         ],
         [
           { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -890,7 +890,7 @@ export default function AttendanceClient({
     const finalY = (doc as any).lastAutoTable.finalY || 150
 
     // --- INDICADORES ACADÉMICOS Y SECCIÓN DE FIRMA ---
-    const spaceNeededForEnding = 75
+    const spaceNeededForEnding = 120
     let statsStartY = finalY + 4
     let hasAddedPageForEnding = false
 
@@ -920,7 +920,7 @@ export default function AttendanceClient({
     }
     doc.text(`FECHAS REGISTRADAS: ${dateStrings.join(' | ')}`, 14, statsStartY + 6)
 
-    // Calculate modular stats
+    // Calculate  stats
     let totalAsistio = 0
     let totalAtraso = 0
     let totalFalta = 0
@@ -954,7 +954,7 @@ export default function AttendanceClient({
 
     autoTable(doc, {
       startY: statsStartY + 9,
-      head: [[{ content: 'INDICADORES ESTADÍSTICOS MODULARES', colSpan: 5, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
+      head: [[{ content: 'INDICADORES ESTADÍSTICOS', colSpan: 5, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
       body: [
         [
           { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
@@ -987,7 +987,7 @@ export default function AttendanceClient({
 
     // --- SECCIÓN DE FIRMA DEL FACILITADOR ---
     let signatureY = statsFinalY + 22
-    if (signatureY > pageHeight - 35 && !hasAddedPageForEnding) {
+    if (signatureY > pageHeight - 68 && !hasAddedPageForEnding) {
       doc.addPage()
       addPdfBackground(doc)
       signatureY = 45 // Safe Y coordinates on fresh page

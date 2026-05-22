@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { 
-  GraduationCap, Search, User, Calendar, Award, FileText, 
+import {
+  GraduationCap, Search, User, Calendar, Award, FileText,
   CheckCircle2, Clock, XCircle, AlertCircle, ArrowLeft, BookOpen,
   Layers, BadgeCheck, Check, HelpCircle
 } from 'lucide-react'
@@ -15,7 +15,7 @@ export default function ConsultaClient() {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [participant, setParticipant] = useState<any | null>(null)
-  
+
   // Structured academic data
   const [academicData, setAcademicData] = useState<any[]>([])
   const [errorMsg, setErrorMsg] = useState('')
@@ -105,24 +105,24 @@ export default function ConsultaClient() {
       const consolidated = inscData.map((insc: any) => {
         const prog = insc.programas
         const groupName = insc.grupos?.name || 'Sin Grupo'
-        
+
         // Find modules belonging to this program
         const progModules = modulesData?.filter((m: any) => m.programa_id === prog.id) || []
-        
+
         const modulesWithData = progModules.map((mod: any) => {
           // Find grade registered for this module
           const grade = califData?.find((g: any) => g.modulo_id === mod.id)
-          
+
           // Filter attendances for this module
           const moduleAsists = asistData?.filter((a: any) => a.modulo_id === mod.id) || []
-          
+
           // Compute attendance stats
           const totalSessions = moduleAsists.length
           const countAsistio = moduleAsists.filter((a: any) => a.estado === 'asistio').length
           const countAtraso = moduleAsists.filter((a: any) => a.estado === 'atraso').length
           const countFalta = moduleAsists.filter((a: any) => a.estado === 'falta').length
           const countPermiso = moduleAsists.filter((a: any) => a.estado === 'permiso').length
-          
+
           // Calculate net score for attendance based on official academic logic:
           // - Asistió: 100% (1.0)
           // - Permiso: 100% (1.0)
@@ -218,7 +218,7 @@ export default function ConsultaClient() {
 
       {/* Main Container */}
       <div style={{ maxWidth: '960px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
-        
+
         {/* Navigation / Header bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -396,7 +396,7 @@ export default function ConsultaClient() {
         {/* Student Active Info Panel */}
         {searched && !loading && participant && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-            
+
             {/* Student Header Card */}
             <div style={{
               padding: '1.75rem 2rem',
@@ -469,7 +469,7 @@ export default function ConsultaClient() {
             {/* List Programs Enrolled */}
             {academicData.map((prog: any) => (
               <div key={prog.programId} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                
+
                 {/* Program Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', borderBottom: '2px solid rgba(187, 151, 58, 0.2)', paddingBottom: '0.5rem' }}>
                   <Layers size={18} color="#bb973a" />
@@ -503,7 +503,7 @@ export default function ConsultaClient() {
                         overflow: 'hidden',
                         boxShadow: '0 10px 30px rgba(0,0,0,0.15)'
                       }}>
-                        
+
                         {/* Module header */}
                         <div style={{
                           background: 'linear-gradient(90deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.7) 100%)',
@@ -567,7 +567,7 @@ export default function ConsultaClient() {
 
                         {/* Module Body containing Grades & Attendance split */}
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '1px', background: 'rgba(255, 255, 255, 0.06)' }}>
-                          
+
                           {/* Grades breakdown column */}
                           <div style={{ padding: '1.5rem', background: 'rgba(30, 41, 59, 0.1)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
@@ -588,7 +588,7 @@ export default function ConsultaClient() {
                                   <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{mod.grade.practica_guiada} <span style={{ color: '#64748b', fontSize: '0.7rem' }}>/ 20 pts</span></strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Asistencia Modular:</span>
+                                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Asistencia:</span>
                                   <strong style={{ fontSize: '0.85rem', color: '#fff' }}>{mod.grade.asistencia} <span style={{ color: '#64748b', fontSize: '0.7rem' }}>/ 10 pts</span></strong>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
@@ -661,7 +661,7 @@ export default function ConsultaClient() {
 
                             {mod.asistenciaStats.totalSessions > 0 ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                
+
                                 {/* Micro Grid Stats */}
                                 <div style={{
                                   display: 'grid',
@@ -739,7 +739,7 @@ export default function ConsultaClient() {
                                         <span style={{ fontSize: '0.75rem', color: '#f1f5f9', fontWeight: 600 }}>
                                           Día {rec.dia} <span style={{ color: '#64748b', fontSize: '0.65rem', fontWeight: 500 }}>({new Date(rec.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })})</span>
                                         </span>
-                                        
+
                                         <div style={{
                                           display: 'flex',
                                           alignItems: 'center',
@@ -792,8 +792,8 @@ export default function ConsultaClient() {
                   const modulesWithGrades = prog.modules.filter((m: any) => m.grade.hasGrade);
                   const totalModules = prog.modules.length;
                   const gradedCount = modulesWithGrades.length;
-                  const averageGrade = gradedCount > 0 
-                    ? Math.round(modulesWithGrades.reduce((sum: number, m: any) => sum + Number(m.grade.total), 0) / gradedCount) 
+                  const averageGrade = gradedCount > 0
+                    ? Math.round(modulesWithGrades.reduce((sum: number, m: any) => sum + Number(m.grade.total), 0) / gradedCount)
                     : 0;
 
                   return (
@@ -840,7 +840,7 @@ export default function ConsultaClient() {
                           const totalAsistPercentage = modulesWithAsist.length > 0
                             ? Math.round(modulesWithAsist.reduce((sum: number, m: any) => sum + m.asistenciaStats.attendancePercentage, 0) / modulesWithAsist.length)
                             : 0;
-                          
+
                           if (modulesWithAsist.length === 0) return null;
 
                           return (
