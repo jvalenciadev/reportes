@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import {
   Building2, Users, GraduationCap, ChevronRight, Save,
-  Database, Info, AlertTriangle, CheckCircle, Calculator, Copy, Check
+  Database, Info, AlertTriangle, CheckCircle, Calculator, Copy, Check, X
 } from 'lucide-react'
 
 export default function SubirCalificacionClient({
@@ -41,6 +41,7 @@ export default function SubirCalificacionClient({
   const [isTableMissing, setIsTableMissing] = useState(false)
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; title: string; text: string } | null>(null)
   const [copiedSql, setCopiedSql] = useState(false)
+  const [showSaveConfirmModal, setShowSaveConfirmModal] = useState(false)
 
   const isDirty = JSON.stringify(gradeData) !== JSON.stringify(initialGradeData)
 
@@ -570,6 +571,30 @@ ON public.calificaciones FOR ALL USING (
               )}
             </div>
 
+            {/* Warning callout for Asistencia */}
+            {!loading && participants.length > 0 && (
+              <div className="animate-fade-in" style={{
+                margin: '1.25rem 1.75rem 0 1.75rem',
+                padding: '0.85rem 1.25rem',
+                borderRadius: '0.75rem',
+                background: 'rgba(245, 158, 11, 0.06)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem'
+              }}>
+                <Info size={18} color="#c26f10ff" style={{ marginTop: '0.1rem', flexShrink: 0 }} />
+                <div>
+                  <strong style={{ color: '#d97706', fontSize: '0.8rem', display: 'block', marginBottom: '0.15rem' }}>
+                    Nota Aclaratoria de Asistencia:
+                  </strong>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--foreground-3)', lineHeight: 1.45 }}>
+                    La nota ingresada en la columna de <strong>Asist. (10)</strong> debe ser digitada manualmente tomando como referencia obligatoria los datos y porcentajes reportados en el <strong>PDF de Asistencia</strong> del respectivo módulo académico.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {loading ? (
               <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--muted)' }}>
                 <span style={{ fontSize: '1rem', fontWeight: 700 }}>Cargando participantes y notas...</span>
@@ -590,7 +615,7 @@ ON public.calificaciones FOR ALL USING (
                       <th>Participante</th>
                       <th style={{ textAlign: 'center', width: '90px' }}>Autoform. (40)</th>
                       <th style={{ textAlign: 'center', width: '90px' }}>Prácticas (20)</th>
-                      <th style={{ textAlign: 'center', width: '90px' }}>Asist. (10)</th>
+                      <th style={{ textAlign: 'center', width: '90px', background: 'rgba(245, 158, 11, 0.08)', color: '#b45309', borderBottom: '2px solid rgba(245, 158, 11, 0.25)' }}>Asist. (10)</th>
                       <th style={{ textAlign: 'center', width: '90px' }}>Evaluac. (30)</th>
                       <th style={{ textAlign: 'center', width: '100px' }}>Total (100)</th>
                     </tr>
@@ -659,7 +684,7 @@ ON public.calificaciones FOR ALL USING (
                           </td>
 
                           {/* Asistencia 10 - Solo enteros, ingresada manualmente */}
-                          <td style={{ textAlign: 'center' }}>
+                          <td style={{ textAlign: 'center', background: 'rgba(245, 158, 11, 0.04)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               <input
                                 type="number"
@@ -674,7 +699,7 @@ ON public.calificaciones FOR ALL USING (
                                   width: '68px',
                                   padding: '0.4rem',
                                   borderRadius: '0.4rem',
-                                  border: '1px solid var(--border)',
+                                  border: '1px solid rgba(245, 158, 11, 0.3)',
                                   background: 'var(--surface)',
                                   color: 'var(--foreground)',
                                   textAlign: 'center',
@@ -750,7 +775,7 @@ ON public.calificaciones FOR ALL USING (
 
                 <button
                   className="btn btn-primary"
-                  onClick={saveAllGrades}
+                  onClick={() => setShowSaveConfirmModal(true)}
                   disabled={saving || loading}
                   style={{
                     padding: '0.75rem 1.5rem',
@@ -825,7 +850,9 @@ ON public.calificaciones FOR ALL USING (
               <ul style={{ paddingLeft: '1.2rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.75rem', color: 'var(--muted)', lineHeight: '1.5' }}>
                 <li><strong>Autoformación (40 pt max)</strong>: Tareas, investigaciones y aprendizaje autónomo.</li>
                 <li><strong>Prácticas Guiadas (20 pt max)</strong>: Proyectos guiados y trabajo práctico.</li>
-                <li><strong>Asistencia (10 pt max)</strong>: Registro manual de la nota de asistencia del participante (0 a 10 puntos).</li>
+                <li style={{ padding: '0.35rem 0.5rem', borderRadius: '0.4rem', background: 'rgba(245, 158, 11, 0.08)', color: '#b45309' }}>
+                  <strong>Asistencia (10 pt max)</strong>: Registro manual de la nota de asistencia obtenida del reporte de <strong>Asistencia PDF</strong>.
+                </li>
                 <li><strong>Evaluación (30 pt max)</strong>: Cuestionario o prueba final modular.</li>
                 <li><strong>Aprobación (51 pt o más)</strong>: Requisito de suficiencia.</li>
               </ul>
@@ -870,6 +897,126 @@ ON public.calificaciones FOR ALL USING (
             <p style={{ color: 'var(--muted)', fontSize: '0.9rem', maxWidth: '480px', margin: '0 auto', lineHeight: '1.6' }}>
               Selecciona un **Grupo Académico**, **Programa** y **Módulo** en el panel superior para cargar la planilla de participantes y registrar sus notas sobre 100 puntos.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Save Confirmation Modal */}
+      {showSaveConfirmModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+        }}>
+          <div className="card shadow-lg" style={{
+            position: 'relative',
+            width: '480px',
+            padding: '2.5rem 2rem 2rem 2rem',
+            borderRadius: '1.5rem',
+            border: '1px solid var(--border)',
+            background: 'var(--surface)',
+            color: 'var(--foreground)',
+            textAlign: 'center',
+          }}>
+            {/* Close Button */}
+            <button
+              onClick={() => setShowSaveConfirmModal(false)}
+              style={{
+                position: 'absolute',
+                top: '1.25rem',
+                right: '1.25rem',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                padding: '0.25rem',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--foreground)';
+                e.currentTarget.style.background = 'rgba(var(--foreground-rgb), 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--muted)';
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            {/* Warning Icon */}
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: 'rgba(245, 158, 11, 0.12)',
+              color: '#d97706',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem auto',
+            }}>
+              <AlertTriangle size={28} />
+            </div>
+
+            {/* Title / Header */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.5rem' }}>
+                ¿Confirmar Registro de Calificaciones?
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: '1.5', margin: '0 auto' }}>
+                ¿Está seguro de haber completado correctamente las calificaciones de este módulo? Recuerde que la nota de asistencia se debe haber copiado del reporte PDF de asistencia.
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1.75rem' }}>
+              <button
+                onClick={() => setShowSaveConfirmModal(false)}
+                className="btn btn-ghost"
+                style={{
+                  padding: '0.65rem 1.5rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  borderRadius: '0.75rem',
+                  border: '1px solid var(--border)',
+                  cursor: 'pointer',
+                  color: 'var(--foreground)',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setShowSaveConfirmModal(false)
+                  saveAllGrades()
+                }}
+                className="btn btn-primary"
+                style={{
+                  padding: '0.65rem 1.5rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 900,
+                  borderRadius: '0.75rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Sí, Guardar Calificaciones
+              </button>
+            </div>
           </div>
         </div>
       )}

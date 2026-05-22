@@ -16,27 +16,51 @@ export default async function ReportesPage({
   console.log('--- AUDITORIA DE REPORTES (SERVER) ---')
 
   // 2. Cargar Datos Granulares de Asistencia (PROFE v2.0)
-  const { data: attendanceData, error: attError } = await supabase
-    .from('asistencias')
-    .select(`
-      dia, estado, modulo_id,
-      programa_modulos (
-        titulo_modulo,
-        grupo
-      ),
-      participantes (
-        inscripciones (
-          estado,
-          entrego_documento,
-          grupos (
-            name,
-            departamentos (name)
+  let attendanceData: any[] = []
+  let attPage = 0
+  const PAGE_SIZE = 1000
+  let keepFetchingAtt = true
+
+  while (keepFetchingAtt) {
+    const { data, error } = await supabase
+      .from('asistencias')
+      .select(`
+        dia, estado, modulo_id,
+        programa_modulos (
+          titulo_modulo,
+          grupo,
+          programa_id
+        ),
+        participantes (
+          inscripciones (
+            estado,
+            programa_id,
+            entrego_documento,
+            grupos (
+              name,
+              departamentos (name)
+            )
           )
         )
-      )
-    `)
+      `)
+      .range(attPage * PAGE_SIZE, (attPage + 1) * PAGE_SIZE - 1)
 
-  if (attError) console.error('Error Asistencia Granular:', attError)
+    if (error) {
+      console.error(`Error Asistencia Granular (Pág ${attPage}):`, error)
+      keepFetchingAtt = false
+    } else if (!data || data.length === 0) {
+      keepFetchingAtt = false
+    } else {
+      attendanceData = attendanceData.concat(data)
+      if (data.length < PAGE_SIZE) {
+        keepFetchingAtt = false
+      } else {
+        attPage++
+      }
+    }
+  }
+
+  console.log(`[AUDIT] Total Asistencias Cargadas: ${attendanceData.length}`)
 
   // 3. Cargar Datos Granulares de Inscripciones
   const { data: enrollmentData, error: enrError } = await supabase
@@ -54,27 +78,50 @@ export default async function ReportesPage({
   if (enrError) console.error('Error Inscripciones Granulares:', enrError)
 
   // 4. Cargar Datos de Calificaciones (PROFE v2.1)
-  const { data: gradesData, error: gradesError } = await supabase
-    .from('calificaciones')
-    .select(`
-      total, modulo_id,
-      programa_modulos (
-        titulo_modulo,
-        grupo
-      ),
-      participantes (
-        inscripciones (
-          estado,
-          entrego_documento,
-          grupos (
-            name,
-            departamentos (name)
+  let gradesData: any[] = []
+  let gradesPage = 0
+  let keepFetchingGrades = true
+
+  while (keepFetchingGrades) {
+    const { data, error } = await supabase
+      .from('calificaciones')
+      .select(`
+        total, modulo_id,
+        programa_modulos (
+          titulo_modulo,
+          grupo,
+          programa_id
+        ),
+        participantes (
+          inscripciones (
+            estado,
+            programa_id,
+            entrego_documento,
+            grupos (
+              name,
+              departamentos (name)
+            )
           )
         )
-      )
-    `)
+      `)
+      .range(gradesPage * PAGE_SIZE, (gradesPage + 1) * PAGE_SIZE - 1)
 
-  if (gradesError) console.error('Error Calificaciones Granulares:', gradesError)
+    if (error) {
+      console.error(`Error Calificaciones Granulares (Pág ${gradesPage}):`, error)
+      keepFetchingGrades = false
+    } else if (!data || data.length === 0) {
+      keepFetchingGrades = false
+    } else {
+      gradesData = gradesData.concat(data)
+      if (data.length < PAGE_SIZE) {
+        keepFetchingGrades = false
+      } else {
+        gradesPage++
+      }
+    }
+  }
+
+  console.log(`[AUDIT] Total Calificaciones Cargadas: ${gradesData.length}`)
 
   // 5. Mapeo y Consolidación Dinámica (BI Engine)
   // Agrupamos asistencias filtrando por 'inscrito' y 'entrego_documento' = true
@@ -82,7 +129,10 @@ export default async function ReportesPage({
   const attendanceModuleMap: Record<string, any> = {}
 
   attendanceData?.forEach((a: any) => {
-    const inscripcion = a.participantes?.inscripciones?.[0]
+    const programaId = a.programa_modulos?.programa_id
+    const inscripcion = a.participantes?.inscripciones?.find(
+      (i: any) => i.programa_id === programaId
+    )
     if (!inscripcion) return
 
     // FILTRO REQUERIDO: Solo inscritos activos
@@ -138,7 +188,10 @@ export default async function ReportesPage({
   const gradesMap: Record<string, any> = {}
 
   gradesData?.forEach((g: any) => {
-    const inscripcion = g.participantes?.inscripciones?.[0]
+    const programaId = g.programa_modulos?.programa_id
+    const inscripcion = g.participantes?.inscripciones?.find(
+      (i: any) => i.programa_id === programaId
+    )
     if (!inscripcion) return
 
     // FILTRO REQUERIDO: Solo inscritos activos

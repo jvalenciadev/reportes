@@ -98,7 +98,7 @@ export default function ReportsClient({
   // --- ADVANCED DATA DERIVATION ---
   const deptoList = useMemo(() => {
     const depts = [...new Set([...attendanceData.map(a => a.dept_name), ...enrollmentData.map(e => e.dept_name)])]
-    return depts.filter(d => d && d !== 'S/D').sort()
+    return depts.filter(d => d && d !== 'S/D').sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
   }, [attendanceData, enrollmentData])
 
   const dayList = useMemo(() => {
@@ -110,7 +110,7 @@ export default function ReportsClient({
     if (selectedDept !== 'all') {
       data = data.filter(e => e.dept_name === selectedDept)
     }
-    return [...new Set(data.map(g => g.group_name))].sort()
+    return [...new Set(data.map(g => g.group_name))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
   }, [enrollmentData, selectedDept])
 
   const filteredAttendance = useMemo(() => {
@@ -159,7 +159,7 @@ export default function ReportsClient({
     const list = [...new Set([
       ...(attendanceByModulesData || []).map(a => a.modulo_name),
       ...(gradesData || []).map(g => g.modulo_name)
-    ])].filter(Boolean).sort()
+    ])].filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     return list
   }, [attendanceByModulesData, gradesData])
 

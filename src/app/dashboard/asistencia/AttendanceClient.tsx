@@ -677,7 +677,7 @@ export default function AttendanceClient({
     const pageHeight = doc.internal.pageSize.getHeight()
 
     // 1. Full Page Background
-    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
+    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/escudo.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9lc2N1ZG8uanBnIiwiaWF0IjoxNzc5NDc1Nzg4LCJleHAiOjE4MTEwMTE3ODh9.J80uPhXdt8HjRMba6nT-7f5OIJ4vbiEEyQSiQB_CWFc'
 
     let bgBase64 = ''
     let imgWidth = 0
@@ -702,7 +702,7 @@ export default function AttendanceClient({
       try {
         const w = pdfDoc.internal.pageSize.getWidth()
         const h = pdfDoc.internal.pageSize.getHeight()
-        
+
         let drawW = w
         let drawH = h
         let x = 0
@@ -724,8 +724,8 @@ export default function AttendanceClient({
         let format = 'JPEG'
         if (imgData.startsWith('data:image/png')) {
           format = 'PNG'
-          } else if (imgData.startsWith('data:image/webp')) {
-            format = 'WEBP'
+        } else if (imgData.startsWith('data:image/webp')) {
+          format = 'WEBP'
         }
         pdfDoc.addImage(imgData, format, x, y, drawW, drawH)
       } catch (e) {

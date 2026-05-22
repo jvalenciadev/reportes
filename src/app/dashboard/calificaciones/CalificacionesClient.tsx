@@ -309,7 +309,7 @@ export default function CalificacionesClient({
 
       // Full Page Background image (Landscape or Portrait depending on layout)
       const backgroundImage = (orientation === 'l')
-        ? 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc_vertical.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2NfdmVydGljYWwuanBnIiwiaWF0IjoxNzc5Mjg3ODA5LCJleHAiOjE4MTA4MjM4MDl9.58xHabXO1Y_ZL-ASUhvQcGLENV-Eazj3q5QtUS2yy4E'
+        ? 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/escudo.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9lc2N1ZG8uanBnIiwiaWF0IjoxNzc5NDc1Nzg4LCJleHAiOjE4MTEwMTE3ODh9.J80uPhXdt8HjRMba6nT-7f5OIJ4vbiEEyQSiQB_CWFc'
         : 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
 
       let bgBase64 = ''
@@ -1506,6 +1506,30 @@ export default function CalificacionesClient({
               )}
             </div>
 
+            {/* Warning callout for Asistencia */}
+            {!loading && participants.length > 0 && (
+              <div className="animate-fade-in" style={{
+                margin: '1.25rem 1.75rem 0 1.75rem',
+                padding: '0.85rem 1.25rem',
+                borderRadius: '0.75rem',
+                background: 'rgba(245, 158, 11, 0.06)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem'
+              }}>
+                <Info size={18} color="#d97706" style={{ marginTop: '0.1rem', flexShrink: 0 }} />
+                <div>
+                  <strong style={{ color: '#d97706', fontSize: '0.8rem', display: 'block', marginBottom: '0.15rem' }}>
+                    Nota Aclaratoria de Asistencia:
+                  </strong>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--foreground-3)', lineHeight: 1.45 }}>
+                    La nota reflejada en la columna de <strong>Asist. (10)</strong> es registrada manualmente tomando como referencia obligatoria los datos y porcentajes reportados en el <strong>PDF de Asistencia</strong> del respectivo módulo académico.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {loading ? (
               <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--muted)' }}>
                 <span style={{ fontSize: '1rem', fontWeight: 700 }}>Cargando planilla de calificaciones...</span>
@@ -1526,7 +1550,7 @@ export default function CalificacionesClient({
                       <th>Participante</th>
                       <th style={{ textAlign: 'center' }}>Autoform. (40)</th>
                       <th style={{ textAlign: 'center' }}>Prácticas (20)</th>
-                      <th style={{ textAlign: 'center' }}>Asistencia (10)</th>
+                      <th style={{ textAlign: 'center', width: '90px', background: 'rgba(245, 158, 11, 0.08)', color: '#b45309', borderBottom: '2px solid rgba(245, 158, 11, 0.25)' }}>Asist. (10)</th>
                       <th style={{ textAlign: 'center' }}>Evaluación (30)</th>
                       <th style={{ textAlign: 'center' }}>Total (100)</th>
                       <th style={{ textAlign: 'right' }}>Estado</th>
@@ -1556,7 +1580,7 @@ export default function CalificacionesClient({
                             <td style={{ textAlign: 'center', fontWeight: 700 }}>
                               {p.hasGrade ? p.practica_guiada : '-'}
                             </td>
-                            <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                            <td style={{ textAlign: 'center', fontWeight: 700, background: 'rgba(245, 158, 11, 0.04)' }}>
                               {p.asistencia}
                             </td>
                             <td style={{ textAlign: 'center', fontWeight: 700 }}>
@@ -1673,7 +1697,9 @@ export default function CalificacionesClient({
               <ul style={{ paddingLeft: '1.2rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.75rem', color: 'var(--muted)', lineHeight: '1.5' }}>
                 <li>Autoformación (40 pt max)</li>
                 <li>Prácticas Guiadas (20 pt max)</li>
-                <li>Asistencia Académica (10 pt max)</li>
+                <li style={{ padding: '0.35rem 0.5rem', borderRadius: '0.4rem', background: 'rgba(245, 158, 11, 0.08)', color: '#b45309' }}>
+                  <strong>Asistencia (10 pt max)</strong>: Registro manual de la nota de asistencia obtenida del reporte de <strong>Asistencia PDF</strong>.
+                </li>
                 <li>Evaluación Final (30 pt max)</li>
                 <li><strong>Suficiencia: 51 pt o superior</strong>.</li>
               </ul>
