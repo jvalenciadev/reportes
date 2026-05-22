@@ -305,7 +305,7 @@ export default function CalificacionesClient({
     setLoading(true)
     try {
       const orientation = (reportType === 'general') ? 'l' : 'p'
-      const doc = new jsPDF(orientation, 'mm', 'a4')
+      const doc = new jsPDF(orientation, 'mm', orientation === 'l' ? [279, 216] : [216, 279])
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
 
@@ -315,8 +315,20 @@ export default function CalificacionesClient({
         : 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
 
       let bgBase64 = ''
+      let imgWidth = 0
+      let imgHeight = 0
       try {
         bgBase64 = await getBase64ImageFromUrl(backgroundImage)
+        await new Promise<void>((resolve) => {
+          const img = new Image()
+          img.onload = () => {
+            imgWidth = img.naturalWidth
+            imgHeight = img.naturalHeight
+            resolve()
+          }
+          img.onerror = () => resolve()
+          img.src = bgBase64
+        })
       } catch (err) {
         console.warn("Failed to pre-load background image as base64", err)
       }
@@ -325,17 +337,32 @@ export default function CalificacionesClient({
         try {
           const w = pdfDoc.internal.pageSize.getWidth()
           const h = pdfDoc.internal.pageSize.getHeight()
-          if (bgBase64) {
-            let format = 'JPEG'
-            if (bgBase64.startsWith('data:image/png')) {
-              format = 'PNG'
-            } else if (bgBase64.startsWith('data:image/webp')) {
-              format = 'WEBP'
+          
+          let drawW = w
+          let drawH = h
+          let x = 0
+          let y = 0
+
+          if (imgWidth > 0 && imgHeight > 0) {
+            const imgRatio = imgWidth / imgHeight
+            const pageRatio = w / h
+            if (imgRatio > pageRatio) {
+              drawW = h * imgRatio
+              x = (w - drawW) / 2
+            } else {
+              drawH = w / imgRatio
+              y = (h - drawH) / 2
             }
-            pdfDoc.addImage(bgBase64, format, 0, 0, w, h)
-          } else {
-            pdfDoc.addImage(backgroundImage, 'JPEG', 0, 0, w, h)
           }
+
+          const imgData = bgBase64 || backgroundImage
+          let format = 'JPEG'
+          if (imgData.startsWith('data:image/png')) {
+            format = 'PNG'
+          } else if (imgData.startsWith('data:image/webp')) {
+            format = 'WEBP'
+          }
+          pdfDoc.addImage(imgData, format, x, y, drawW, drawH)
         } catch (e) {
           console.warn("Background image error:", e)
         }
@@ -535,7 +562,7 @@ export default function CalificacionesClient({
         const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
 
         let signatureY = statsFinalY + 22
-        if (signatureY > pageHeight - 68 && !hasAddedPageForEnding) {
+        if (signatureY > pageHeight - 68) {
           doc.addPage()
           addPdfBackground(doc)
           signatureY = 45
@@ -817,7 +844,7 @@ export default function CalificacionesClient({
         const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
 
         let signatureY = statsFinalY + 22
-        if (signatureY > pageHeight - 68 && !hasAddedPageForEnding) {
+        if (signatureY > pageHeight - 68) {
           doc.addPage()
           addPdfBackground(doc)
           signatureY = 45
@@ -1163,7 +1190,7 @@ export default function CalificacionesClient({
           const statsFinalY = (doc as any).lastAutoTable.finalY || statsStartY + 15
 
           let signatureY = statsFinalY + 18
-          if (signatureY > pageHeight - 50 && !hasAddedPageForEnding) {
+          if (signatureY > pageHeight - 50) {
             doc.addPage()
             addPdfBackground(doc)
             signatureY = 45
