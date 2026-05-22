@@ -183,8 +183,8 @@ export default async function ReportesPage({
     const total_confirmados = inscripciones.filter((i: any) => i.estado === 'inscrito').length
     const total_preinscritos = inscripciones.filter((i: any) => i.estado === 'preinscrito').length
 
-    const preinscritos_entrego = inscripciones.filter((i: any) => i.estado === 'preinscrito' && i.entrego_documento).length
-    const inscritos_entrego = inscripciones.filter((i: any) => i.estado === 'inscrito' && i.entrego_documento).length
+    const preinscritos_entrego = inscripciones.filter((i: any) => i.estado === 'preinscrito').length
+    const inscritos_entrego = inscripciones.filter((i: any) => i.estado === 'inscrito').length
 
     return {
       group_name: g.name || 'Grupo sin nombre',

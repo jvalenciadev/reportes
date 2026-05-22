@@ -172,12 +172,11 @@ export default function CalificacionesClient({
         setSelectedFacilitator(currentUser || 'N/A')
       }
 
-      // Fetch all participants registered in this group and program (Only active 'inscritos')
+      // Fetch all participants registered in this group (Only active 'inscritos')
       const { data: inscripcionesData, error: iErr } = await supabase
         .from('inscripciones')
         .select('estado, participantes(id, nombre, apellido, ci)')
         .eq('grupo_id', selectedGroup)
-        .eq('programa_id', selectedProgram)
         .eq('estado', 'inscrito')
 
       if (iErr) throw iErr
@@ -611,7 +610,6 @@ export default function CalificacionesClient({
           .from('inscripciones')
           .select('participantes(id, nombre, apellido, ci)')
           .eq('grupo_id', selectedGroup)
-          .eq('programa_id', selectedProgram)
           .eq('estado', 'inscrito')
         if (eErr) throw eErr
 
