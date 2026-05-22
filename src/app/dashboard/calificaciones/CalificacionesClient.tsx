@@ -512,7 +512,7 @@ export default function CalificacionesClient({
         // --- INDICADORES ACADÉMICOS ---
         autoTable(doc, {
           startY: statsStartY,
-          head: [[{ content: 'INDICADORES ACADÉMICOS DEL MÓDULO', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
+          head: [[{ content: 'INDICADORES ACADÉMICOS', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
           body: [
             [
               { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
@@ -794,7 +794,7 @@ export default function CalificacionesClient({
         // --- INDICADORES ACADÉMICOS ---
         autoTable(doc, {
           startY: statsStartY,
-          head: [[{ content: 'INDICADORES ACADÉMICOS CONSOLIDADOS DEL GRUPO', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
+          head: [[{ content: 'INDICADORES ACADÉMICOS', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
           body: [
             [
               { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
@@ -1140,7 +1140,7 @@ export default function CalificacionesClient({
           // --- INDICADORES ACADÉMICOS ---
           autoTable(doc, {
             startY: statsStartY,
-            head: [[{ content: 'INDICADORES ACADÉMICOS CONSOLIDADOS DEL GRUPO', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
+            head: [[{ content: 'INDICADORES ACADÉMICOS', colSpan: 4, styles: { halign: 'center', fillColor: [245, 245, 245], fontSize: 7 } }]],
             body: [
               [
                 { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
