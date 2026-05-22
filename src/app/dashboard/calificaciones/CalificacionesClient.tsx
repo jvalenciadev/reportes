@@ -205,9 +205,12 @@ export default function CalificacionesClient({
 
       if (gErr) throw gErr
 
-      // Map everything — asistencia siempre entero
+      // Map everything — asistencia siempre entero, ingresado manualmente
       const mappedList = list.map((p: any) => {
         const rowGrade = grades?.find((g: any) => g.participante_id === p.id)
+
+        const savedAsistencia = rowGrade ? Math.round(Number(rowGrade.asistencia)) : 0
+
         return {
           id: p.id,
           nombre: p.nombre,
@@ -215,8 +218,7 @@ export default function CalificacionesClient({
           ci: p.ci,
           autoformacion: rowGrade ? Number(rowGrade.autoformacion) : 0,
           practica_guiada: rowGrade ? Number(rowGrade.practica_guiada) : 0,
-          // Asistencia: siempre entero (sin decimales), escala 0-10
-          asistencia: rowGrade ? Math.round(Number(rowGrade.asistencia)) : 0,
+          asistencia: savedAsistencia,
           evaluacion: rowGrade ? Number(rowGrade.evaluacion) : 0,
           total: rowGrade ? Number(rowGrade.total) : 0,
           hasGrade: !!rowGrade
@@ -278,7 +280,7 @@ export default function CalificacionesClient({
       'Autoformación (40 pt)': p.hasGrade ? p.autoformacion : 'Sin Nota',
       'Prácticas Guiadas (20 pt)': p.hasGrade ? p.practica_guiada : 'Sin Nota',
       // Asistencia como entero en Excel
-      'Asistencia (10 pt)': p.hasGrade ? Math.round(p.asistencia) : 'Sin Nota',
+      'Asistencia (10 pt)': p.asistencia,
       'Evaluación Módulo (30 pt)': p.hasGrade ? p.evaluacion : 'Sin Nota',
       'Total (100 pt)': p.hasGrade ? p.total : 'Sin Nota',
       'Estado': p.hasGrade ? (p.total >= 51 ? 'APROBADO' : 'REPROBADO') : 'Sin Registro'
@@ -378,7 +380,7 @@ export default function CalificacionesClient({
           return
         }
 
-        const moduleName = selectedModuleDetails?.titulo_modulo || ''
+        const moduleName = (selectedModuleDetails?.grupo === 1 ? 'LENGUAJE - ' : selectedModuleDetails?.grupo === 2 ? 'MATEMATICA - ' : '') + (selectedModuleDetails?.titulo_modulo || '')
 
         // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
         doc.setFillColor(187, 151, 58)
@@ -432,7 +434,7 @@ export default function CalificacionesClient({
           `${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}`,
           p.hasGrade ? p.autoformacion : '-',
           p.hasGrade ? p.practica_guiada : '-',
-          p.hasGrade ? Math.round(p.asistencia) : '-',
+          Math.round(p.asistencia),
           p.hasGrade ? p.evaluacion : '-',
           p.hasGrade ? p.total : 'S/R',
           p.hasGrade ? (p.total >= 51 ? 'APROBADO' : 'REPROBADO') : 'SIN REGISTRO'
@@ -755,7 +757,7 @@ export default function CalificacionesClient({
         // Module Legend (Compact Table format to prevent overflow!)
         const legendData = sortedModules.map((m, idx) => [
           `M${m.orden || idx + 1}:`,
-          m.titulo_modulo
+          (m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : '') + m.titulo_modulo
         ])
 
         autoTable(doc, {
@@ -899,16 +901,6 @@ export default function CalificacionesClient({
             .in('participante_id', list.map((p: any) => p.id))
           if (gErr) continue
 
-          // Fetch attendance records of these participants in program modules
-          const { data: attData, error: attErr } = await supabase
-            .from('asistencias')
-            .select('*')
-            .in('modulo_id', sortedModules.map((m: any) => m.id))
-            .in('participante_id', list.map((p: any) => p.id))
-          if (attErr) {
-            console.warn("Error fetching attendance for general report:", attErr)
-          }
-
           const grpDeptoName = grp.departamentos?.name || deptoName || 'N/A'
 
           // --- TITULO CONSOLIDADO ---
@@ -1009,17 +1001,12 @@ export default function CalificacionesClient({
               return g ? g.total : '-'
             })
 
-            // Calculate attendance percentage across all modules
-            const pAttRecords = attData?.filter((a: any) => a.participante_id === p.id) || []
+            // Calculate attendance percentage across all modules from the calificaciones grades (manual entry)
+            const pGrades = grades?.filter((x: any) => x.participante_id === p.id) || []
             let attendancePctString = '-'
-            if (pAttRecords.length > 0) {
-              let scoreSum = 0
-              pAttRecords.forEach((a: any) => {
-                if (a.estado === 'asistio' || a.estado === 'permiso') scoreSum += 10
-                else if (a.estado === 'atraso') scoreSum += 8
-                else if (a.estado === 'falta') scoreSum += 0
-              })
-              const pct = Math.round((scoreSum / (pAttRecords.length * 10)) * 100)
+            if (pGrades.length > 0) {
+              const sumAsist = pGrades.reduce((sum: number, g: any) => sum + (Number(g.asistencia) || 0), 0)
+              const pct = Math.round((sumAsist / (pGrades.length * 10)) * 100)
               attendancePctString = `${pct}%`
             }
 
@@ -1108,7 +1095,7 @@ export default function CalificacionesClient({
             grupo1Modules.forEach((m: any) => {
               legendBody.push([
                 { content: `M${m.orden}:`, styles: { fontStyle: 'bold', textColor: [120, 120, 120], fontSize: 5.5 } as any },
-                { content: m.titulo_modulo, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
+                { content: 'LENGUAJE - ' + m.titulo_modulo, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
               ])
             })
           }
@@ -1118,7 +1105,7 @@ export default function CalificacionesClient({
             grupo2Modules.forEach((m: any) => {
               legendBody.push([
                 { content: `M${m.orden}:`, styles: { fontStyle: 'bold', textColor: [120, 120, 120], fontSize: 5.5 } as any },
-                { content: m.titulo_modulo, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
+                { content: 'MATEMATICA - ' + m.titulo_modulo, styles: { textColor: [80, 80, 80], fontSize: 5.5 } as any }
               ])
             })
           }
@@ -1544,7 +1531,7 @@ export default function CalificacionesClient({
                               {p.hasGrade ? p.practica_guiada : '-'}
                             </td>
                             <td style={{ textAlign: 'center', fontWeight: 700 }}>
-                              {p.hasGrade ? p.asistencia : '-'}
+                              {p.asistencia}
                             </td>
                             <td style={{ textAlign: 'center', fontWeight: 700 }}>
                               {p.hasGrade ? p.evaluacion : '-'}

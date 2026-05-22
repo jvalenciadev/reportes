@@ -8,6 +8,8 @@ export default async function ProgramsPage() {
     .from('programas')
     .select('*, programa_modulos(*)')
     .order('created_at', { ascending: false })
+    .order('grupo', { foreignTable: 'programa_modulos', ascending: true })
+    .order('orden', { foreignTable: 'programa_modulos', ascending: true })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

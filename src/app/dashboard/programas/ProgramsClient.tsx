@@ -34,8 +34,21 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
     titulo_modulo: '',
     fecha_inicio: '',
     fecha_fin: '',
-    estado: 'activo'
+    estado: 'activo',
+    grupo: '',
+    orden: ''
   })
+
+  const sortModules = (modules: any[]) => {
+    return [...(modules || [])].sort((a, b) => {
+      const gA = Number(a.grupo) || 0
+      const gB = Number(b.grupo) || 0
+      if (gA !== gB) return gA - gB
+      const oA = Number(a.orden) || 0
+      const oB = Number(b.orden) || 0
+      return oA - oB
+    })
+  }
 
   const addProgram = async () => {
     if (!newProgram.titulo || !newProgram.fecha_inicio || !newProgram.fecha_fin) {
@@ -65,7 +78,12 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
 
     setLoading(true)
     const { data, error } = await supabase.from('programa_modulos').insert([{
-      ...newModule,
+      titulo_modulo: newModule.titulo_modulo,
+      fecha_inicio: newModule.fecha_inicio,
+      fecha_fin: newModule.fecha_fin,
+      estado: newModule.estado,
+      grupo: newModule.grupo ? parseInt(newModule.grupo) : null,
+      orden: newModule.orden ? parseInt(newModule.orden) : null,
       programa_id: selectedProgram.id
     }]).select()
 
@@ -75,13 +93,14 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
     } else {
       const updated = programs.map(p => {
         if (p.id === selectedProgram.id) {
-          return { ...p, programa_modulos: [...(p.programa_modulos || []), data[0]] }
+          const newModulesList = [...(p.programa_modulos || []), data[0]]
+          return { ...p, programa_modulos: sortModules(newModulesList) }
         }
         return p
       })
       setPrograms(updated)
       setSelectedProgram(updated.find(p => p.id === selectedProgram.id))
-      setNewModule({ titulo_modulo: '', fecha_inicio: '', fecha_fin: '', estado: 'activo' })
+      setNewModule({ titulo_modulo: '', fecha_inicio: '', fecha_fin: '', estado: 'activo', grupo: '', orden: '' })
       showNotif('success', 'Módulo Agregado', 'La etapa académica se ha vinculado correctamente al programa.')
     }
     setLoading(false)
@@ -252,6 +271,16 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
                   <input type="date" value={newModule.fecha_fin} onChange={e => setNewModule({ ...newModule, fecha_fin: e.target.value })} style={{ background: 'var(--bg)', borderRadius: '0.85rem' }} />
                 </div>
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', fontWeight: 800, marginBottom: '0.5rem', display: 'block' }}>Grupo (Número)</label>
+                  <input type="number" min="1" placeholder="Ej: 1" value={newModule.grupo} onChange={e => setNewModule({ ...newModule, grupo: e.target.value })} style={{ background: 'var(--bg)', borderRadius: '0.85rem' }} />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', fontWeight: 800, marginBottom: '0.5rem', display: 'block' }}>Orden (Número)</label>
+                  <input type="number" min="1" placeholder="Ej: 1" value={newModule.orden} onChange={e => setNewModule({ ...newModule, orden: e.target.value })} style={{ background: 'var(--bg)', borderRadius: '0.85rem' }} />
+                </div>
+              </div>
               <button className="btn btn-primary" style={{ width: '100%', padding: '1rem', borderRadius: '1rem' }} onClick={addModule} disabled={loading}>
                 <Plus size={20} /> Agregar a la Oferta
               </button>
@@ -259,7 +288,7 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-3)', fontWeight: 800, marginBottom: '0.5rem', display: 'block' }}>Estructura Académica</label>
-              {selectedProgram.programa_modulos?.map((m: any, idx: number) => (
+              {sortModules(selectedProgram.programa_modulos || []).map((m: any, idx: number) => (
                 <div 
                   key={m.id} 
                   className="animate-fade-up"
@@ -279,7 +308,12 @@ export default function ProgramsClient({ initialPrograms }: { initialPrograms: a
                       {idx + 1}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--foreground)' }}>{m.titulo_modulo}</div>
+                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--foreground)' }}>
+                        {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : ''}{m.titulo_modulo}
+                        <span style={{ fontSize: '0.75rem', color: 'var(--primary)', marginLeft: '0.5rem', fontWeight: 600 }}>
+                          (G{m.grupo || 0} - O{m.orden || 0})
+                        </span>
+                      </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--foreground-2)', marginTop: '0.1rem' }}>
                         {new Date(m.fecha_inicio).toLocaleDateString()} - {new Date(m.fecha_fin).toLocaleDateString()}
                       </div>

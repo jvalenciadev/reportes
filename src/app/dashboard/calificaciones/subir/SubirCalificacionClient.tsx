@@ -113,7 +113,8 @@ export default function SubirCalificacionClient({
         .from('programa_modulos')
         .select('*')
         .eq('programa_id', selectedProgram)
-        .order('titulo_modulo')
+        .order('grupo', { ascending: true })
+        .order('orden', { ascending: true })
       setModules(data || [])
       if (data && data.length > 0) {
         setSelectedModule(data[0].id)
@@ -165,38 +166,9 @@ export default function SubirCalificacionClient({
 
       if (gErr) throw gErr
 
-      // Fetch attendances for automatic calculations
-      const { data: attendances, error: aErr } = await supabase
-        .from('asistencias')
-        .select('participante_id, estado')
-        .eq('modulo_id', selectedModule)
-
-      if (aErr) throw aErr
-
-      // Calculate attendance statistics per participant using specific rules:
-      // - Asistió: 100% (1.0)
-      // - Permiso: 100% (1.0)
-      // - Atraso (Tarde): 80% (0.8)
-      // - Falta: 0% (0.0)
-      const attendanceStats: Record<string, { scoreSum: number; total: number }> = {}
-      attendances?.forEach((att: any) => {
-        if (!attendanceStats[att.participante_id]) {
-          attendanceStats[att.participante_id] = { scoreSum: 0, total: 0 }
-        }
-        attendanceStats[att.participante_id].total += 1
-        if (att.estado === 'asistio') {
-          attendanceStats[att.participante_id].scoreSum += 1.0
-        } else if (att.estado === 'permiso') {
-          attendanceStats[att.participante_id].scoreSum += 1.0
-        } else if (att.estado === 'atraso') {
-          attendanceStats[att.participante_id].scoreSum += 0.8
-        } else if (att.estado === 'falta') {
-          attendanceStats[att.participante_id].scoreSum += 0.0
-        }
-      })
-
-      // Map existing grades or suggest defaults
+      // Map existing grades or suggest defaults (asistencia is filled manually, default is 0)
       const mappedGrades: Record<string, any> = {}
+
       list.forEach((p: any) => {
         const existing = grades?.find((g: any) => g.participante_id === p.id)
         if (existing) {
@@ -208,18 +180,10 @@ export default function SubirCalificacionClient({
             evaluacion: Number(existing.evaluacion),
           }
         } else {
-          // Calcula asistencia sugerida como entero (escala 0-10)
-          const pStats = attendanceStats[p.id]
-          let suggestedAttendance = 10 // Default 10 si no hay registros
-          if (pStats && pStats.total > 0) {
-            // Redondea a entero: sin decimales
-            suggestedAttendance = Math.min(10, Math.round((pStats.scoreSum / pStats.total) * 10))
-          }
-
           mappedGrades[p.id] = {
             autoformacion: 0,
             practica_guiada: 0,
-            asistencia: suggestedAttendance,
+            asistencia: 0,
             evaluacion: 0,
           }
         }
@@ -561,7 +525,9 @@ ON public.calificaciones FOR ALL USING (
             >
               {modules.length === 0 && <option value="">No hay módulos</option>}
               {modules.map((m: any) => (
-                <option key={m.id} value={m.id}>{m.titulo_modulo}</option>
+                <option key={m.id} value={m.id}>
+                  {m.grupo === 1 ? 'LENGUAJE - ' : m.grupo === 2 ? 'MATEMATICA - ' : ''}{m.titulo_modulo}
+                </option>
               ))}
             </select>
           </div>
@@ -617,154 +583,195 @@ ON public.calificaciones FOR ALL USING (
                 </p>
               </div>
             ) : (
-              <div className="table-container" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
-                <table>
-                  <thead>
-                    <tr style={{ background: 'transparent' }}>
-                      <th>Participante</th>
-                      <th style={{ textAlign: 'center', width: '90px' }}>Autoform. (40)</th>
-                      <th style={{ textAlign: 'center', width: '90px' }}>Prácticas (20)</th>
-                      <th style={{ textAlign: 'center', width: '90px' }}>Asist. (10)</th>
-                      <th style={{ textAlign: 'center', width: '90px' }}>Evaluac. (30)</th>
-                      <th style={{ textAlign: 'center', width: '100px' }}>Total (100)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {participants.map((p) => {
-                      const scores = gradeData[p.id] || { autoformacion: 0, practica_guiada: 0, asistencia: 0, evaluacion: 0 }
-                      const total = (Number(scores.autoformacion) || 0) + (Number(scores.practica_guiada) || 0) + (Number(scores.asistencia) || 0) + (Number(scores.evaluacion) || 0)
-                      const isPassing = total >= 51
+              <>
+                <div className="animate-fade-in" style={{
+                  margin: '1rem 1.5rem',
+                  padding: '0.85rem 1.25rem',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  border: '1px dashed rgba(59, 130, 246, 0.4)',
+                  color: 'var(--primary)',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  boxShadow: '0 2px 5px rgba(59, 130, 246, 0.05)'
+                }}>
+                  <Info size={18} style={{ flexShrink: 0, color: 'var(--primary)' }} />
+                  <span><strong>Importante:</strong> La asistencia tiene que llenar del pdf asistencia.</span>
+                </div>
 
-                      return (
-                        <tr key={p.id}>
-                          <td>
-                            <div style={{ fontWeight: 800, color: 'var(--foreground)' }}>{p.apellido}, {p.nombre}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', display: 'flex', gap: '0.5rem', marginTop: '0.15rem' }}>
-                              <span>CI: {p.ci}</span>
-                            </div>
-                          </td>
+                <div className="table-container" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
+                  <table>
+                    <thead>
+                      <tr style={{ background: 'transparent' }}>
+                        <th>Participante</th>
+                        <th style={{ textAlign: 'center', width: '90px' }}>Autoform. (40)</th>
+                        <th style={{ textAlign: 'center', width: '90px' }}>Prácticas (20)</th>
+                        <th style={{
+                          textAlign: 'center',
+                          width: '110px',
+                          background: 'rgba(var(--primary-rgb), 0.15)',
+                          color: 'var(--primary)',
+                          borderLeft: '1px solid rgba(var(--primary-rgb), 0.25)',
+                          borderRight: '1px solid rgba(var(--primary-rgb), 0.25)',
+                          fontWeight: 900
+                        }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.1rem' }}>
+                            <span>Asist. (10)</span>
+                            <span style={{ fontSize: '0.55rem', opacity: 0.85, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Llenar del PDF</span>
+                          </div>
+                        </th>
+                        <th style={{ textAlign: 'center', width: '90px' }}>Evaluac. (30)</th>
+                        <th style={{ textAlign: 'center', width: '100px' }}>Total (100)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {participants.map((p) => {
+                        const scores = gradeData[p.id] || { autoformacion: 0, practica_guiada: 0, asistencia: 0, evaluacion: 0 }
+                        const total = (Number(scores.autoformacion) || 0) + (Number(scores.practica_guiada) || 0) + (Number(scores.asistencia) || 0) + (Number(scores.evaluacion) || 0)
+                        const isPassing = total >= 51
 
-                          {/* Autoformacion 40 */}
-                          <td style={{ textAlign: 'center' }}>
-                            <input
-                              type="number"
-                              min="0"
-                              max="40"
-                              step="0.5"
-                              value={scores.autoformacion ?? ''}
-                              onChange={(e) => handleValueChange(p.id, 'autoformacion', e.target.value)}
-                              placeholder="0"
-                              style={{
-                                width: '68px',
-                                padding: '0.4rem',
-                                borderRadius: '0.4rem',
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface)',
-                                color: 'var(--foreground)',
-                                textAlign: 'center',
-                                fontWeight: 700,
-                                outline: 'none'
-                              }}
-                            />
-                          </td>
+                        return (
+                          <tr key={p.id}>
+                            <td>
+                              <div style={{ fontWeight: 800, color: 'var(--foreground)' }}>{p.apellido}, {p.nombre}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--muted)', display: 'flex', gap: '0.5rem', marginTop: '0.15rem' }}>
+                                <span>CI: {p.ci}</span>
+                              </div>
+                            </td>
 
-                          {/* Practicas 20 */}
-                          <td style={{ textAlign: 'center' }}>
-                            <input
-                              type="number"
-                              min="0"
-                              max="20"
-                              step="0.5"
-                              value={scores.practica_guiada ?? ''}
-                              onChange={(e) => handleValueChange(p.id, 'practica_guiada', e.target.value)}
-                              placeholder="0"
-                              style={{
-                                width: '68px',
-                                padding: '0.4rem',
-                                borderRadius: '0.4rem',
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface)',
-                                color: 'var(--foreground)',
-                                textAlign: 'center',
-                                fontWeight: 700,
-                                outline: 'none'
-                              }}
-                            />
-                          </td>
+                            {/* Autoformacion 40 */}
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="number"
+                                min="0"
+                                max="40"
+                                step="0.5"
+                                value={scores.autoformacion ?? ''}
+                                onChange={(e) => handleValueChange(p.id, 'autoformacion', e.target.value)}
+                                placeholder="0"
+                                style={{
+                                  width: '68px',
+                                  padding: '0.4rem',
+                                  borderRadius: '0.4rem',
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--surface)',
+                                  color: 'var(--foreground)',
+                                  textAlign: 'center',
+                                  fontWeight: 700,
+                                  outline: 'none'
+                                }}
+                              />
+                            </td>
 
-                          {/* Asistencia 10 - Solo enteros */}
-                          <td style={{ textAlign: 'center' }}>
-                            <input
-                              type="number"
-                              min="0"
-                              max="10"
-                              step="1"
-                              value={scores.asistencia ?? ''}
-                              onChange={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
-                              onBlur={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
-                              placeholder="0"
-                              style={{
-                                width: '68px',
-                                padding: '0.4rem',
-                                borderRadius: '0.4rem',
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface)',
-                                color: 'var(--foreground)',
-                                textAlign: 'center',
-                                fontWeight: 700,
-                                outline: 'none'
-                              }}
-                            />
-                          </td>
+                            {/* Practicas 20 */}
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="number"
+                                min="0"
+                                max="20"
+                                step="0.5"
+                                value={scores.practica_guiada ?? ''}
+                                onChange={(e) => handleValueChange(p.id, 'practica_guiada', e.target.value)}
+                                placeholder="0"
+                                style={{
+                                  width: '68px',
+                                  padding: '0.4rem',
+                                  borderRadius: '0.4rem',
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--surface)',
+                                  color: 'var(--foreground)',
+                                  textAlign: 'center',
+                                  fontWeight: 700,
+                                  outline: 'none'
+                                }}
+                              />
+                            </td>
 
-                          {/* Evaluacion 30 */}
-                          <td style={{ textAlign: 'center' }}>
-                            <input
-                              type="number"
-                              min="0"
-                              max="30"
-                              step="0.5"
-                              value={scores.evaluacion ?? ''}
-                              onChange={(e) => handleValueChange(p.id, 'evaluacion', e.target.value)}
-                              placeholder="0"
-                              style={{
-                                width: '68px',
-                                padding: '0.4rem',
-                                borderRadius: '0.4rem',
-                                border: '1px solid var(--border)',
-                                background: 'var(--surface)',
-                                color: 'var(--foreground)',
-                                textAlign: 'center',
-                                fontWeight: 700,
-                                outline: 'none'
-                              }}
-                            />
-                          </td>
-
-                          {/* Total 100 */}
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '60px',
-                              padding: '0.4rem 0.6rem',
-                              borderRadius: '0.5rem',
-                              fontWeight: 900,
-                              fontSize: '0.95rem',
-                              background: isPassing ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                              color: isPassing ? '#10b981' : 'var(--danger)',
-                              border: `1px solid ${isPassing ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                            {/* Asistencia 10 - Solo enteros, ingresada manualmente */}
+                            <td style={{
+                              textAlign: 'center',
+                              background: 'rgba(var(--primary-rgb), 0.05)',
+                              borderLeft: '1px solid rgba(var(--primary-rgb), 0.1)',
+                              borderRight: '1px solid rgba(var(--primary-rgb), 0.1)'
                             }}>
-                              {Math.round(total * 10) / 10}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="10"
+                                  step="1"
+                                  value={scores.asistencia ?? ''}
+                                  onChange={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
+                                  onBlur={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
+                                  placeholder="0"
+                                  style={{
+                                    width: '68px',
+                                    padding: '0.4rem',
+                                    borderRadius: '0.4rem',
+                                    border: '1.5px solid rgba(var(--primary-rgb), 0.4)',
+                                    background: 'var(--surface)',
+                                    color: 'var(--primary)',
+                                    textAlign: 'center',
+                                    fontWeight: 800,
+                                    outline: 'none',
+                                    boxShadow: '0 0 4px rgba(var(--primary-rgb), 0.1)'
+                                  }}
+                                />
+                              </div>
+                            </td>
+
+                            {/* Evaluacion 30 */}
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="number"
+                                min="0"
+                                max="30"
+                                step="0.5"
+                                value={scores.evaluacion ?? ''}
+                                onChange={(e) => handleValueChange(p.id, 'evaluacion', e.target.value)}
+                                placeholder="0"
+                                style={{
+                                  width: '68px',
+                                  padding: '0.4rem',
+                                  borderRadius: '0.4rem',
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--surface)',
+                                  color: 'var(--foreground)',
+                                  textAlign: 'center',
+                                  fontWeight: 700,
+                                  outline: 'none'
+                                }}
+                              />
+                            </td>
+
+                            {/* Total 100 */}
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '60px',
+                                padding: '0.4rem 0.6rem',
+                                borderRadius: '0.5rem',
+                                fontWeight: 900,
+                                fontSize: '0.95rem',
+                                background: isPassing ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                color: isPassing ? '#10b981' : 'var(--danger)',
+                                border: `1px solid ${isPassing ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                              }}>
+                                {Math.round(total * 10) / 10}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
 
             {participants.length > 0 && (
@@ -857,15 +864,7 @@ ON public.calificaciones FOR ALL USING (
               <ul style={{ paddingLeft: '1.2rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.75rem', color: 'var(--muted)', lineHeight: '1.5' }}>
                 <li><strong>Autoformación (40 pt max)</strong>: Tareas, investigaciones y aprendizaje autónomo.</li>
                 <li><strong>Prácticas Guiadas (20 pt max)</strong>: Proyectos guiados y trabajo práctico.</li>
-                <li>
-                  <strong>Asistencia (10 pt max)</strong>: Calculada del promedio de asistencia modular:
-                  <ul style={{ paddingLeft: '1rem', marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', listStyleType: 'circle' }}>
-                    <li>Asistió: 10 pts (100% de la sesión)</li>
-                    <li>Permiso: 10 pts (100% de la sesión)</li>
-                    <li>Atraso: 8 pts (80% de la sesión)</li>
-                    <li>Falta: 0 pts (0% de la sesión)</li>
-                  </ul>
-                </li>
+                <li><strong>Asistencia (10 pt max)</strong>: Registro manual de la nota de asistencia del participante (0 a 10 puntos).</li>
                 <li><strong>Evaluación (30 pt max)</strong>: Cuestionario o prueba final modular.</li>
                 <li><strong>Aprobación (51 pt o más)</strong>: Requisito de suficiencia.</li>
               </ul>

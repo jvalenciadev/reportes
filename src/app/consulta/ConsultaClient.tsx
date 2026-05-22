@@ -96,7 +96,8 @@ export default function ConsultaClient() {
         .from('programa_modulos')
         .select('*')
         .in('programa_id', programIds)
-        .order('created_at', { ascending: true })
+        .order('grupo', { ascending: true })
+        .order('orden', { ascending: true })
 
       if (modulesError) throw modulesError
 
@@ -128,25 +129,27 @@ export default function ConsultaClient() {
           // - Atraso (Tarde): 80% (0.8)
           // - Falta: 0% (0.0)
           let attendancePercentage = 0
+          let calculatedAsistenciaPoints = 0
           if (totalSessions > 0) {
             const scoreSum = (countAsistio * 1.0) + (countPermiso * 1.0) + (countAtraso * 0.8) + (countFalta * 0.0)
             attendancePercentage = Math.round((scoreSum / totalSessions) * 100)
+            calculatedAsistenciaPoints = Math.round((scoreSum / totalSessions) * 10)
           }
 
           return {
             id: mod.id,
-            titulo: mod.titulo_modulo,
+            titulo: (mod.grupo === 1 ? 'LENGUAJE - ' : mod.grupo === 2 ? 'MATEMATICA - ' : '') + mod.titulo_modulo,
             grade: grade ? {
               autoformacion: grade.autoformacion,
               practica_guiada: grade.practica_guiada,
-              asistencia: grade.asistencia,
+              asistencia: Math.round(Number(grade.asistencia)),
               evaluacion: grade.evaluacion,
               total: grade.total,
               hasGrade: true
             } : {
               autoformacion: 0,
               practica_guiada: 0,
-              asistencia: 0,
+              asistencia: calculatedAsistenciaPoints,
               evaluacion: 0,
               total: 0,
               hasGrade: false
