@@ -249,7 +249,7 @@ export default function CalificacionesClient({
       sum += p.total
       if (p.total >= 51) totalPassing++
     })
-    averageScore = gradedCount > 0 ? Math.round((sum / gradedCount) * 10) / 10 : 0
+    averageScore = gradedCount > 0 ? Math.round(sum / gradedCount) : 0
   }
 
   // Filtered list for the table (search by name/CI). Stats always use the full participants array.
@@ -686,7 +686,7 @@ export default function CalificacionesClient({
             p.ci,
             `${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}`,
             ...formattedScores,
-            average > 0 ? average.toFixed(2) : '0.00',
+            average > 0 ? Math.round(average).toString() : '0',
             average >= 51 ? 'APROBADO' : 'REPROBADO'
           ]
         })
@@ -749,7 +749,7 @@ export default function CalificacionesClient({
         })
 
         const finalY = (doc as any).lastAutoTable.finalY || 150
-        const groupAvgScore = list.length > 0 ? (sumAverages / list.length).toFixed(2) : '0.00'
+        const groupAvgScore = list.length > 0 ? Math.round(sumAverages / list.length).toString() : '0'
         const pctPassing = list.length > 0 ? Math.round((approvedAveragesCount / list.length) * 100) : 0
 
         // Module Legend (Compact Table format to prevent overflow!)
@@ -1028,7 +1028,7 @@ export default function CalificacionesClient({
               p.ci,
               `${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}`,
               ...formattedScores,
-              average > 0 ? average.toFixed(2) : '0.00',
+              average > 0 ? Math.round(average).toString() : '0',
               average >= 51 ? 'APROBADO' : 'REPROBADO',
               attendancePctString
             ]
@@ -1136,7 +1136,7 @@ export default function CalificacionesClient({
           })
 
           const legendFinalY = (doc as any).lastAutoTable.finalY || finalY + 12
-          const groupAvgScore = list.length > 0 ? (sumAverages / list.length).toFixed(2) : '0.00'
+          const groupAvgScore = list.length > 0 ? Math.round(sumAverages / list.length).toString() : '0'
           const pctPassing = list.length > 0 ? Math.round((approvedAveragesCount / list.length) * 100) : 0
 
           const spaceNeededForEnding = 65

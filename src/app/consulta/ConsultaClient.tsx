@@ -790,7 +790,7 @@ export default function ConsultaClient() {
                   const totalModules = prog.modules.length;
                   const gradedCount = modulesWithGrades.length;
                   const averageGrade = gradedCount > 0 
-                    ? Number((modulesWithGrades.reduce((sum: number, m: any) => sum + Number(m.grade.total), 0) / gradedCount).toFixed(2)) 
+                    ? Math.round(modulesWithGrades.reduce((sum: number, m: any) => sum + Number(m.grade.total), 0) / gradedCount) 
                     : 0;
 
                   return (

@@ -837,7 +837,7 @@ export default function AttendanceClient({
         return '-' // Not registered yet
       })
 
-      const average = count > 0 ? (scoreSum / count).toFixed(1) : '0.0'
+      const average = count > 0 ? Math.round(scoreSum / count).toString() : '0'
 
       return [
         idx + 1,
@@ -950,7 +950,7 @@ export default function AttendanceClient({
       const avg = pCount > 0 ? pScoreSum / pCount : 0
       totalScoreSum += avg
     })
-    const groupAvgScore = participants.length > 0 ? (totalScoreSum / participants.length).toFixed(2) : '0.00'
+    const groupAvgScore = participants.length > 0 ? Math.round(totalScoreSum / participants.length).toString() : '0'
 
     autoTable(doc, {
       startY: statsStartY + 9,

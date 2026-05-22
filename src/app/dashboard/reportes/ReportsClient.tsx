@@ -36,7 +36,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <span style={{ color: 'var(--foreground-2)', fontWeight: 500 }}>{entry.name}:</span>
               </div>
               <span style={{ fontWeight: 800, color: 'var(--foreground)' }}>
-                {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}{entry.unit || ''}
+                {typeof entry.value === 'number' ? Math.round(entry.value) : entry.value}{entry.unit || ''}
               </span>
             </div>
           ))}
@@ -317,10 +317,10 @@ export default function ReportsClient({
       total_atrasos,
       total_faltas,
       total_permisos,
-      attendance_rate: attendance_rate.toFixed(1),
-      confirmation_rate: confirmation_rate.toFixed(1),
-      efficiency_score: efficiency_score.toFixed(1),
-      dropout_rate: (100 - attendance_rate).toFixed(1),
+      attendance_rate: Math.round(attendance_rate).toString(),
+      confirmation_rate: Math.round(confirmation_rate).toString(),
+      efficiency_score: Math.round(efficiency_score).toString(),
+      dropout_rate: Math.round(100 - attendance_rate).toString(),
       avg_per_day: avg_per_day
     }
   }, [resolvedAttendanceData, filteredEnrollment, selectedDay])
@@ -420,9 +420,9 @@ export default function ReportsClient({
         return {
           name: g.group_name,
           dept: g.dept_name,
-          asistencia: parseFloat(asistenciaRate.toFixed(1)),
-          nota: parseFloat(notaPromedio.toFixed(1)),
-          aprobacion: parseFloat(tasaAprobacion.toFixed(1)),
+          asistencia: Math.round(asistenciaRate),
+          nota: Math.round(notaPromedio),
+          aprobacion: Math.round(tasaAprobacion),
           size: g.total_confirmados || 1
         }
       }).filter(item => item.asistencia > 0 || item.nota > 0)
@@ -443,9 +443,9 @@ export default function ReportsClient({
         return {
           name: dept,
           dept,
-          asistencia: parseFloat(total > 0 ? ((ok / total) * 100).toFixed(1) : '0'),
-          nota: parseFloat(totalCalificados > 0 ? (sumaTotal / totalCalificados).toFixed(1) : '0'),
-          aprobacion: parseFloat(totalCalificados > 0 ? ((aprobados / totalCalificados) * 100).toFixed(1) : '0'),
+          asistencia: Math.round(total > 0 ? ((ok / total) * 100) : 0),
+          nota: Math.round(totalCalificados > 0 ? (sumaTotal / totalCalificados) : 0),
+          aprobacion: Math.round(totalCalificados > 0 ? ((aprobados / totalCalificados) * 100) : 0),
           size: size || 1
         }
       }).filter(item => item.asistencia > 0 || item.nota > 0)
@@ -466,9 +466,9 @@ export default function ReportsClient({
       return {
         name: mod,
         dept: '',
-        asistencia: parseFloat(total > 0 ? ((ok / total) * 100).toFixed(1) : '0'),
-        nota: parseFloat(totalCalificados > 0 ? (sumaTotal / totalCalificados).toFixed(1) : '0'),
-        aprobacion: parseFloat(totalCalificados > 0 ? ((aprobados / totalCalificados) * 100).toFixed(1) : '0'),
+        asistencia: Math.round(total > 0 ? ((ok / total) * 100) : 0),
+        nota: Math.round(totalCalificados > 0 ? (sumaTotal / totalCalificados) : 0),
+        aprobacion: Math.round(totalCalificados > 0 ? ((aprobados / totalCalificados) * 100) : 0),
         size: totalCalificados || 1
       }
     }).filter(item => item.asistencia > 0 || item.nota > 0)
@@ -537,12 +537,12 @@ export default function ReportsClient({
     else interpretation = 'Correlación nula o muy baja: la asistencia no explica las diferencias de nota en este cohorte.'
 
     return {
-      meanAsistencia: parseFloat(meanA.toFixed(1)),
-      meanNota: parseFloat(meanN.toFixed(1)),
-      medianAsistencia: parseFloat(medianA.toFixed(1)),
-      medianNota: parseFloat(medianN.toFixed(1)),
-      stdAsistencia: parseFloat(stdA.toFixed(1)),
-      stdNota: parseFloat(stdN.toFixed(1)),
+      meanAsistencia: Math.round(meanA),
+      meanNota: Math.round(meanN),
+      medianAsistencia: Math.round(medianA),
+      medianNota: Math.round(medianN),
+      stdAsistencia: Math.round(stdA),
+      stdNota: Math.round(stdN),
       pearsonR: parseFloat(pearsonR.toFixed(3)),
       rSquared: parseFloat(rSquared.toFixed(3)),
       regressionLine,
@@ -566,7 +566,7 @@ export default function ReportsClient({
         Aprobados: aprobados,
         Reprobados: reprobados,
         Calificados: calificados,
-        Promedio: parseFloat(promedio.toFixed(1))
+        Promedio: Math.round(promedio)
       }
     })
   }, [filteredGrades, selectedModuleFilter])
@@ -820,7 +820,7 @@ export default function ReportsClient({
                   {anomalies.map((a, i) => (
                     <tr key={i}>
                       <td style={{ fontWeight: 700 }}>{a.name}</td>
-                      <td style={{ color: COLORS.danger, fontWeight: 900 }}>{a.rate.toFixed(1)}%</td>
+                      <td style={{ color: COLORS.danger, fontWeight: 900 }}>{Math.round(a.rate)}%</td>
                       <td>
                         <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: COLORS.danger }}>ACCIÓN URGENTE</span>
                       </td>
@@ -859,7 +859,7 @@ export default function ReportsClient({
                 <h4 style={{ margin: 0, fontWeight: 800 }}>Líder de Eficiencia</h4>
               </div>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--foreground-2)' }}>
-                El departamento de <b>{departmentalComparison[0]?.name}</b> lidera la conversión con un <b>{((departmentalComparison[0]?.Inscritos / metrics.total_inscritos) * 100).toFixed(1)}%</b> del total nacional.
+                El departamento de <b>{departmentalComparison[0]?.name}</b> lidera la conversión con un <b>{Math.round((departmentalComparison[0]?.Inscritos / metrics.total_inscritos) * 100)}%</b> del total nacional.
               </p>
             </div>
             <div className="glass card" style={{ padding: '1.5rem', borderLeft: `6px solid ${COLORS.danger}` }}>
@@ -1060,9 +1060,9 @@ export default function ReportsClient({
                 {/* R² Card */}
                 <div style={{ padding: '1.1rem', borderRadius: '1rem', background: 'var(--surface)', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: 'var(--foreground-3)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>Coef. Determinación (R²)</div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 900, color: COLORS.purple }}>{(matrixStats.rSquared * 100).toFixed(1)}%</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 900, color: COLORS.purple }}>{Math.round(matrixStats.rSquared * 100)}%</div>
                   <div style={{ fontSize: '0.68rem', color: 'var(--foreground-2)', lineHeight: '1.4', marginTop: '0.25rem' }}>
-                    La asistencia explica el <b>{(matrixStats.rSquared * 100).toFixed(1)}%</b> de la variación en notas.
+                    La asistencia explica el <b>{Math.round(matrixStats.rSquared * 100)}%</b> de la variación en notas.
                   </div>
                 </div>
 
@@ -1194,7 +1194,7 @@ export default function ReportsClient({
                       </div>
                       <div style={{ flex: 1, fontWeight: 700, fontSize: '0.85rem' }}>{item.name}</div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 900, color: item.rate > 80 ? COLORS.success : item.rate > 60 ? COLORS.warning : COLORS.danger }}>{item.rate.toFixed(1)}%</div>
+                        <div style={{ fontWeight: 900, color: item.rate > 80 ? COLORS.success : item.rate > 60 ? COLORS.warning : COLORS.danger }}>{Math.round(item.rate)}%</div>
                         <div style={{ fontSize: '0.6rem', color: 'var(--foreground-3)', textTransform: 'uppercase' }}>Efectividad</div>
                       </div>
                     </div>
@@ -1245,7 +1245,7 @@ export default function ReportsClient({
                   const gAtt = filteredAttendance.filter(a => a.group_name === g.group_name)
                   const conf_rate = g.total_inscritos > 0 ? (g.total_confirmados / g.total_inscritos) * 100 : 0
                   const avg_att = gAtt.length > 0 ? (gAtt.reduce((acc, curr) => acc + curr.asistieron, 0) / gAtt.length) : 0
-                  const score = (conf_rate * (avg_att / (g.total_confirmados || 1))).toFixed(1)
+                  const score = Math.round(conf_rate * (avg_att / (g.total_confirmados || 1))).toString()
 
                   return (
                     <tr key={i}>
@@ -1259,10 +1259,10 @@ export default function ReportsClient({
                           <div style={{ flex: 1, height: '4px', background: 'var(--surface)', borderRadius: '2px', overflow: 'hidden' }}>
                             <div style={{ width: `${conf_rate}%`, height: '100%', background: COLORS.info }} />
                           </div>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{conf_rate.toFixed(0)}%</span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{Math.round(conf_rate)}%</span>
                         </div>
                       </td>
-                      <td style={{ color: COLORS.success, fontWeight: 700 }}>{avg_att.toFixed(1)}</td>
+                      <td style={{ color: COLORS.success, fontWeight: 700 }}>{Math.round(avg_att)}</td>
                       <td>
                         <span className="badge" style={{
                           background: parseFloat(score) > 80 ? 'var(--success-light)' : parseFloat(score) > 50 ? 'var(--warning-light)' : 'var(--danger-light)',
@@ -1405,7 +1405,7 @@ export default function ReportsClient({
                           color: overallRate >= 80 ? 'var(--success)' : overallRate >= 60 ? 'var(--warning)' : 'var(--danger)',
                           fontWeight: 900
                         }}>
-                          {overallRate.toFixed(1)}%
+                          {Math.round(overallRate)}%
                         </span>
                       </td>
                     </tr>
@@ -1426,28 +1426,28 @@ export default function ReportsClient({
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 800, color: COLORS.success }}>{row.asistieron}</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-                          {totalRow > 0 ? `${((row.asistieron / totalRow) * 100).toFixed(0)}%` : '0%'}
+                          {totalRow > 0 ? `${Math.round((row.asistieron / totalRow) * 100)}%` : '0%'}
                         </div>
                       </td>
 
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 800, color: COLORS.warning }}>{row.atraso}</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-                          {totalRow > 0 ? `${((row.atraso / totalRow) * 100).toFixed(0)}%` : '0%'}
+                          {totalRow > 0 ? `${Math.round((row.atraso / totalRow) * 100)}%` : '0%'}
                         </div>
                       </td>
 
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 800, color: COLORS.danger }}>{row.falta}</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-                          {totalRow > 0 ? `${((row.falta / totalRow) * 100).toFixed(0)}%` : '0%'}
+                          {totalRow > 0 ? `${Math.round((row.falta / totalRow) * 100)}%` : '0%'}
                         </div>
                       </td>
 
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 800, color: COLORS.muted }}>{row.permiso}</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-                          {totalRow > 0 ? `${((row.permiso / totalRow) * 100).toFixed(0)}%` : '0%'}
+                          {totalRow > 0 ? `${Math.round((row.permiso / totalRow) * 100)}%` : '0%'}
                         </div>
                       </td>
 
@@ -1458,7 +1458,7 @@ export default function ReportsClient({
                           color: rowRate >= 80 ? 'var(--success)' : rowRate >= 60 ? 'var(--warning)' : 'var(--danger)',
                           fontWeight: 900
                         }}>
-                          {rowRate.toFixed(1)}%
+                          {Math.round(rowRate)}%
                         </span>
                       </td>
                     </tr>
@@ -1564,18 +1564,18 @@ export default function ReportsClient({
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 900, color: COLORS.success }}>{totAprobados}</div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>
-                          {totCalificados > 0 ? `${overallPassRate.toFixed(1)}%` : '0%'}
+                          {totCalificados > 0 ? `${Math.round(overallPassRate)}%` : '0%'}
                         </div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 900, color: COLORS.danger }}>{totReprobados}</div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>
-                          {totCalificados > 0 ? `${(100 - overallPassRate).toFixed(1)}%` : '0%'}
+                          {totCalificados > 0 ? `${Math.round(100 - overallPassRate)}%` : '0%'}
                         </div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <span className="badge" style={{ background: 'var(--primary)', color: 'white', fontWeight: 900 }}>
-                          {avgNota.toFixed(1)} / 100
+                          {Math.round(avgNota)} / 100
                         </span>
                       </td>
                     </tr>
@@ -1597,14 +1597,14 @@ export default function ReportsClient({
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 800, color: COLORS.success }}>{row.aprobados}</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-                          {passRate.toFixed(1)}%
+                          {Math.round(passRate)}%
                         </div>
                       </td>
 
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 800, color: COLORS.danger }}>{row.reprobados}</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-                          {failRate.toFixed(1)}%
+                          {Math.round(failRate)}%
                         </div>
                       </td>
 
@@ -1614,7 +1614,7 @@ export default function ReportsClient({
                           color: avgRowNota >= 70 ? COLORS.success : avgRowNota >= 51 ? COLORS.warning : COLORS.danger,
                           fontWeight: 900
                         }}>
-                          {avgRowNota.toFixed(1)}
+                          {Math.round(avgRowNota)}
                         </span>
                       </td>
                     </tr>
