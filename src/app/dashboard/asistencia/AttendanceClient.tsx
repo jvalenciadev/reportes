@@ -677,7 +677,7 @@ export default function AttendanceClient({
     const pageHeight = doc.internal.pageSize.getHeight()
 
     // 1. Full Page Background
-    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/escudo.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9lc2N1ZG8uanBnIiwiaWF0IjoxNzc5NDc1Nzg4LCJleHAiOjE4MTEwMTE3ODh9.J80uPhXdt8HjRMba6nT-7f5OIJ4vbiEEyQSiQB_CWFc'
+    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
 
     let bgBase64 = ''
     let imgWidth = 0
@@ -849,7 +849,8 @@ export default function AttendanceClient({
         if (isDayRegistered) {
           count++
           const estado = record ? record.estado : 'falta'
-          if (estado === 'asistio' || estado === 'permiso') scoreSum += 10
+          if (estado === 'asistio') scoreSum += 10
+          else if (estado === 'permiso') scoreSum += 5
           else if (estado === 'atraso') scoreSum += 8
           else if (estado === 'falta') scoreSum += 0
 
@@ -932,7 +933,7 @@ export default function AttendanceClient({
     doc.setFontSize(6)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(120)
-    doc.text('SIMBOLOGÍA: A: ASISTIÓ (10 pts) | AT: ATRASO (8 pts) | F: FALTA (0 pts) | P: PERMISO (10 pts) | -: NO REGISTRADO', 14, statsStartY + 3)
+    doc.text('SIMBOLOGÍA: A: ASISTIÓ (10 pts) | AT: ATRASO (8 pts) | F: FALTA (0 pts) | P: PERMISO (5 pts) | -: NO REGISTRADO', 14, statsStartY + 3)
 
     // Build dates legend for days 1 to 6
     const dateStrings: string[] = []
@@ -959,7 +960,7 @@ export default function AttendanceClient({
       if (a.estado === 'permiso') totalPermiso++
     })
     const totalRecords = allAtt.length
-    const generalPct = totalRecords > 0 ? Math.round(((totalAsistio + totalPermiso) / totalRecords) * 100) : 0
+    const generalPct = totalRecords > 0 ? Math.round(((totalAsistio * 1.0 + totalPermiso * 0.5 + totalAtraso * 0.8) / totalRecords) * 100) : 0
 
     // Average score of the group
     let totalScoreSum = 0
@@ -970,7 +971,8 @@ export default function AttendanceClient({
         const record = allAtt.find(a => a.participante_id === p.participante_id && a.dia === d)
         pCount++
         const status = record ? record.estado : 'falta'
-        if (status === 'asistio' || status === 'permiso') pScoreSum += 10
+        if (status === 'asistio') pScoreSum += 10
+        else if (status === 'permiso') pScoreSum += 5
         else if (status === 'atraso') pScoreSum += 8
         else if (status === 'falta') pScoreSum += 0
       })

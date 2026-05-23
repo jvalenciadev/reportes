@@ -125,13 +125,13 @@ export default function ConsultaClient() {
 
           // Calculate net score for attendance based on official academic logic:
           // - Asistió: 100% (1.0)
-          // - Permiso: 100% (1.0)
+          // - Permiso: 50% (0.5)
           // - Atraso (Tarde): 80% (0.8)
           // - Falta: 0% (0.0)
           let attendancePercentage = 0
           let calculatedAsistenciaPoints = 0
           if (totalSessions > 0) {
-            const scoreSum = (countAsistio * 1.0) + (countPermiso * 1.0) + (countAtraso * 0.8) + (countFalta * 0.0)
+            const scoreSum = (countAsistio * 1.0) + (countPermiso * 0.5) + (countAtraso * 0.8) + (countFalta * 0.0)
             attendancePercentage = Math.round((scoreSum / totalSessions) * 100)
             calculatedAsistenciaPoints = Math.round((scoreSum / totalSessions) * 10)
           }
