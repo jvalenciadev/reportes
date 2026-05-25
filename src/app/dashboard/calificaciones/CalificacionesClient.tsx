@@ -430,7 +430,7 @@ export default function CalificacionesClient({
               { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
             ],
             [
-              { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+              { content: `${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
             ],
             [
               { content: `${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -541,7 +541,7 @@ export default function CalificacionesClient({
           body: [
             [
               { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-              { content: 'PROMEDIO GRUPAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'PROMEDIO TOTAL DE GRUPO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
               { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
               { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
             ],
@@ -590,7 +590,7 @@ export default function CalificacionesClient({
         doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
         addPdfFooter(doc)
-        doc.save(`CALIFICACIONES_MODULO_${groupName.replace(/\s+/g, '_')}_${moduleName.replace(/\s+/g, '_')}.pdf`)
+        doc.save(`CALIFICACIONES_${groupName.replace(/\s+/g, '_')}_${moduleName.replace(/\s+/g, '_')}.pdf`)
       }
 
       else if (reportType === 'grupo') {
@@ -656,7 +656,7 @@ export default function CalificacionesClient({
               { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
             ],
             [
-              { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+              { content: `${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
             ],
             [
               { content: `FECHA INICIO: ${formatDate(firstModuleDate)}`, styles: { fontStyle: 'bold' } },
@@ -821,7 +821,7 @@ export default function CalificacionesClient({
           body: [
             [
               { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-              { content: 'PROMEDIO GENERAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'PROMEDIO GENERAL DE GRUPO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
               { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
               { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
             ],
@@ -952,7 +952,7 @@ export default function CalificacionesClient({
                 { content: `GRUPO: ${grp.name.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
               ],
               [
-                { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+                { content: `${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
               ],
               [
                 { content: `FECHA INICIO: ${formatDate(firstModuleDate)}`, styles: { fontStyle: 'bold' } },
@@ -1167,7 +1167,7 @@ export default function CalificacionesClient({
             body: [
               [
                 { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-                { content: 'PROMEDIO GENERAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+                { content: 'PROMEDIO GENERAL DE GRUPO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
                 { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
                 { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
               ],

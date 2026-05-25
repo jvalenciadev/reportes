@@ -795,7 +795,7 @@ export default function AttendanceClient({
           { content: `GRUPO: ${groupName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `PROGRAMA: ${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+          { content: `${programName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
         ],
         [
           { content: `${moduleName.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -988,7 +988,7 @@ export default function AttendanceClient({
         [
           { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
           { content: 'JORNADAS REGISTRADAS', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'PROMEDIO GRUPAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+          { content: 'PROMEDIO GRUPAL DE GRUPO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
           { content: 'ASISTENCIA PROMEDIO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
           { content: 'ESTADO MÓDULO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
         ],
