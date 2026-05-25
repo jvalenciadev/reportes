@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
@@ -16,18 +17,212 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
+// ─── MODULE MULTI-SELECT (Fixed Portal Pattern) ─────────────────────────────
+function ModuleMultiSelect({
+  moduleList,
+  selectedModules,
+  setSelectedModules,
+  buttonWidth = 180
+}: {
+  moduleList: string[]
+  selectedModules: string[]
+  setSelectedModules: (v: string[]) => void
+  buttonWidth?: number
+}) {
+  const [open, setOpen] = useState(false)
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 220 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  const updatePosition = useCallback(() => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setDropPos({
+        top: r.bottom + 6,
+        left: r.left,
+        width: Math.max(r.width, 260)
+      })
+    }
+  }, [])
+
+  const toggle = useCallback(() => {
+    if (!open) {
+      updatePosition()
+    }
+    setOpen(v => !v)
+  }, [open, updatePosition])
+
+  useEffect(() => {
+    if (!open) return
+    updatePosition()
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [open, updatePosition])
+
+  const label = selectedModules.length === 0
+    ? 'Todos los Módulos'
+    : selectedModules.length === 1
+      ? selectedModules[0]
+      : `${selectedModules.length} Módulos seleccionados`
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        style={{
+          width: '100%',
+          background: 'transparent',
+          border: 'none',
+          outline: 'none',
+          fontSize: '0.85rem',
+          fontWeight: 700,
+          color: 'var(--foreground)',
+          cursor: 'pointer',
+          textAlign: 'left',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: 0,
+          gap: '0.4rem'
+        }}
+      >
+        <span
+          style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}
+          title={label}
+        >
+          {label}
+        </span>
+        <span style={{ fontSize: '0.6rem', color: 'var(--primary)', flexShrink: 0 }}>▼</span>
+      </button>
+
+      {open && typeof window !== 'undefined' && document.body && createPortal(
+        <>
+          {/* Backdrop to close on outside click */}
+          <div
+            onClick={() => setOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9998
+            }}
+          />
+          {/* Floating dropdown rendered at fixed coordinates */}
+          <div
+            className="glass"
+            style={{
+              position: 'fixed',
+              top: dropPos.top,
+              left: dropPos.left,
+              width: dropPos.width,
+              maxHeight: '280px',
+              overflowY: 'auto',
+              zIndex: 9999,
+              borderRadius: '0.75rem',
+              border: '1px solid var(--border-strong)',
+              padding: '0.5rem',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.2rem',
+              background: 'var(--card-solid)'
+            }}
+          >
+            {/* Todos los módulos */}
+            <div
+              onClick={() => { setSelectedModules([]); setOpen(false) }}
+              style={{
+                padding: '0.45rem 0.7rem',
+                borderRadius: '0.4rem',
+                cursor: 'pointer',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                background: selectedModules.length === 0 ? 'rgba(187,151,58,0.15)' : 'transparent',
+                color: selectedModules.length === 0 ? 'var(--primary)' : 'var(--foreground-2)'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selectedModules.length === 0}
+                readOnly
+                style={{ pointerEvents: 'none', accentColor: 'var(--primary)' }}
+              />
+              <span>Todos los Módulos</span>
+            </div>
+            <div style={{ height: '1px', background: 'var(--border)', margin: '0.2rem 0' }} />
+            {moduleList.map(m => {
+              const isSelected = selectedModules.includes(m)
+              return (
+                <div
+                  key={m}
+                  onClick={() => {
+                    if (isSelected) {
+                      setSelectedModules(selectedModules.filter(x => x !== m))
+                    } else {
+                      setSelectedModules([...selectedModules, m])
+                    }
+                  }}
+                  style={{
+                    padding: '0.4rem 0.7rem',
+                    borderRadius: '0.4rem',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    background: isSelected ? 'rgba(187,151,58,0.1)' : 'transparent',
+                    color: isSelected ? 'var(--primary)' : 'var(--foreground-2)',
+                    transition: 'background 0.12s ease'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    readOnly
+                    style={{ pointerEvents: 'none', accentColor: 'var(--primary)', flexShrink: 0 }}
+                  />
+                  <span style={{ flex: 1 }}>
+                    {m}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </>,
+        document.body
+      )}
+    </>
+  )
+}
+
+
 // Custom Tooltip for Recharts to match our premium design
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     // For ScatterChart, the name is in payload[0].payload.name
     const data = payload[0].payload;
     const title = data.name || label;
+    const isPresencial = data.diaNumber === 6 || data.dia === 6 || (typeof title === 'string' && title.includes('Presencial'));
 
     return (
       <div className="glass" style={{ padding: '0.75rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--border-strong)', boxShadow: 'var(--shadow-lg)' }}>
-        <p style={{ margin: 0, fontWeight: 900, fontSize: '0.9rem', marginBottom: '0.6rem', color: 'var(--primary)' }}>
-          {title}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.6rem' }}>
+          <p style={{ margin: 0, fontWeight: 900, fontSize: '0.9rem', color: 'var(--primary)' }}>
+            {title}
+          </p>
+          {isPresencial && (
+            <span style={{ fontSize: '0.62rem', padding: '0.15rem 0.45rem', borderRadius: '1rem', background: 'rgba(187,151,58,0.15)', color: 'var(--primary)', fontWeight: 800, flexShrink: 0 }}>
+              🏢 PRESENCIAL
+            </span>
+          )}
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
           {payload.map((entry: any, index: number) => (
             <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', fontSize: '0.75rem' }}>
@@ -70,7 +265,7 @@ export default function ReportsClient({
   const [selectedDay, setSelectedDay] = useState<'all' | number>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [localCategory, setLocalCategory] = useState<'all' | 'asistencia' | 'inscripcion'>('all')
-  const [selectedModuleFilter, setSelectedModuleFilter] = useState('all')
+  const [selectedModules, setSelectedModules] = useState<string[]>([])
   // --- MATRIX CONTROLS ---
   const [matrixDimension, setMatrixDimension] = useState<'grupo' | 'sede' | 'modulo'>('grupo')
   const [quadrantMode, setQuadrantMode] = useState<'mean' | 'median' | 'fixed'>('mean')
@@ -79,18 +274,18 @@ export default function ReportsClient({
 
   // --- DESIGN TOKENS ---
   const COLORS = {
-    primary: '#4f8ef7',
+    primary: '#bb973a',
     success: '#10d98b',
     warning: '#f5a623',
     danger: '#f74f6b',
     purple: '#a78bfa',
     info: '#0ea5e9',
     muted: '#7070a0',
-    gold: '#fbbf24'
+    gold: '#bb973a'
   }
 
   const GRADIENTS = {
-    primary: ['#4f8ef7', '#2563eb'],
+    primary: ['#bb973a', '#9e7f30'],
     success: ['#10d98b', '#059669'],
     warning: ['#f5a623', '#d97706']
   }
@@ -128,7 +323,7 @@ export default function ReportsClient({
   }, [attendanceData, selectedDept, selectedGroupFilter, selectedDay])
 
   const resolvedAttendanceData = useMemo(() => {
-    let data = selectedModuleFilter !== 'all' ? (attendanceByModulesData || []) : attendanceData
+    let data = selectedModules.length > 0 ? (attendanceByModulesData || []) : attendanceData
     if (selectedDept !== 'all') {
       data = data.filter(a => a.dept_name === selectedDept)
     }
@@ -138,11 +333,11 @@ export default function ReportsClient({
     if (selectedDay !== 'all') {
       data = data.filter(a => a.dia === selectedDay)
     }
-    if (selectedModuleFilter !== 'all') {
-      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    if (selectedModules.length > 0) {
+      data = data.filter(a => selectedModules.includes(a.modulo_name))
     }
     return data
-  }, [attendanceData, attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModuleFilter])
+  }, [attendanceData, attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModules])
 
   const filteredEnrollment = useMemo(() => {
     let data = enrollmentData
@@ -174,11 +369,11 @@ export default function ReportsClient({
     if (selectedDay !== 'all') {
       data = data.filter(a => a.dia === selectedDay)
     }
-    if (selectedModuleFilter !== 'all') {
-      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    if (selectedModules.length > 0) {
+      data = data.filter(a => selectedModules.includes(a.modulo_name))
     }
     return data
-  }, [attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModuleFilter])
+  }, [attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModules])
 
   const filteredGrades = useMemo(() => {
     let data = gradesData || []
@@ -188,11 +383,11 @@ export default function ReportsClient({
     if (selectedGroupFilter !== 'all') {
       data = data.filter(g => g.group_name === selectedGroupFilter)
     }
-    if (selectedModuleFilter !== 'all') {
-      data = data.filter(g => g.modulo_name === selectedModuleFilter)
+    if (selectedModules.length > 0) {
+      data = data.filter(g => selectedModules.includes(g.modulo_name))
     }
     return data
-  }, [gradesData, selectedDept, selectedGroupFilter, selectedModuleFilter])
+  }, [gradesData, selectedDept, selectedGroupFilter, selectedModules])
 
   // --- DEDICATED MATRIX DATASETS (dept + group + day, conditional module/day filters) ---
   const activeModulesForSelectedDay = useMemo(() => {
@@ -202,16 +397,16 @@ export default function ReportsClient({
   }, [attendanceByModulesData, selectedDay])
 
   const matrixAttendanceData = useMemo(() => {
-    let data = selectedModuleFilter !== 'all' ? (attendanceByModulesData || []) : attendanceData
+    let data = selectedModules.length > 0 ? (attendanceByModulesData || []) : attendanceData
     if (selectedDept !== 'all') data = data.filter(a => a.dept_name === selectedDept)
     if (selectedGroupFilter !== 'all') data = data.filter(a => a.group_name === selectedGroupFilter)
     if (selectedDay !== 'all') data = data.filter(a => a.dia === selectedDay)
 
-    if (matrixDimension !== 'modulo' && selectedModuleFilter !== 'all') {
-      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    if (matrixDimension !== 'modulo' && selectedModules.length > 0) {
+      data = data.filter(a => selectedModules.includes(a.modulo_name))
     }
     return data
-  }, [attendanceData, attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModuleFilter, matrixDimension])
+  }, [attendanceData, attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModules, matrixDimension])
 
   const matrixAttendanceByModulesData = useMemo(() => {
     let data = attendanceByModulesData || []
@@ -219,26 +414,26 @@ export default function ReportsClient({
     if (selectedGroupFilter !== 'all') data = data.filter(a => a.group_name === selectedGroupFilter)
     if (selectedDay !== 'all') data = data.filter(a => a.dia === selectedDay)
 
-    if (matrixDimension !== 'modulo' && selectedModuleFilter !== 'all') {
-      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+    if (matrixDimension !== 'modulo' && selectedModules.length > 0) {
+      data = data.filter(a => selectedModules.includes(a.modulo_name))
     }
     return data
-  }, [attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModuleFilter, matrixDimension])
+  }, [attendanceByModulesData, selectedDept, selectedGroupFilter, selectedDay, selectedModules, matrixDimension])
 
   const matrixGradesData = useMemo(() => {
     let data = gradesData || []
     if (selectedDept !== 'all') data = data.filter(g => g.dept_name === selectedDept)
     if (selectedGroupFilter !== 'all') data = data.filter(g => g.group_name === selectedGroupFilter)
 
-    if (matrixDimension !== 'modulo' && selectedModuleFilter !== 'all') {
-      data = data.filter(g => g.modulo_name === selectedModuleFilter)
+    if (matrixDimension !== 'modulo' && selectedModules.length > 0) {
+      data = data.filter(g => selectedModules.includes(g.modulo_name))
     }
 
     if (selectedDay !== 'all' && activeModulesForSelectedDay && activeModulesForSelectedDay.length > 0) {
       data = data.filter(g => activeModulesForSelectedDay.includes(g.modulo_name))
     }
     return data
-  }, [gradesData, selectedDept, selectedGroupFilter, selectedModuleFilter, selectedDay, activeModulesForSelectedDay, matrixDimension])
+  }, [gradesData, selectedDept, selectedGroupFilter, selectedModules, selectedDay, activeModulesForSelectedDay, matrixDimension])
 
   const filteredAttendanceByModulesSearched = useMemo(() => {
     const filtered = filteredAttendanceByModules.filter(row => {
@@ -353,33 +548,137 @@ export default function ReportsClient({
     })
   }, [enrollmentData, deptoList])
 
+  const getDayLabel = useCallback((dia: number, shortModName?: string) => {
+    const sem = dia <= 2 ? 1 : dia <= 4 ? 2 : 3
+    const isPresencial = dia === 6
+    const label = `Sem ${sem} - D${dia}${isPresencial ? ' (Presencial)' : ''}`
+    if (shortModName) {
+      return `${shortModName} (${label})`
+    }
+    return label
+  }, [])
+
   // 3. Daily Attendance Trend (Area Chart) - Shows overall days context with specific day highlighted
   const dailyTrend = useMemo(() => {
-    let data = selectedModuleFilter !== 'all' ? (attendanceByModulesData || []) : attendanceData
+    let baseData = (attendanceByModulesData || [])
+
     if (selectedDept !== 'all') {
-      data = data.filter(a => a.dept_name === selectedDept)
+      baseData = baseData.filter(a => a.dept_name === selectedDept)
     }
     if (selectedGroupFilter !== 'all') {
-      data = data.filter(a => a.group_name === selectedGroupFilter)
-    }
-    if (selectedModuleFilter !== 'all') {
-      data = data.filter(a => a.modulo_name === selectedModuleFilter)
+      baseData = baseData.filter(a => a.group_name === selectedGroupFilter)
     }
 
-    const days = [...new Set(data.map(a => a.dia))].sort((a, b) => a - b)
-    return days.map(dia => {
-      const dayData = data.filter(a => a.dia === dia)
-      return {
-        name: `Día ${dia}`,
-        diaNumber: dia,
-        Asistieron: dayData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
-        Atrasos: dayData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
-        Faltas: dayData.reduce((acc, curr) => acc + (curr.falta || 0), 0),
-        Permisos: dayData.reduce((acc, curr) => acc + (curr.permiso || 0), 0),
-        Total: dayData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+    if (selectedModules.length > 0) {
+      // Show days for only the selected modules
+      const filtered = baseData.filter(a => selectedModules.includes(a.modulo_name))
+      const days = [...new Set(filtered.map(a => a.dia))].sort((a, b) => a - b)
+
+      if (selectedModules.length === 1) {
+        return days.map(dia => {
+          const dayData = filtered.filter(a => a.dia === dia)
+          return {
+            name: getDayLabel(dia),
+            diaNumber: dia,
+            Asistieron: dayData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
+            Atrasos: dayData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
+            Faltas: dayData.reduce((acc, curr) => acc + (curr.falta || 0), 0),
+            Permisos: dayData.reduce((acc, curr) => acc + (curr.permiso || 0), 0),
+            Total: dayData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+          }
+        })
+      } else {
+        // Group by both module and day
+        const uniqueKeys = new Map<string, { modulo_name: string, dia: number }>()
+        filtered.forEach(a => {
+          if (a.modulo_name) {
+            const key = `${a.modulo_name}|||${a.dia}`
+            uniqueKeys.set(key, { modulo_name: a.modulo_name, dia: a.dia })
+          }
+        })
+
+        const combos = Array.from(uniqueKeys.values())
+
+        combos.sort((a, b) => {
+          const modComp = a.modulo_name.localeCompare(b.modulo_name, undefined, { sensitivity: 'base' })
+          if (modComp !== 0) return modComp
+          return a.dia - b.dia
+        })
+
+        return combos.map(combo => {
+          const comboData = filtered.filter(a => a.modulo_name === combo.modulo_name && a.dia === combo.dia)
+
+          const isLeng = combo.modulo_name.toLowerCase().includes('lenguaje')
+          const isMat = combo.modulo_name.toLowerCase().includes('matemática') || combo.modulo_name.toLowerCase().includes('matematica')
+          const match = combo.modulo_name.match(/Módulo\s*(\d+)/i)
+          const modNum = match ? `M${match[1]}` : ''
+          let prefix = ''
+          if (isLeng) prefix = 'Leng.'
+          else if (isMat) prefix = 'Mat.'
+          else prefix = combo.modulo_name.split(':')[0].substring(0, 8)
+
+          const shortName = `${prefix} ${modNum}`.trim()
+
+          return {
+            name: getDayLabel(combo.dia, shortName),
+            diaNumber: combo.dia,
+            modulo_name: combo.modulo_name,
+            Asistieron: comboData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
+            Atrasos: comboData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
+            Faltas: comboData.reduce((acc, curr) => acc + (curr.falta || 0), 0),
+            Permisos: comboData.reduce((acc, curr) => acc + (curr.permiso || 0), 0),
+            Total: comboData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+          }
+        })
       }
-    })
-  }, [attendanceData, attendanceByModulesData, selectedDept, selectedGroupFilter, selectedModuleFilter])
+    } else {
+      // Group by both module and day
+      const uniqueKeys = new Map<string, { modulo_name: string, dia: number }>()
+      baseData.forEach(a => {
+        if (a.modulo_name) {
+          const key = `${a.modulo_name}|||${a.dia}`
+          uniqueKeys.set(key, { modulo_name: a.modulo_name, dia: a.dia })
+        }
+      })
+
+      const combos = Array.from(uniqueKeys.values())
+
+      // Sort combos by modulo_name first, then by dia
+      combos.sort((a, b) => {
+        const modComp = a.modulo_name.localeCompare(b.modulo_name, undefined, { sensitivity: 'base' })
+        if (modComp !== 0) return modComp
+        return a.dia - b.dia
+      })
+
+      // Generate chart data for each combo
+      return combos.map(combo => {
+        const comboData = baseData.filter(a => a.modulo_name === combo.modulo_name && a.dia === combo.dia)
+
+        // Short module name
+        const isLeng = combo.modulo_name.toLowerCase().includes('lenguaje')
+        const isMat = combo.modulo_name.toLowerCase().includes('matemática') || combo.modulo_name.toLowerCase().includes('matematica')
+        const match = combo.modulo_name.match(/Módulo\s*(\d+)/i)
+        const modNum = match ? `M${match[1]}` : ''
+        let prefix = ''
+        if (isLeng) prefix = 'Leng.'
+        else if (isMat) prefix = 'Mat.'
+        else prefix = combo.modulo_name.split(':')[0].substring(0, 8)
+
+        const shortName = `${prefix} ${modNum}`.trim()
+
+        return {
+          name: getDayLabel(combo.dia, shortName),
+          diaNumber: combo.dia,
+          modulo_name: combo.modulo_name,
+          Asistieron: comboData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
+          Atrasos: comboData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
+          Faltas: comboData.reduce((acc, curr) => acc + (curr.falta || 0), 0),
+          Permisos: comboData.reduce((acc, curr) => acc + (curr.permiso || 0), 0),
+          Total: comboData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+        }
+      })
+    }
+  }, [attendanceByModulesData, selectedDept, selectedGroupFilter, selectedModules])
 
   const funnelData = useMemo(() => [
     { name: 'Preinscritos', value: metrics.total_inscritos, fill: COLORS.primary, icon: Users },
@@ -552,7 +851,7 @@ export default function ReportsClient({
 
   const gradesPerformanceData = useMemo(() => {
     const data = filteredGrades
-    const groupByField = selectedModuleFilter !== 'all' ? 'group_name' : 'modulo_name'
+    const groupByField = selectedModules.length === 1 ? 'group_name' : 'modulo_name'
     const uniqueKeys = [...new Set(data.map(g => g[groupByField]))].filter(Boolean)
     return uniqueKeys.map(key => {
       const groupData = data.filter(g => g[groupByField] === key)
@@ -569,7 +868,7 @@ export default function ReportsClient({
         Promedio: Math.round(promedio)
       }
     })
-  }, [filteredGrades, selectedModuleFilter])
+  }, [filteredGrades, selectedModules])
 
   if (!mounted) return null
 
@@ -674,14 +973,11 @@ export default function ReportsClient({
               <Layers size={13} color="var(--info)" /> Módulo Temático
             </span>
             <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
-              <select
-                value={selectedModuleFilter}
-                onChange={(e) => setSelectedModuleFilter(e.target.value)}
-                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '0.85rem', fontWeight: 700, color: 'var(--foreground)', cursor: 'pointer' }}
-              >
-                <option value="all">Todos los Módulos</option>
-                {moduleList.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+              <ModuleMultiSelect
+                moduleList={moduleList}
+                selectedModules={selectedModules}
+                setSelectedModules={setSelectedModules}
+              />
             </div>
           </div>
 
@@ -765,29 +1061,39 @@ export default function ReportsClient({
               <ComposedChart data={dailyTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
                 <XAxis dataKey="name" stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} />
-                <YAxis stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} label={{ value: 'Cantidad de Asistencias', angle: -90, position: 'insideLeft', style: { fill: 'var(--chart-text)', fontSize: 10, fontWeight: 700 } }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingBottom: '10px' }} />
-                <Bar dataKey="Asistieron" name="Asistencias" stackId="a" fill={COLORS.success} barSize={30} />
-                <Bar dataKey="Atrasos" name="Atrasos" stackId="a" fill={COLORS.warning} />
-                <Bar dataKey="Faltas" name="Faltas" stackId="a" fill={COLORS.danger} />
-                <Bar dataKey="Permisos" name="Permisos" stackId="a" fill={COLORS.muted} />
-                {selectedDay !== 'all' && (
-                  <ReferenceLine
-                    x={`Día ${selectedDay}`}
-                    stroke={COLORS.purple}
-                    strokeWidth={2}
-                    strokeDasharray="4 4"
-                    label={{ position: 'top', value: 'DÍA SELECCIONADO', fill: COLORS.purple, fontSize: 9, fontWeight: 900 }}
-                  />
-                )}
+                <Line type="monotone" dataKey="Asistieron" name="Asistencias" stroke={COLORS.success} strokeWidth={3} dot={{ r: 4, fill: COLORS.success }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="Atrasos" name="Atrasos" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 3, fill: COLORS.warning }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="Faltas" name="Faltas" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3, fill: COLORS.danger }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="Permisos" name="Permisos" stroke={COLORS.muted} strokeWidth={2} dot={{ r: 3, fill: COLORS.muted }} activeDot={{ r: 5 }} />
+                {selectedDay !== 'all' && dailyTrend
+                  .filter(d => d.diaNumber === selectedDay)
+                  .map(d => (
+                    <ReferenceLine
+                      key={d.name}
+                      x={d.name}
+                      stroke={COLORS.purple}
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      label={{ position: 'top', value: `D${selectedDay}`, fill: COLORS.purple, fontSize: 9, fontWeight: 900 }}
+                    />
+                  ))
+                }
               </ComposedChart>
             </ResponsiveContainer>
           </ChartCard>
 
           {/* Rendimiento Académico por Módulo / Grupo */}
           <ChartCard
-            title={selectedModuleFilter !== 'all' ? `Rendimiento Académico: ${selectedModuleFilter} (por Grupo)` : "Rendimiento Académico por Módulo"}
+            title={
+              selectedModules.length === 1
+                ? `Rendimiento Académico: ${selectedModules[0]} (por Grupo)`
+                : selectedModules.length > 1
+                  ? `Rendimiento Académico: ${selectedModules.length} Módulos (por Grupo)`
+                  : 'Rendimiento Académico por Módulo'
+            }
             icon={Target}
           >
             <ResponsiveContainer width="100%" height={320}>
@@ -1326,14 +1632,13 @@ export default function ReportsClient({
 
               <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Layers size={14} color="var(--primary)" />
-                <select
-                  value={selectedModuleFilter}
-                  onChange={(e) => setSelectedModuleFilter(e.target.value)}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
-                >
-                  <option value="all">Todos los Módulos</option>
-                  {moduleList.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                <div style={{ width: '160px' }}>
+                  <ModuleMultiSelect
+                    moduleList={moduleList}
+                    selectedModules={selectedModules}
+                    setSelectedModules={setSelectedModules}
+                  />
+                </div>
               </div>
 
               <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1508,14 +1813,13 @@ export default function ReportsClient({
 
               <div className="glass" style={{ padding: '0.4rem 0.8rem', borderRadius: '0.6rem', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Layers size={14} color="var(--primary)" />
-                <select
-                  value={selectedModuleFilter}
-                  onChange={(e) => setSelectedModuleFilter(e.target.value)}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: '0.75rem', fontWeight: 800, color: 'var(--foreground)', cursor: 'pointer' }}
-                >
-                  <option value="all">Todos los Módulos</option>
-                  {moduleList.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                <div style={{ width: '160px' }}>
+                  <ModuleMultiSelect
+                    moduleList={moduleList}
+                    selectedModules={selectedModules}
+                    setSelectedModules={setSelectedModules}
+                  />
+                </div>
               </div>
 
               {/* Search Bar */}

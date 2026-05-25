@@ -47,10 +47,10 @@ export default function StatusModal({ show, type, title, message, onClose }: Sta
       icon: <XCircle size={36} color="#ef4444" /> 
     },
     info: { 
-      bg: 'rgba(99, 102, 241, 0.1)', 
-      border: '#6366f1', 
-      glow: 'rgba(99, 102, 241, 0.15)',
-      icon: <AlertCircle size={36} color="#6366f1" /> 
+      bg: 'rgba(187, 151, 58, 0.1)', 
+      border: '#bb973a', 
+      glow: 'rgba(187, 151, 58, 0.15)',
+      icon: <AlertCircle size={36} color="#bb973a" /> 
     }
   }
 

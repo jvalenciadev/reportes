@@ -20,7 +20,7 @@ export default function MaintenancePage() {
         width: '500px',
         height: '500px',
         borderRadius: '50%',
-        background: 'rgba(99, 102, 241, 0.15)',
+        background: 'rgba(187, 151, 58, 0.15)',
         filter: 'blur(100px)',
         top: '-10%',
         left: '-10%',
@@ -58,13 +58,13 @@ export default function MaintenancePage() {
           width: '80px',
           height: '80px',
           borderRadius: '50%',
-          background: 'rgba(99, 102, 241, 0.1)',
-          border: '2px dashed #6366f1',
+          background: 'rgba(187, 151, 58, 0.1)',
+          border: '2px dashed #bb973a',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           margin: '0 auto 2rem',
-          color: '#818cf8',
+          color: '#d5ad42',
           fontSize: '2.5rem',
           animation: 'pulse 3s infinite ease-in-out'
         }}>
@@ -77,7 +77,7 @@ export default function MaintenancePage() {
           fontWeight: 800,
           marginBottom: '1rem',
           letterSpacing: '-0.025em',
-          background: 'linear-gradient(to right, #a5b4fc, #f472b6)',
+          background: 'linear-gradient(to right, #d5ad42, #f0c040)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
         }}>
@@ -129,8 +129,8 @@ export default function MaintenancePage() {
       {/* Estilos CSS Inyectados para las animaciones */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
-          50% { transform: scale(1.05); box-shadow: 0 0 20px 4px rgba(99, 102, 241, 0.2); }
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(187, 151, 58, 0.4); }
+          50% { transform: scale(1.05); box-shadow: 0 0 20px 4px rgba(187, 151, 58, 0.2); }
         }
       `}} />
     </div>

@@ -25,7 +25,7 @@ export default async function ReportesPage({
     const { data, error } = await supabase
       .from('asistencias')
       .select(`
-        dia, estado, modulo_id,
+        participante_id, dia, estado, modulo_id,
         programa_modulos (
           titulo_modulo,
           grupo,
@@ -124,11 +124,40 @@ export default async function ReportesPage({
   console.log(`[AUDIT] Total Calificaciones Cargadas: ${gradesData.length}`)
 
   // 5. Mapeo y Consolidación Dinámica (BI Engine)
-  // Agrupamos asistencias filtrando por 'inscrito' y 'entrego_documento' = true
+  // Agrupamos asistencias filtrando por 'inscrito' y deduplicando por alumno por día
   const attendanceMap: Record<string, any> = {}
   const attendanceModuleMap: Record<string, any> = {}
 
+  // A. Primero, calculamos asistencia única por estudiante por día
+  const uniqueDailyAttendance: Record<string, {
+    dia: number;
+    estado: string;
+    group: any;
+    dept_name: string;
+  }> = {}
+
+  // B. Calculamos asistencia única por estudiante por día por módulo
+  const uniqueModuleAttendance: Record<string, {
+    dia: number;
+    modulo_id: string;
+    modulo_name: string;
+    estado: string;
+    group: any;
+    dept_name: string;
+  }> = {}
+
+  // Prioridad de estados: asistio > atraso > permiso > falta
+  const STATE_PRIORITY: Record<string, number> = {
+    'asistio': 4,
+    'atraso': 3,
+    'permiso': 2,
+    'falta': 1
+  }
+
   attendanceData?.forEach((a: any) => {
+    const studentId = a.participante_id || a.participantes?.id
+    if (!studentId) return
+
     const programaId = a.programa_modulos?.programa_id
     const inscripcion = a.participantes?.inscripciones?.find(
       (i: any) => i.programa_id === programaId
@@ -141,44 +170,86 @@ export default async function ReportesPage({
     const group = inscripcion.grupos
     if (!group) return
 
-    // A. Agrupación estándar para compatibilidad con el dashboard
-    const key = `${a.dia}-${group.name}`
-    if (!attendanceMap[key]) {
-      attendanceMap[key] = {
+    const currentStatus = a.estado || 'falta'
+
+    // 1. Deduplicar para Asistencia General (Día/Estudiante)
+    const dailyKey = `${a.dia}-${studentId}`
+    if (!uniqueDailyAttendance[dailyKey]) {
+      uniqueDailyAttendance[dailyKey] = {
         dia: a.dia,
-        asistieron: 0, atraso: 0, falta: 0, permiso: 0,
-        group_name: group.name,
+        estado: currentStatus,
+        group: group,
         dept_name: group.departamentos?.name || 'S/D'
+      }
+    } else {
+      const existingStatus = uniqueDailyAttendance[dailyKey].estado
+      if ((STATE_PRIORITY[currentStatus] || 0) > (STATE_PRIORITY[existingStatus] || 0)) {
+        uniqueDailyAttendance[dailyKey].estado = currentStatus
       }
     }
 
-    if (a.estado === 'asistio') attendanceMap[key].asistieron++
-    else if (a.estado === 'atraso') attendanceMap[key].atraso++
-    else if (a.estado === 'falta') attendanceMap[key].falta++
-    else if (a.estado === 'permiso') attendanceMap[key].permiso++
+    // 2. Deduplicar para Asistencia por Módulo (Día/Estudiante/Módulo)
+    const moduloId = a.modulo_id || 'no-mod'
+    const moduloKey = `${a.dia}-${studentId}-${moduloId}`
 
-    // B. Agrupación por módulo
     const modulo_titulo = a.programa_modulos?.titulo_modulo || 'S/M'
     const modulo_grupo = a.programa_modulos?.grupo
     const modulo_prefix = modulo_grupo === 1 ? 'LENGUAJE - ' : modulo_grupo === 2 ? 'MATEMÁTICA - ' : ''
     const full_modulo_name = `${modulo_prefix}${modulo_titulo}`
 
-    const keyMod = `${a.dia}-${group.name}-${a.modulo_id || 'no-mod'}`
-    if (!attendanceModuleMap[keyMod]) {
-      attendanceModuleMap[keyMod] = {
+    if (!uniqueModuleAttendance[moduloKey]) {
+      uniqueModuleAttendance[moduloKey] = {
         dia: a.dia,
         modulo_id: a.modulo_id || null,
         modulo_name: full_modulo_name,
-        asistieron: 0, atraso: 0, falta: 0, permiso: 0,
-        group_name: group.name,
+        estado: currentStatus,
+        group: group,
         dept_name: group.departamentos?.name || 'S/D'
+      }
+    } else {
+      const existingStatus = uniqueModuleAttendance[moduloKey].estado
+      if ((STATE_PRIORITY[currentStatus] || 0) > (STATE_PRIORITY[existingStatus] || 0)) {
+        uniqueModuleAttendance[moduloKey].estado = currentStatus
+      }
+    }
+  })
+
+  // C. Construir attendanceMap (General)
+  Object.values(uniqueDailyAttendance).forEach((item: any) => {
+    const key = `${item.dia}-${item.group.name}`
+    if (!attendanceMap[key]) {
+      attendanceMap[key] = {
+        dia: item.dia,
+        asistieron: 0, atraso: 0, falta: 0, permiso: 0,
+        group_name: item.group.name,
+        dept_name: item.dept_name
       }
     }
 
-    if (a.estado === 'asistio') attendanceModuleMap[keyMod].asistieron++
-    else if (a.estado === 'atraso') attendanceModuleMap[keyMod].atraso++
-    else if (a.estado === 'falta') attendanceModuleMap[keyMod].falta++
-    else if (a.estado === 'permiso') attendanceModuleMap[keyMod].permiso++
+    if (item.estado === 'asistio') attendanceMap[key].asistieron++
+    else if (item.estado === 'atraso') attendanceMap[key].atraso++
+    else if (item.estado === 'falta') attendanceMap[key].falta++
+    else if (item.estado === 'permiso') attendanceMap[key].permiso++
+  })
+
+  // D. Construir attendanceModuleMap (Por Módulo)
+  Object.values(uniqueModuleAttendance).forEach((item: any) => {
+    const keyMod = `${item.dia}-${item.group.name}-${item.modulo_id || 'no-mod'}`
+    if (!attendanceModuleMap[keyMod]) {
+      attendanceModuleMap[keyMod] = {
+        dia: item.dia,
+        modulo_id: item.modulo_id,
+        modulo_name: item.modulo_name,
+        asistieron: 0, atraso: 0, falta: 0, permiso: 0,
+        group_name: item.group.name,
+        dept_name: item.dept_name
+      }
+    }
+
+    if (item.estado === 'asistio') attendanceModuleMap[keyMod].asistieron++
+    else if (item.estado === 'atraso') attendanceModuleMap[keyMod].atraso++
+    else if (item.estado === 'falta') attendanceModuleMap[keyMod].falta++
+    else if (item.estado === 'permiso') attendanceModuleMap[keyMod].permiso++
   })
 
   const flattenedAttendance = Object.values(attendanceMap).sort((a, b) => a.dia - b.dia)

@@ -1128,7 +1128,7 @@ export default function AttendanceClient({
               <div style={{
                 width: `${Math.min(100, (historyDays.length / 6) * 100)}%`,
                 height: '100%',
-                background: historyDays.length >= 6 ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, var(--info), #3b82f6)',
+                background: historyDays.length >= 6 ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, #bb973a, #d5ad42)',
                 transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
                 boxShadow: historyDays.length >= 6 ? '0 0 10px rgba(16, 185, 129, 0.3)' : 'none'
               }}></div>
@@ -1567,14 +1567,14 @@ export default function AttendanceClient({
                       const rowBg = current === 'asistio' ? 'rgba(16,217,139,0.05)'
                         : current === 'atraso' ? 'rgba(245,166,35,0.05)'
                           : current === 'falta' ? 'rgba(239,68,68,0.05)'
-                            : current === 'permiso' ? 'rgba(99,102,241,0.05)'
+                            : current === 'permiso' ? 'rgba(187,151,58,0.05)'
                               : 'transparent'
 
                       const statusConfig = {
                         asistio: { label: '✓ Asistió', activeColor: '#10d98b', activeBg: 'rgba(16,217,139,0.15)', activeBorder: '#10d98b' },
                         atraso: { label: '⏱ Atraso', activeColor: '#f5a623', activeBg: 'rgba(245,166,35,0.15)', activeBorder: '#f5a623' },
                         falta: { label: '✗ Falta', activeColor: '#ef4444', activeBg: 'rgba(239,68,68,0.15)', activeBorder: '#ef4444' },
-                        permiso: { label: '📋 Permiso', activeColor: '#6366f1', activeBg: 'rgba(99,102,241,0.15)', activeBorder: '#6366f1' },
+                        permiso: { label: '📋 Permiso', activeColor: '#bb973a', activeBg: 'rgba(187,151,58,0.15)', activeBorder: '#bb973a' },
                       } as Record<string, any>
 
                       return (
@@ -1736,7 +1736,7 @@ export default function AttendanceClient({
         .btn-status-asistio { background: #10b981; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
         .btn-status-atraso { background: #f59e0b; color: white; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
         .btn-status-falta { background: #ef4444; color: white; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
-        .btn-status-permiso { background: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .btn-status-permiso { background: #bb973a; color: white; box-shadow: 0 4px 12px rgba(187, 151, 58, 0.3); }
         .btn-ghost { 
           background: rgba(0, 0, 0, 0.03); 
           color: var(--muted); 

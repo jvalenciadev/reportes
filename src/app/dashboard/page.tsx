@@ -41,7 +41,7 @@ export default async function DashboardPage() {
 
   const stats = [
     { label: 'Participantes', value: participantCount || 0, icon: Users, color: '#10d98b', subtitle: 'Registros individuales' },
-    { label: 'Programas', value: programCount || 0, icon: GraduationCap, color: '#4f8ef7', subtitle: 'Oferta académica' },
+    { label: 'Programas', value: programCount || 0, icon: GraduationCap, color: '#bb973a', subtitle: 'Oferta académica' },
     { label: 'Facilitadores', value: facilitatorCount || 0, icon: Zap, color: '#f5a623', subtitle: 'Personal asignado' },
     { label: 'Asistencias Hoy', value: attendanceToday || 0, icon: UserCheck, color: '#a78bfa', subtitle: 'Registros de hoy' },
   ]
