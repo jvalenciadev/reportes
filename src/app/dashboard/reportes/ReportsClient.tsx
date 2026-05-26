@@ -237,7 +237,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           ))}
           {data.size && (
             <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.4rem', paddingTop: '0.4rem', fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-              Población Base: <b>{data.size} inscritos</b>
+              Población Base: <b>{data.size} activos</b>
             </div>
           )}
         </div>
@@ -682,7 +682,7 @@ export default function ReportsClient({
 
   const funnelData = useMemo(() => [
     { name: 'Preinscritos', value: metrics.total_inscritos, fill: COLORS.primary, icon: Users },
-    { name: 'Inscritos', value: metrics.total_confirmados, fill: COLORS.info, icon: TrendingUp },
+    { name: 'Activos', value: metrics.total_confirmados, fill: COLORS.info, icon: TrendingUp },
     { name: 'Asistencia Prom.', value: metrics.avg_per_day, fill: COLORS.success, icon: CheckSquare }
   ], [metrics, COLORS])
 
@@ -1002,9 +1002,9 @@ export default function ReportsClient({
       {/* Main KPI Dashboard */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
         <KPI title="Población Total" value={metrics.total_inscritos} icon={Users} color={COLORS.primary} subtitle="Preinscritos registrados" />
-        <KPI title="Inscritos Total" value={metrics.total_confirmados} icon={UserCheck} color={COLORS.success} subtitle="Inscritos confirmados" />
+        <KPI title="Activos Total" value={metrics.total_confirmados} icon={UserCheck} color={COLORS.success} subtitle="Activos confirmados" />
         <KPI title="Tasa de Inscripción" value={`${metrics.confirmation_rate}%`} icon={Target} color={COLORS.info} subtitle="Compromiso inicial" />
-        <KPI title="Docs (Inscritos)" value={metrics.total_docs_ins} icon={CheckSquare} color={COLORS.success} subtitle="Entregados por inscritos" />
+        <KPI title="Docs (Activos)" value={metrics.total_docs_ins} icon={CheckSquare} color={COLORS.success} subtitle="Entregados por activos" />
         <KPI title="Efectividad de Asistencia" value={`${metrics.attendance_rate}%`} icon={Zap} color={COLORS.success} subtitle="Asistencia real vs esperada" />
         <KPI title="Score de Eficiencia" value={metrics.efficiency_score} icon={MousePointer2} color={COLORS.gold} subtitle="Cálculo algorítmico" />
       </div>
@@ -1272,7 +1272,7 @@ export default function ReportsClient({
                           domain={[0, 100]} stroke="var(--chart-text)" fontSize={11}
                           label={{ value: 'Nota Promedio (pts)', angle: -90, position: 'insideLeft', offset: 10, style: { fill: 'var(--chart-text)', fontSize: 10, fontWeight: 700 } }}
                         />
-                        <ZAxis type="number" dataKey="size" range={[60, 700]} name="Inscritos" />
+                        <ZAxis type="number" dataKey="size" range={[60, 700]} name="Activos" />
 
                         {/* Quadrant background fills */}
                         <ReferenceArea x1={threshA} x2={100} y1={threshN} y2={100} fill="rgba(16,217,139,0.06)" stroke="none" />

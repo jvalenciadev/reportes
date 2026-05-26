@@ -37,7 +37,7 @@ export default async function InscripcionesPage() {
       <header style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold' }}>Resumen de Inscripciones</h1>
         <p style={{ color: 'var(--muted)' }}>
-          {isFacilitador ? 'Gestión de participantes de tus grupos asignados' : 'Ingresa los totales de inscritos y confirmados por grupo'}
+          {isFacilitador ? 'Gestión de participantes de tus grupos asignados' : 'Ingresa los totales de activos y confirmados por grupo'}
         </p>
       </header>
 

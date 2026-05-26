@@ -217,7 +217,7 @@ export default function AttendanceClient({
 
     if (pErr) {
       console.error('Error cargando participantes:', pErr)
-      showNotif('error', 'Fallo al Cargar Participantes', `No se pudieron cargar los estudiantes inscritos. Detalle técnico: ${pErr.message}`)
+      showNotif('error', 'Fallo al Cargar Participantes', `No se pudieron cargar los estudiantes activos. Detalle técnico: ${pErr.message}`)
       setLoading(false)
       return
     }
@@ -614,7 +614,7 @@ export default function AttendanceClient({
 
     const enrolledIds = participants.map((p: any) => p.participante_id);
     if (enrolledIds.length === 0) {
-      showNotif('error', 'Sin Participantes', 'No hay participantes inscritos activos en este grupo para actualizar.');
+      showNotif('error', 'Sin Participantes', 'No hay participantes activos activos en este grupo para actualizar.');
       setSaving(false);
       return;
     }
@@ -1772,7 +1772,7 @@ export default function AttendanceClient({
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Fecha de Asistencia:</span> <strong style={{ color: 'var(--primary)' }}>{new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Jornada / Día:</span> <strong style={{ color: 'var(--primary)' }}>Día {dayNumber}</strong></div>
               <div style={{ height: '1px', background: 'var(--border)', margin: '0.25rem 0' }}></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Total Inscritos:</span> <strong style={{ fontSize: '1.1rem' }}>{participants.length}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}><span>Total Activos:</span> <strong style={{ fontSize: '1.1rem' }}>{participants.length}</strong></div>
               <div style={{ height: '1px', background: 'var(--border)', margin: '0.25rem 0' }}></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--success)', fontSize: '0.9rem' }}><span>Total Asistieron:</span> <strong style={{ fontSize: '1.1rem' }}>{stats.asistieron}</strong></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--warning)', fontSize: '0.9rem' }}><span>Total Atrasos:</span> <strong style={{ fontSize: '1.1rem' }}>{stats.atrasos}</strong></div>

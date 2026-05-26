@@ -604,7 +604,7 @@ ON public.calificaciones FOR ALL USING (
                 <Users size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
                 <h4 style={{ fontWeight: 800, color: 'var(--foreground)' }}>No hay participantes</h4>
                 <p style={{ fontSize: '0.85rem', maxWidth: '300px', margin: '0.5rem auto' }}>
-                  No se encontraron estudiantes inscritos para este grupo y programa.
+                  No se encontraron estudiantes activos para este grupo y programa.
                 </p>
               </div>
             ) : (

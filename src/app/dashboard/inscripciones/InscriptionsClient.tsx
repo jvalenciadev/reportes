@@ -348,7 +348,7 @@ export default function InscriptionsClient({
                         }}
                       >
                         <option value="all">Todos los Estados</option>
-                        <option value="inscrito">Solo Inscritos</option>
+                        <option value="inscrito">Solo Activos</option>
                         <option value="preinscrito">Solo Preinscritos</option>
                         <option value="baja">Solo Bajas</option>
                       </select>
@@ -365,7 +365,7 @@ export default function InscriptionsClient({
                         {enrolledParticipants.filter(p => p.estado === 'inscrito').length}
                       </span>
                     </div>
-                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Inscritos</div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Activos</div>
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
@@ -429,7 +429,7 @@ export default function InscriptionsClient({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--muted)', fontSize: '0.75rem' }}>
                     <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#3b82f6' }}></div>
-                    <span>Todos los alumnos <strong>Inscritos</strong> deben entregar obligatoriamente sus documentos físicos <strong>(Marcar Check)</strong>.</span>
+                    <span>Todos los alumnos <strong>Activos</strong> deben entregar obligatoriamente sus documentos físicos <strong>(Marcar Check)</strong>.</span>
                   </div>
                 </div>
               </div>
@@ -551,27 +551,19 @@ export default function InscriptionsClient({
                                 </div>
                               </td>
                               <td>
-                                <select
-                                  value={i.estado}
-                                  onChange={(e) => updateStatus(i.id, e.target.value)}
-                                  style={{
-                                    padding: '0.4rem 0.8rem',
-                                    borderRadius: '0.6rem',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 600,
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.02em',
-                                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                                    background: i.estado === 'inscrito' ? 'var(--success)' : (i.estado === 'preinscrito' ? '#3b82f6' : 'var(--border)'),
-                                    color: i.estado === 'inscrito' || i.estado === 'preinscrito' ? 'white' : 'var(--muted)'
-                                  }}
-                                >
-                                  <option value="inscrito">Inscrito</option>
-                                  <option value="preinscrito">Preinscrito</option>
-                                  <option value="baja">Baja</option>
-                                </select>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '0.4rem 0.8rem',
+                                  borderRadius: '0.6rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.05em',
+                                  background: i.estado === 'inscrito' ? 'var(--success)' : (i.estado === 'preinscrito' ? '#3b82f6' : 'var(--border)'),
+                                  color: i.estado === 'inscrito' || i.estado === 'preinscrito' ? 'white' : 'var(--muted)'
+                                }}>
+                                  {i.estado === 'inscrito' ? 'Activo' : i.estado === 'preinscrito' ? 'Preinscrito' : 'Baja'}
+                                </span>
 
                                 {i.observacion && (
                                   <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: '0.5rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -596,7 +588,7 @@ export default function InscriptionsClient({
                                     cursor: i.estado === 'inscrito' ? 'pointer' : 'not-allowed',
                                     filter: i.estado === 'inscrito' ? 'none' : 'grayscale(1)'
                                   }}
-                                  title={i.estado !== 'inscrito' ? "Solo habilitado para inscritos" : (i.entrego_documento ? "Documento entregado" : "Falta documento")}
+                                  title={i.estado !== 'inscrito' ? "Solo habilitado para activos" : (i.entrego_documento ? "Documento entregado" : "Falta documento")}
                                 >
                                   <CheckCircle size={14} style={{ opacity: i.entrego_documento ? 1 : 0.4 }} />
                                   {i.entrego_documento ? 'Entregó' : 'Pendiente'}
@@ -614,7 +606,7 @@ export default function InscriptionsClient({
                       <tr>
                         <td colSpan={6} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
                           <Search size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                          <div>No hay participantes inscritos en este grupo</div>
+                          <div>No hay participantes activos en este grupo</div>
                         </td>
                       </tr>
                     )}
