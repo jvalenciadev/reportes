@@ -70,7 +70,11 @@ export default async function ReportesPage({
       departamentos (name),
       inscripciones (
         estado,
-        entrego_documento
+        entrego_documento,
+        participantes (
+          formalizado,
+          zona
+        )
       )
     `)
     .order('name')
@@ -304,11 +308,16 @@ export default async function ReportesPage({
   const flattenedEnrollment = enrollmentData?.map(g => {
     const inscripciones = g.inscripciones || []
     const total_inscritos = inscripciones.length
-    const total_confirmados = inscripciones.filter((i: any) => i.estado === 'inscrito').length
+    const activos = inscripciones.filter((i: any) => i.estado === 'inscrito')
+    const total_confirmados = activos.length
     const total_preinscritos = inscripciones.filter((i: any) => i.estado === 'preinscrito').length
 
     const preinscritos_entrego = inscripciones.filter((i: any) => i.estado === 'preinscrito').length
-    const inscritos_entrego = inscripciones.filter((i: any) => i.estado === 'inscrito').length
+    const inscritos_entrego = activos.length
+
+    const total_formalizados = activos.filter((i: any) => i.participantes?.formalizado === true).length
+    const total_rural = activos.filter((i: any) => i.participantes?.zona === 'rural').length
+    const total_urbano = activos.filter((i: any) => i.participantes?.zona === 'urbano').length
 
     return {
       group_name: g.name || 'Grupo sin nombre',
@@ -317,7 +326,10 @@ export default async function ReportesPage({
       total_confirmados,
       total_preinscritos,
       preinscritos_entrego,
-      inscritos_entrego
+      inscritos_entrego,
+      total_formalizados,
+      total_rural,
+      total_urbano
     }
   }) || []
 

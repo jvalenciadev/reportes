@@ -13,7 +13,7 @@ import {
   Activity, Building2, Database, PieChart as PieIcon,
   BarChart3, Calendar, ArrowUpRight, ArrowDownRight,
   Filter, Layers, Group, AlertTriangle, Zap, Target, MousePointer2, UserCheck,
-  Search
+  Search, ClipboardCheck
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
@@ -259,7 +259,7 @@ export default function ReportsClient({
   gradesData?: any[]
 }) {
   const [mounted, setMounted] = useState(false)
-  const [tab, setTab] = useState<'resumen' | 'asistencia' | 'inscripcion' | 'analisis' | 'operativo' | 'asistencia_modulos' | 'calificaciones_modulos'>('resumen')
+  const [tab, setTab] = useState<'resumen' | 'control_progreso' | 'inscripcion' | 'analisis' | 'operativo' | 'asistencia_modulos' | 'calificaciones_modulos'>('resumen')
   const [selectedDept, setSelectedDept] = useState('all')
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('all')
   const [selectedDay, setSelectedDay] = useState<'all' | number>('all')
@@ -475,6 +475,79 @@ export default function ReportsClient({
       return (a.modulo_name || '').localeCompare(b.modulo_name || '', undefined, { sensitivity: 'base' })
     })
   }, [filteredGrades, searchTerm])
+
+  const getShortModuleName = useCallback((fullName: string) => {
+    if (!fullName) return ''
+    const isLeng = fullName.toLowerCase().includes('lenguaje')
+    const isMat = fullName.toLowerCase().includes('matemática') || fullName.toLowerCase().includes('matematica')
+    const match = fullName.match(/Módulo\s*(\d+)/i)
+    const modNum = match ? `M${match[1]}` : ''
+    let prefix = ''
+    if (isLeng) prefix = 'Leng.'
+    else if (isMat) prefix = 'Mat.'
+    else prefix = fullName.split(':')[0].substring(0, 8)
+    return `${prefix} ${modNum}`.trim() || fullName.substring(0, 10)
+  }, [])
+
+  // --- CONTROL DE PROGRESO Y CUMPLIMIENTO ENGINE ---
+  const controlProgresoData = useMemo(() => {
+    return enrollmentData.map(group => {
+      const groupGrades = (gradesData || []).filter(g => g.group_name === group.group_name)
+      const groupAttendance = (attendanceByModulesData || []).filter(a => a.group_name === group.group_name)
+
+      const modulesProgress = moduleList.map(modName => {
+        const modGrade = groupGrades.find(g => g.modulo_name === modName)
+        const totalCalificados = modGrade ? modGrade.total_calificados : 0
+
+        const modAtt = groupAttendance.filter(a => a.modulo_name === modName)
+        
+        // Calcular asistencias por día exacto
+        const daysMap: Record<number, { total: number; asistieron: number; atraso: number; falta: number; permiso: number }> = {}
+        modAtt.forEach(attRecord => {
+          const diaNum = Number(attRecord.dia)
+          const totalDayRecords = (attRecord.asistieron || 0) + (attRecord.atraso || 0) + (attRecord.falta || 0) + (attRecord.permiso || 0)
+          daysMap[diaNum] = {
+            total: totalDayRecords,
+            asistieron: attRecord.asistieron || 0,
+            atraso: attRecord.atraso || 0,
+            falta: attRecord.falta || 0,
+            permiso: attRecord.permiso || 0
+          }
+        })
+
+        const activeDays = modAtt.map(a => a.dia)
+        const filledDays = [...new Set(activeDays)].sort((a, b) => a - b)
+
+        return {
+          modulo_name: modName,
+          total_calificados: totalCalificados,
+          filledDays,
+          daysMap
+        }
+      })
+
+      return {
+        ...group,
+        modulesProgress
+      }
+    })
+  }, [enrollmentData, gradesData, attendanceByModulesData, moduleList])
+
+  const filteredControlProgresoData = useMemo(() => {
+    let data = controlProgresoData
+    if (selectedDept !== 'all') {
+      data = data.filter(g => g.dept_name === selectedDept)
+    }
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      data = data.filter(g =>
+        g.group_name.toLowerCase().includes(term) ||
+        g.dept_name.toLowerCase().includes(term)
+      )
+    }
+    return data
+  }, [controlProgresoData, selectedDept, searchTerm])
+
 
   // --- SENIOR METRICS ENGINE ---
   const metrics = useMemo(() => {
@@ -896,7 +969,7 @@ export default function ReportsClient({
           <TabBtn active={tab === 'operativo'} onClick={() => setTab('operativo')} icon={Layers} label="Ficha Operativa" />
           <TabBtn active={tab === 'asistencia_modulos'} onClick={() => setTab('asistencia_modulos')} icon={CheckSquare} label="Asistencia por Módulos" />
           <TabBtn active={tab === 'calificaciones_modulos'} onClick={() => setTab('calificaciones_modulos')} icon={TrendingUp} label="Calificaciones por Módulos" />
-          <TabBtn active={tab === 'asistencia'} onClick={() => setTab('asistencia')} icon={Database} label="Data Source" />
+          <TabBtn active={tab === 'control_progreso'} onClick={() => setTab('control_progreso')} icon={ClipboardCheck} label="Control de Progreso" />
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -1937,130 +2010,239 @@ export default function ReportsClient({
           </div>
         </div>
       ) : (
-        /* Data Source (Tabular) - Professional Explorer */
+        /* Tablero de Control de Progreso y Cumplimiento */
         <div className="glass card animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '0', minHeight: '600px' }}>
           <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ padding: '0.6rem', borderRadius: '0.8rem', background: 'var(--primary-light)', color: 'var(--primary)' }}>
-                  <Database size={22} />
+                <div style={{ padding: '0.6rem', borderRadius: '0.8rem', background: 'rgba(187, 151, 58, 0.15)', color: 'var(--primary)' }}>
+                  <ClipboardCheck size={22} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.3rem' }}>Explorador Maestro</h3>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--foreground-3)' }}>Auditoría granular de registros brutos</p>
+                  <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>Matriz de Control de Progreso</h3>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--foreground-3)' }}>Auditoría y control de cumplimiento académico por grupo y módulo</p>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  onClick={() => setLocalCategory('all')}
-                  className={`btn ${localCategory === 'all' ? 'active' : ''}`}
-                  style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: localCategory === 'all' ? 'var(--primary)' : 'transparent', color: localCategory === 'all' ? 'white' : 'var(--foreground-2)', cursor: 'pointer' }}
-                >Todas</button>
-                <button
-                  onClick={() => setLocalCategory('asistencia')}
-                  className={`btn ${localCategory === 'asistencia' ? 'active' : ''}`}
-                  style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: localCategory === 'asistencia' ? 'var(--primary)' : 'transparent', color: localCategory === 'asistencia' ? 'white' : 'var(--foreground-2)', cursor: 'pointer' }}
-                >Asistencias</button>
-                <button
-                  onClick={() => setLocalCategory('inscripcion')}
-                  className={`btn ${localCategory === 'inscripcion' ? 'active' : ''}`}
-                  style={{ fontSize: '0.7rem', padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: localCategory === 'inscripcion' ? 'var(--primary)' : 'transparent', color: localCategory === 'inscripcion' ? 'white' : 'var(--foreground-2)', cursor: 'pointer' }}
-                >Inscripciones</button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <div className="glass" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1.25rem', borderRadius: '1rem', border: '1px solid var(--border-strong)', boxShadow: 'var(--shadow-inner)' }}>
-                <Activity size={18} color="var(--primary)" />
-                <input
-                  type="text"
-                  placeholder="Filtrar por grupo, sede o código..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '0.95rem', color: 'var(--foreground)', fontWeight: 600 }}
-                />
-                {searchTerm && (
-                  <button onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontWeight: 800 }}>LIMPIAR</button>
-                )}
-              </div>
-              <div style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', fontWeight: 700, color: 'var(--foreground-3)' }}>
-                Mostrando <span style={{ color: 'var(--primary)' }}>
-                  {[...filteredAttendance, ...filteredEnrollment]
-                    .filter(x => {
-                      const matchesSearch = x.group_name?.toLowerCase().includes(searchTerm.toLowerCase()) || x.dept_name?.toLowerCase().includes(searchTerm.toLowerCase())
-                      const matchesCat = localCategory === 'all' ? true : (localCategory === 'asistencia' ? 'asistieron' in x : !('asistieron' in x))
-                      return matchesSearch && matchesCat
-                    }).length
-                  }
-                </span> de {attendanceData.length + enrollmentData.length} registros
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', minWidth: '300px' }}>
+                <div className="glass" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                  <Search size={16} color="var(--primary)" />
+                  <input
+                    type="text"
+                    placeholder="Buscar grupo o sede..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '0.82rem', color: 'var(--foreground)', fontWeight: 600 }}
+                  />
+                  {searchTerm && (
+                    <button onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontWeight: 800, fontSize: '0.7rem' }}>LIMPIAR</button>
+                  )}
+                </div>
+                <div style={{ whiteSpace: 'nowrap', fontSize: '0.78rem', fontWeight: 700, color: 'var(--foreground-3)' }}>
+                  Grupos: <span style={{ color: 'var(--primary)' }}>{filteredControlProgresoData.length}</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="table-container" style={{ maxHeight: '600px' }}>
+          <div className="table-container" style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: '120px' }}>Categoría</th>
-                  <th>Atributo A</th>
-                  <th>Atributo B</th>
-                  <th style={{ textAlign: 'right' }}>Métrica / Conteo</th>
-                  <th>Sede / Región</th>
+                  <th style={{ minWidth: '150px' }}>Grupo / Sede</th>
+                  <th style={{ minWidth: '160px' }}>Formalización (Inscritos)</th>
+                  <th style={{ minWidth: '140px' }}>Distribución Demográfica</th>
+                  <th style={{ minWidth: '220px', textAlign: 'center' }}>Calificaciones (Llenado por Módulo)</th>
+                  <th style={{ minWidth: '320px', textAlign: 'center' }}>Asistencia (Días 1-6 por Módulo)</th>
                 </tr>
               </thead>
               <tbody>
-                {/* Header Summary Row */}
-                <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderBottom: '2px solid var(--border-strong)' }}>
-                  <td colSpan={3} style={{ color: 'var(--primary)', textTransform: 'uppercase', fontSize: '0.75rem', padding: '1rem' }}>Resumen de Vista Actual</td>
-                  <td style={{ textAlign: 'right', fontSize: '1.1rem', color: 'var(--foreground)', padding: '1rem' }}>
-                    {[...filteredAttendance, ...filteredEnrollment]
-                      .filter(x => {
-                        const matchesSearch = x.group_name?.toLowerCase().includes(searchTerm.toLowerCase()) || x.dept_name?.toLowerCase().includes(searchTerm.toLowerCase())
-                        const matchesCat = localCategory === 'all' ? true : (localCategory === 'asistencia' ? 'asistieron' in x : !('asistieron' in x))
-                        return matchesSearch && matchesCat
-                      })
-                      .reduce((acc, curr) => acc + (curr.asistieron || curr.total_inscritos || 0), 0).toLocaleString()}
-                  </td>
-                  <td style={{ color: 'var(--foreground-3)', fontSize: '0.7rem' }}>Auditado</td>
-                </tr>
+                {filteredControlProgresoData.map((row, idx) => {
+                  const formalizationRate = row.total_confirmados > 0
+                    ? Math.round((row.total_formalizados / row.total_confirmados) * 100)
+                    : 0;
 
-                {[...filteredAttendance, ...filteredEnrollment]
-                  .filter(x => {
-                    const matchesSearch = x.group_name?.toLowerCase().includes(searchTerm.toLowerCase()) || x.dept_name?.toLowerCase().includes(searchTerm.toLowerCase())
-                    const matchesCat = localCategory === 'all' ? true : (localCategory === 'asistencia' ? 'asistieron' in x : !('asistieron' in x))
-                    return matchesSearch && matchesCat
-                  })
-                  .sort((a, b) => (a.group_name || '').localeCompare(b.group_name || '', undefined, { numeric: true }))
-                  .map((row, i) => {
-                    const isAsist = 'asistieron' in row
-                    return (
-                      <tr key={i} className="hover-row">
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {isAsist ? <Activity size={12} color={COLORS.primary} /> : <Users size={12} color={COLORS.success} />}
-                            <span className="badge" style={{
-                              background: isAsist ? 'var(--primary-light)' : 'var(--success-light)',
-                              color: isAsist ? 'var(--primary)' : 'var(--success)',
-                              fontSize: '0.65rem',
-                              fontWeight: 800
-                            }}>
-                              {isAsist ? 'ASISTENCIA' : 'INSCRIPCIÓN'}
-                            </span>
+                  return (
+                    <tr key={idx} className="hover-row">
+                      {/* Grupo y Sede */}
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 800, color: 'var(--foreground)', fontSize: '0.9rem' }}>{row.group_name}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--foreground-3)', fontWeight: 600 }}>📍 {row.dept_name}</span>
+                        </div>
+                      </td>
+
+                      {/* Formalización */}
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700 }}>
+                            <span style={{ color: 'var(--foreground-2)' }}>{row.total_formalizados} de {row.total_confirmados} act.</span>
+                            <span style={{ color: formalizationRate === 100 ? COLORS.success : 'var(--primary)' }}>{formalizationRate}%</span>
                           </div>
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--foreground-2)' }}>{isAsist ? `Jornada Día: ${row.dia}` : 'Población Objetivo'}</td>
-                        <td style={{ fontWeight: 800, color: 'var(--primary)' }}>{row.group_name}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 900, fontSize: '1rem' }}>
-                          <span style={{ color: isAsist ? 'var(--foreground)' : COLORS.success }}>
-                            {isAsist ? row.asistieron : row.total_inscritos}
-                          </span>
-                          <span style={{ fontSize: '0.65rem', marginLeft: '0.3rem', color: 'var(--foreground-3)' }}>{isAsist ? 'PRS' : 'REG'}</span>
-                        </td>
-                        <td style={{ color: 'var(--foreground-3)', fontWeight: 600 }}>{row.dept_name}</td>
-                      </tr>
-                    )
-                  })
-                }
+                          <div style={{ width: '100%', height: '6px', background: 'var(--surface)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${formalizationRate}%`,
+                              height: '100%',
+                              background: formalizationRate === 100 ? COLORS.success : COLORS.primary,
+                              borderRadius: '3px',
+                              transition: 'width 0.5s ease'
+                            }} />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Zona Demográfica */}
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--foreground-3)' }}>
+                            <span>🌳 Rural:</span>
+                            <span style={{ fontWeight: 700, color: COLORS.success }}>{row.total_rural} ({row.total_inscritos > 0 ? Math.round((row.total_rural / row.total_inscritos) * 100) : 0}%)</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--foreground-3)' }}>
+                            <span>🏢 Urbano:</span>
+                            <span style={{ fontWeight: 700, color: COLORS.info }}>{row.total_urbano} ({row.total_inscritos > 0 ? Math.round((row.total_urbano / row.total_inscritos) * 100) : 0}%)</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Calificaciones por Módulo */}
+                      <td>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          {row.modulesProgress.map((mod: any, mIdx: number) => {
+                            const califRate = row.total_confirmados > 0
+                              ? Math.round((mod.total_calificados / row.total_confirmados) * 100)
+                              : 0;
+
+                            const isComplete = califRate >= 100 && row.total_confirmados > 0;
+                            const isPartial = califRate > 0 && califRate < 100;
+
+                            return (
+                              <div
+                                key={mIdx}
+                                title={`${mod.modulo_name}: ${mod.total_calificados}/${row.total_confirmados} estudiantes calificados (${califRate}%)`}
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: '0.15rem',
+                                  padding: '0.35rem 0.55rem',
+                                  borderRadius: '0.5rem',
+                                  background: isComplete ? 'rgba(16, 217, 139, 0.08)' : isPartial ? 'rgba(245, 166, 35, 0.08)' : 'rgba(247, 79, 107, 0.08)',
+                                  border: `1px solid ${isComplete ? 'rgba(16, 217, 139, 0.25)' : isPartial ? 'rgba(245, 166, 35, 0.25)' : 'rgba(247, 79, 107, 0.25)'}`,
+                                  minWidth: '70px',
+                                  boxShadow: 'var(--shadow-sm)'
+                                }}
+                              >
+                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--foreground-2)' }}>
+                                  {getShortModuleName(mod.modulo_name)}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 900,
+                                  color: isComplete ? COLORS.success : isPartial ? COLORS.warning : COLORS.danger
+                                }}>
+                                  {califRate}%
+                                </span>
+                                <span style={{ fontSize: '0.58rem', color: 'var(--foreground-3)', fontWeight: 700 }}>
+                                  ({mod.total_calificados}/{row.total_confirmados})
+                                </span>
+                              </div>
+                            )
+                          })}
+                          {row.modulesProgress.length === 0 && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--foreground-3)' }}>Sin módulos registrados</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Asistencias por Módulo (1-6 días) */}
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
+                          {row.modulesProgress.map((mod: any, mIdx: number) => {
+                            const shortName = getShortModuleName(mod.modulo_name);
+                            
+                            // Un día de asistencia está "completo" si el total de registros de ese día
+                            // es exactamente igual a la cantidad de participantes activos.
+                            let completedDaysCount = 0;
+
+                            return (
+                              <div key={mIdx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--foreground-3)', width: '60px', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mod.modulo_name}>
+                                  {shortName}
+                                </span>
+                                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                  {[1, 2, 3, 4, 5, 6].map(day => {
+                                    const dayData = mod.daysMap[day];
+                                    const registeredCount = dayData ? dayData.total : 0;
+                                    
+                                    const isComplete = registeredCount === row.total_confirmados && row.total_confirmados > 0;
+                                    const isPartial = registeredCount > 0 && registeredCount < row.total_confirmados;
+
+                                    if (isComplete) {
+                                      completedDaysCount++;
+                                    }
+
+                                    const tooltipText = dayData 
+                                      ? `${mod.modulo_name} - Día ${day}\nRegistrados: ${registeredCount} de ${row.total_confirmados} activos\n(Asistió: ${dayData.asistieron}, Atraso: ${dayData.atraso}, Falta: ${dayData.falta}, Permiso: ${dayData.permiso})`
+                                      : `${mod.modulo_name} - Día ${day}\nSin registros oficiales (0 de ${row.total_confirmados} activos)`;
+
+                                    return (
+                                      <div
+                                        key={day}
+                                        title={tooltipText}
+                                        style={{
+                                          width: '20px',
+                                          height: '20px',
+                                          borderRadius: '4px',
+                                          background: isComplete ? COLORS.success : isPartial ? COLORS.warning : 'rgba(247, 79, 107, 0.08)',
+                                          border: isComplete ? `1px solid ${COLORS.success}` : isPartial ? `1px solid ${COLORS.warning}` : `1px dashed ${COLORS.danger}`,
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          fontSize: '0.62rem',
+                                          fontWeight: 900,
+                                          color: isComplete ? '#111' : isPartial ? '#111' : COLORS.danger,
+                                          transition: 'all 0.15s ease',
+                                          cursor: 'help'
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.15)' }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
+                                      >
+                                        {day}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <span 
+                                  title={`Días con asistencia completa (${row.total_confirmados}/${row.total_confirmados} alumnos registrados)`}
+                                  style={{ 
+                                    fontSize: '0.68rem', 
+                                    fontWeight: 800, 
+                                    color: completedDaysCount === 6 ? COLORS.success : completedDaysCount > 0 ? COLORS.warning : 'var(--foreground-3)', 
+                                    width: '40px',
+                                    textAlign: 'left'
+                                  }}
+                                >
+                                  {completedDaysCount} / 6
+                                </span>
+                              </div>
+                            )
+                          })}
+                          {row.modulesProgress.length === 0 && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--foreground-3)' }}>Sin datos de asistencia</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+
+                {filteredControlProgresoData.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '4rem', color: 'var(--foreground-3)' }}>
+                      No se encontraron grupos para los criterios de búsqueda o filtros.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
