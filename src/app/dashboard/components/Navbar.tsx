@@ -91,7 +91,7 @@ export default function Navbar({ profile }: { profile: any }) {
         width: 40,
         height: 40,
         borderRadius: '12px',
-        background: 'linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%)',
+        background: 'var(--primary)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

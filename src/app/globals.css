@@ -311,7 +311,7 @@ select option {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary), #9e7f30);
+  background: var(--primary);
   color: white;
   box-shadow: 0 4px 12px var(--primary-glow);
 }

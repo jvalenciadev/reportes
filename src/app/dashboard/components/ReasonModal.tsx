@@ -65,7 +65,7 @@ export default function ReasonModal({ show, title, onConfirm, onCancel, loading 
         transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
       }}>
         {/* Decorative Top Bar */}
-        <div style={{ height: '8px', background: 'linear-gradient(90deg, #ef4444, #f59e0b)' }} />
+        <div style={{ height: '8px', background: '#ef4444' }} />
 
         <div style={{ padding: '3rem 2.5rem' }}>
           {/* Header */}
@@ -163,7 +163,7 @@ export default function ReasonModal({ show, title, onConfirm, onCancel, loading 
                 padding: '1.1rem',
                 borderRadius: '1.25rem',
                 fontWeight: 800,
-                background: reason.trim() ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : 'var(--border)',
+                background: reason.trim() ? '#ef4444' : 'var(--border)',
                 border: 'none',
                 color: 'white',
                 cursor: reason.trim() ? 'pointer' : 'not-allowed',

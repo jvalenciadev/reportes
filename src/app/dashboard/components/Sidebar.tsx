@@ -36,7 +36,7 @@ export default function Sidebar({ role, departamentoId }: { role?: string; depar
           <div style={{
             width: 34, height: 34,
             borderRadius: '10px',
-            background: 'linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%)',
+            background: 'var(--primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 4px 12px var(--primary-glow)',
             flexShrink: 0,

@@ -45,6 +45,7 @@ export default function InscriptionsClient({
   // Modal States
   const [reasonModal, setReasonModal] = useState({ show: false, id: '', status: '' })
   const [confirmModal, setConfirmModal] = useState({ show: false, id: '', newGroupId: '', groupName: '' })
+  const [statusConfirmModal, setStatusConfirmModal] = useState({ show: false, id: '', currentStatus: '', newStatus: '' })
 
   // Load Initial Data
   useEffect(() => {
@@ -135,6 +136,31 @@ export default function InscriptionsClient({
   }, [selectedGroup, selectedProgram])
 
   // Logic to handle participant registration removed as requested
+
+  const handleStatusChange = (inscription: any, newStatus: string) => {
+    if (newStatus === 'inscrito') {
+      setStatusConfirmModal({
+        show: true,
+        id: inscription.id,
+        currentStatus: inscription.estado,
+        newStatus: newStatus
+      })
+    } else {
+      updateStatus(inscription.id, newStatus)
+    }
+  }
+
+  const handleConfirmStatus = async () => {
+    setSaving(true)
+    try {
+      await updateStatus(statusConfirmModal.id, statusConfirmModal.newStatus)
+      setStatusConfirmModal({ show: false, id: '', currentStatus: '', newStatus: '' })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const updateStatus = async (id: string, newStatus: string) => {
     // Si es BAJA, abrir el modal en lugar de procesar directo
@@ -551,19 +577,43 @@ export default function InscriptionsClient({
                                 </div>
                               </td>
                               <td>
-                                <span style={{
-                                  display: 'inline-block',
-                                  padding: '0.4rem 0.8rem',
-                                  borderRadius: '0.6rem',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 700,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.05em',
-                                  background: i.estado === 'inscrito' ? 'var(--success)' : (i.estado === 'preinscrito' ? '#3b82f6' : 'var(--border)'),
-                                  color: i.estado === 'inscrito' || i.estado === 'preinscrito' ? 'white' : 'var(--muted)'
-                                }}>
-                                  {i.estado === 'inscrito' ? 'Activo' : i.estado === 'preinscrito' ? 'Preinscrito' : 'Baja'}
-                                </span>
+                                {i.estado === 'inscrito' ? (
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '0.4rem 0.8rem',
+                                    borderRadius: '0.6rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                    background: 'var(--success)',
+                                    color: 'white'
+                                  }}>
+                                    Activo
+                                  </span>
+                                ) : (
+                                  <select
+                                    value={i.estado}
+                                    onChange={(e) => handleStatusChange(i, e.target.value)}
+                                    style={{
+                                      padding: '0.4rem 0.8rem',
+                                      borderRadius: '0.6rem',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 700,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.05em',
+                                      background: i.estado === 'preinscrito' ? '#3b82f6' : 'var(--border)',
+                                      color: i.estado === 'preinscrito' ? 'white' : 'var(--muted)',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      outline: 'none'
+                                    }}
+                                  >
+                                    <option value="preinscrito" style={{ color: '#1f2937', background: 'var(--card)' }}>Preinscrito</option>
+                                    <option value="inscrito" style={{ color: '#1f2937', background: 'var(--card)' }}>Activo</option>
+                                    <option value="baja" style={{ color: '#1f2937', background: 'var(--card)' }}>Baja</option>
+                                  </select>
+                                )}
 
                                 {i.observacion && (
                                   <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: '0.5rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -643,6 +693,18 @@ export default function InscriptionsClient({
         onConfirm={handleConfirmGroup}
         onCancel={() => {
           setConfirmModal({ show: false, id: '', newGroupId: '', groupName: '' })
+          loadParticipants()
+        }}
+      />
+      <ConfirmModal
+        show={statusConfirmModal.show}
+        title="Confirmar Inscripción"
+        message="¿Estás seguro de inscribir a este participante? Una vez inscrito, su estado quedará activo y no podrá ser modificado."
+        warningNote="⚠️ ACCIÓN REQUERIDA: Si el programa ya está en curso, los facilitadores deberán registrar manualmente la asistencia de los módulos anteriores como FALTA y la calificación con 0 para este participante."
+        loading={saving}
+        onConfirm={handleConfirmStatus}
+        onCancel={() => {
+          setStatusConfirmModal({ show: false, id: '', currentStatus: '', newStatus: '' })
           loadParticipants()
         }}
       />

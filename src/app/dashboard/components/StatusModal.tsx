@@ -147,7 +147,7 @@ export default function StatusModal({ show, type, title, message, onClose }: Sta
           style={{
             width: '100%',
             padding: '1.1rem',
-            background: `linear-gradient(135deg, ${config.border}, ${config.border}dd)`,
+            background: config.border,
             border: 'none',
             color: 'white',
             borderRadius: '1.25rem',

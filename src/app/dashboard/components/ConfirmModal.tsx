@@ -2,18 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { HelpCircle, X, CheckCircle2, ChevronRight } from 'lucide-react'
+import { HelpCircle, X, CheckCircle2, ChevronRight, AlertTriangle } from 'lucide-react'
 
 interface ConfirmModalProps {
   show: boolean
   title: string
   message: string
+  warningNote?: string
   onConfirm: () => void
   onCancel: () => void
   loading?: boolean
 }
 
-export default function ConfirmModal({ show, title, message, onConfirm, onCancel, loading }: ConfirmModalProps) {
+export default function ConfirmModal({ show, title, message, warningNote, onConfirm, onCancel, loading }: ConfirmModalProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -61,19 +62,19 @@ export default function ConfirmModal({ show, title, message, onConfirm, onCancel
         transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
       }}>
         {/* Decorative Top Bar */}
-        <div style={{ height: '8px', background: 'linear-gradient(90deg, var(--primary), var(--purple))' }} />
+        <div style={{ height: '8px', background: 'var(--primary)' }} />
 
         <div style={{ padding: '3rem 2.5rem' }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-              <div style={{ 
-                width: '56px', 
-                height: '56px', 
-                borderRadius: '20px', 
-                background: 'rgba(99, 102, 241, 0.1)', 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '20px',
+                background: 'rgba(99, 102, 241, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 color: 'var(--primary)'
               }}>
@@ -92,18 +93,35 @@ export default function ConfirmModal({ show, title, message, onConfirm, onCancel
 
           {/* Body */}
           <div style={{ marginBottom: '2.5rem' }}>
-            <p style={{ margin: 0, fontSize: '1.1rem', color: 'var(--foreground)', lineHeight: '1.6', fontWeight: 500 }}>
+            <p style={{ margin: 0, fontSize: '1rem', color: 'var(--foreground)', lineHeight: '1.6', fontWeight: 500 }}>
               {message}
             </p>
+            {warningNote && (
+              <div style={{
+                marginTop: '1.25rem',
+                padding: '1rem 1.25rem',
+                borderRadius: '1rem',
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1.5px solid rgba(245, 158, 11, 0.4)',
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'flex-start'
+              }}>
+                <AlertTriangle size={18} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+                <p style={{ margin: 0, fontSize: '0.9rem', color: '#f59e0b', lineHeight: '1.6', fontWeight: 700 }}>
+                  {warningNote}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: '1.25rem' }}>
-            <button 
-              className="btn" 
+            <button
+              className="btn"
               onClick={onCancel}
               disabled={loading}
-              style={{ 
+              style={{
                 flex: 1,
                 padding: '1.1rem',
                 borderRadius: '1.25rem',
@@ -117,16 +135,16 @@ export default function ConfirmModal({ show, title, message, onConfirm, onCancel
             >
               Cancelar
             </button>
-            <button 
-              className="btn" 
+            <button
+              className="btn"
               onClick={onConfirm}
               disabled={loading}
-              style={{ 
+              style={{
                 flex: 2,
                 padding: '1.1rem',
                 borderRadius: '1.25rem',
                 fontWeight: 800,
-                background: 'linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%)',
+                background: 'var(--primary)',
                 border: 'none',
                 color: 'white',
                 cursor: 'pointer',
@@ -142,7 +160,7 @@ export default function ConfirmModal({ show, title, message, onConfirm, onCancel
                 'Procesando...'
               ) : (
                 <>
-                  Confirmar Cambio 
+                  Confirmar Cambio
                   <CheckCircle2 size={20} />
                 </>
               )}
