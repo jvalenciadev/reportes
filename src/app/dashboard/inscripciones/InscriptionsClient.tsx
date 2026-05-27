@@ -276,7 +276,7 @@ export default function InscriptionsClient({
     }
   }
 
-  const updateParticipantContact = async (participanteId: string, field: 'correo' | 'celular', newValue: string) => {
+  const updateParticipantField = async (participanteId: string, field: 'correo' | 'celular' | 'formalizado' | 'zona', newValue: any) => {
     try {
       const { error } = await supabase
         .from('participantes')
@@ -285,7 +285,7 @@ export default function InscriptionsClient({
 
       if (error) throw error
 
-      showNotif('success', 'Datos Actualizados', `El ${field} ha sido actualizado exitosamente.`)
+      showNotif('success', 'Datos Actualizados', `El campo ${field} ha sido actualizado exitosamente.`)
 
       setEnrolledParticipants(prev =>
         prev.map(p => p.participante_id === participanteId ? {
@@ -294,7 +294,7 @@ export default function InscriptionsClient({
         } : p)
       )
     } catch (err: any) {
-      console.error('Error al actualizar contacto:', err)
+      console.error('Error al actualizar participante:', err)
       showNotif('error', 'Error al actualizar', err.message)
     }
   }
@@ -470,6 +470,7 @@ export default function InscriptionsClient({
                       <th>Participante</th>
                       <th>Identidad / Grupo</th>
                       <th>Contacto</th>
+                      <th>Formalización / Zona</th>
                       <th>Estado / Obs.</th>
                       <th style={{ textAlign: 'center' }}>Documentos</th>
                       <th style={{ textAlign: 'right' }}>Registro</th>
@@ -550,7 +551,7 @@ export default function InscriptionsClient({
                                     defaultValue={i.participantes.correo || ''}
                                     onBlur={(e) => {
                                       if (e.target.value !== i.participantes.correo) {
-                                        updateParticipantContact(i.participante_id, 'correo', e.target.value);
+                                        updateParticipantField(i.participante_id, 'correo', e.target.value);
                                       }
                                     }}
                                     style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid transparent', padding: '0.2rem 0', fontSize: '0.8rem', color: 'var(--foreground)', transition: 'all 0.2s' }}
@@ -567,7 +568,7 @@ export default function InscriptionsClient({
                                     defaultValue={i.participantes.celular || ''}
                                     onBlur={(e) => {
                                       if (e.target.value !== i.participantes.celular) {
-                                        updateParticipantContact(i.participante_id, 'celular', e.target.value);
+                                        updateParticipantField(i.participante_id, 'celular', e.target.value);
                                       }
                                     }}
                                     style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid transparent', padding: '0.2rem 0', fontSize: '0.8rem', color: 'var(--foreground)', transition: 'all 0.2s' }}
@@ -577,43 +578,59 @@ export default function InscriptionsClient({
                                 </div>
                               </td>
                               <td>
-                                {i.estado === 'inscrito' ? (
-                                  <span style={{
-                                    display: 'inline-block',
-                                    padding: '0.4rem 0.8rem',
-                                    borderRadius: '0.6rem',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.05em',
-                                    background: 'var(--success)',
-                                    color: 'white'
-                                  }}>
-                                    Activo
-                                  </span>
-                                ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                  {/* Formalizado Checkbox */}
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600, color: 'var(--foreground-2)' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={!!i.participantes.formalizado}
+                                      onChange={(e) => updateParticipantField(i.participante_id, 'formalizado', e.target.checked)}
+                                      style={{
+                                        width: '14px',
+                                        height: '14px',
+                                        borderRadius: '4px',
+                                        accentColor: 'var(--primary)',
+                                        cursor: 'pointer'
+                                      }}
+                                    />
+                                    <span>{i.participantes.formalizado ? 'Formalizado' : 'Pendiente'}</span>
+                                  </label>
+                                  {/* Zona Select */}
                                   <select
-                                    value={i.estado}
-                                    onChange={(e) => handleStatusChange(i, e.target.value)}
+                                    value={i.participantes.zona || 'urbano'}
+                                    onChange={(e) => updateParticipantField(i.participante_id, 'zona', e.target.value)}
                                     style={{
-                                      padding: '0.4rem 0.8rem',
-                                      borderRadius: '0.6rem',
+                                      padding: '0.25rem 0.5rem',
+                                      borderRadius: '0.5rem',
                                       fontSize: '0.75rem',
-                                      fontWeight: 700,
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.05em',
-                                      background: i.estado === 'preinscrito' ? '#3b82f6' : 'var(--border)',
-                                      color: i.estado === 'preinscrito' ? 'white' : 'var(--muted)',
-                                      border: 'none',
+                                      background: 'var(--surface)',
+                                      border: '1px solid var(--border)',
+                                      color: 'var(--foreground)',
+                                      outline: 'none',
                                       cursor: 'pointer',
-                                      outline: 'none'
+                                      width: '100px'
                                     }}
                                   >
-                                    <option value="preinscrito" style={{ color: '#1f2937', background: 'var(--card)' }}>Preinscrito</option>
-                                    <option value="inscrito" style={{ color: '#1f2937', background: 'var(--card)' }}>Activo</option>
-                                    <option value="baja" style={{ color: '#1f2937', background: 'var(--card)' }}>Baja</option>
+                                    <option value="urbano">Urbano</option>
+                                    <option value="rural">Rural</option>
                                   </select>
-                                )}
+                                </div>
+                              </td>
+                              <td>
+                                {/* Comentado: Cambio de estado de inscripción de preinscrito a activo ya no es editable */}
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '0.4rem 0.8rem',
+                                  borderRadius: '0.6rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.05em',
+                                  background: i.estado === 'inscrito' ? 'var(--success)' : (i.estado === 'preinscrito' ? '#3b82f6' : 'var(--border)'),
+                                  color: i.estado === 'inscrito' || i.estado === 'preinscrito' ? 'white' : 'var(--muted)'
+                                }}>
+                                  {i.estado === 'inscrito' ? 'Activo' : (i.estado === 'preinscrito' ? 'Preinscrito' : 'Baja')}
+                                </span>
 
                                 {i.observacion && (
                                   <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: '0.5rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -654,7 +671,7 @@ export default function InscriptionsClient({
                           );
                         }) : (
                       <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
                           <Search size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
                           <div>No hay participantes activos en este grupo</div>
                         </td>

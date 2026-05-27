@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import StatusModal, { StatusType } from '../components/StatusModal'
 import { createSystemUser, assignFacilitatorGroup } from '../usuarios/actions'
-import { migrateParticipant } from '../inscripciones/actions'
+import { migrateParticipant, updateParticipantFieldsByCI } from '../inscripciones/actions'
 
 export default function MigrationClient({
   roles = [],
@@ -18,7 +18,7 @@ export default function MigrationClient({
   roles: any[],
   departamentos: any[]
 }) {
-  const [activeTab, setActiveTab] = useState<'users' | 'assignments' | 'participants'>('users')
+  const [activeTab, setActiveTab] = useState<'users' | 'assignments' | 'participants' | 'update_fields'>('users')
   const [file, setFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [results, setResults] = useState<{ name: string; status: 'success' | 'error'; message?: string }[]>([])
@@ -45,10 +45,14 @@ export default function MigrationClient({
       headers = 'facilitador_email,grupo_nombre\n'
       example = 'juan.perez@profe.gob.bo,Grupo A - Nivelacion\n'
       filename = 'plantilla_asignacion_grupos.csv'
-    } else {
+    } else if (activeTab === 'participants') {
       headers = 'nombre,apellido,ci,correo,celular,grupo_nombre,programa_titulo\n'
       example = 'Maria,Garcia,8765432 SC,maria.garcia@gmail.com,70010203,LPZ-G1,Programa Puente\n'
       filename = 'plantilla_migracion_participantes.csv'
+    } else {
+      headers = 'ci,formalizacion,zona\n'
+      example = '8765432 SC,SI,rural\n'
+      filename = 'plantilla_actualizacion_participantes.csv'
     }
 
     const blob = new Blob([headers + example], { type: 'text/csv' })
@@ -142,7 +146,7 @@ export default function MigrationClient({
             const res = await assignFacilitatorGroup(f_email, g_name)
             if (res?.error) throw new Error(res.error)
             newResults.push({ name: `${f_email} -> ${g_name}`, status: 'success' })
-          } else {
+          } else if (activeTab === 'participants') {
             // Participants Migration
             if (!rowData.nombre || !rowData.ci || !rowData.grupo_nombre || !rowData.programa_titulo) {
               throw new Error('Faltan campos (nombre, ci, grupo_nombre, programa_titulo)')
@@ -158,9 +162,26 @@ export default function MigrationClient({
             })
             if (res?.error) throw new Error(res.error)
             newResults.push({ name: `${rowData.nombre} ${rowData.apellido} (CI: ${rowData.ci})`, status: 'success' })
+          } else {
+            // Update fields by CI
+            if (!rowData.ci || !rowData.formalizacion) {
+              throw new Error('Faltan campos (ci, formalizacion)')
+            }
+            const isFormalizado = rowData.formalizacion.toUpperCase() === 'SI'
+            const zonaVal = (rowData.zona || 'urbano').toLowerCase().trim()
+            if (zonaVal && zonaVal !== 'urbano' && zonaVal !== 'rural') {
+              throw new Error('El campo zona debe ser "urbano" o "rural"')
+            }
+
+            const res = await updateParticipantFieldsByCI(rowData.ci, {
+              formalizado: isFormalizado,
+              ...(zonaVal ? { zona: zonaVal } : {})
+            })
+            if (res?.error) throw new Error(res.error)
+            newResults.push({ name: `CI: ${rowData.ci} (Formalizado: ${isFormalizado ? 'SI' : 'NO'}, Zona: ${zonaVal})`, status: 'success' })
           }
         } catch (err: any) {
-          newResults.push({ name: rowData.nombre || 'Error', status: 'error', message: err.message })
+          newResults.push({ name: rowData.nombre || rowData.ci || 'Error', status: 'error', message: err.message })
         }
         setResults([...newResults])
       }
@@ -205,26 +226,33 @@ export default function MigrationClient({
           >
             <GraduationCap size={16} /> Participantes
           </button>
+          <button
+            className={`btn ${activeTab === 'update_fields' ? 'btn-primary' : ''}`}
+            style={{ borderRadius: '1rem', background: activeTab === 'update_fields' ? 'var(--primary)' : 'transparent', color: activeTab === 'update_fields' ? 'white' : 'var(--foreground-2)', padding: '0.6rem 1.25rem' }}
+            onClick={() => { setActiveTab('update_fields'); setFile(null); setResults([]); }}
+          >
+            <Activity size={16} /> Actualizar Datos
+          </button>
         </div>
 
         {/* Upload Card */}
         <div className="card glass" style={{ padding: '3.5rem 2rem', textAlign: 'center', border: '2px dashed var(--border)', background: 'transparent' }}>
           <div style={{
             width: '80px', height: '80px', borderRadius: '2.25rem',
-            background: activeTab === 'participants' ? 'var(--info-light)' : (activeTab === 'users' ? 'var(--primary-light)' : 'var(--success-light)'),
-            color: activeTab === 'participants' ? 'var(--info)' : (activeTab === 'users' ? 'var(--primary)' : 'var(--success)'),
+            background: activeTab === 'participants' ? 'var(--info-light)' : (activeTab === 'users' ? 'var(--primary-light)' : (activeTab === 'assignments' ? 'var(--success-light)' : 'rgba(245, 158, 11, 0.1)')),
+            color: activeTab === 'participants' ? 'var(--info)' : (activeTab === 'users' ? 'var(--primary)' : (activeTab === 'assignments' ? 'var(--success)' : '#f59e0b')),
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 2rem', boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
           }}>
-            {activeTab === 'participants' ? <GraduationCap size={40} /> : (activeTab === 'users' ? <Upload size={40} /> : <Database size={40} />)}
+            {activeTab === 'participants' ? <GraduationCap size={40} /> : (activeTab === 'users' ? <Upload size={40} /> : (activeTab === 'assignments' ? <Database size={40} /> : <Activity size={40} />))}
           </div>
           <h2 style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '1rem' }}>
-            {activeTab === 'participants' ? 'Migrar Participantes' : (activeTab === 'users' ? 'Migrar Usuarios' : 'Asignar Grupos')}
+            {activeTab === 'participants' ? 'Migrar Participantes' : (activeTab === 'users' ? 'Migrar Usuarios' : (activeTab === 'assignments' ? 'Asignar Grupos' : 'Actualizar Datos por CI'))}
           </h2>
           <p style={{ color: 'var(--foreground-2)', marginBottom: '2.5rem', maxWidth: '500px', margin: '0 auto 2.5rem', lineHeight: 1.6 }}>
             {activeTab === 'participants'
               ? 'Sube un CSV para inscribir participantes masivamente en grupos y programas.'
-              : (activeTab === 'users' ? 'Crea cuentas de acceso administrativo masivamente.' : 'Vincula facilitadores con sus grupos académicos.')}
+              : (activeTab === 'users' ? 'Crea cuentas de acceso administrativo masivamente.' : (activeTab === 'assignments' ? 'Vincula facilitadores con sus grupos académicos.' : 'Actualiza formalización (SI/NO) y zona (urbano/rural) masivamente usando el CI.'))}
           </p>
 
           <input type="file" accept=".csv" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileChange} />
@@ -282,12 +310,15 @@ export default function MigrationClient({
                 {activeTab === 'users' && 'nombre, apellidos, ci, correo, password, role, departamento'}
                 {activeTab === 'assignments' && 'facilitador_email, grupo_nombre'}
                 {activeTab === 'participants' && 'nombre, apellido, ci, correo, celular, grupo_nombre, programa_titulo'}
+                {activeTab === 'update_fields' && 'ci, formalizacion, zona'}
               </code>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--foreground-2)', lineHeight: 1.6 }}>
               {activeTab === 'participants'
                 ? 'El sistema buscará automáticamente el grupo y el programa por su nombre exacto para realizar la inscripción.'
-                : 'Asegúrate de que los correos electrónicos sean únicos en el sistema.'}
+                : (activeTab === 'update_fields'
+                  ? 'El sistema actualizará el estado de formalización (SI = formalizado, NO = pendiente) y la zona (urbano/rural) del participante asociado a cada CI.'
+                  : 'Asegúrate de que los correos electrónicos sean únicos en el sistema.')}
             </p>
           </div>
         </div>

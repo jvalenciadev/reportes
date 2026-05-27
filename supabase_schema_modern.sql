@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS public.participantes (
     celular TEXT,
     fecha_nacimiento DATE,
     localidad_vive TEXT,
+    formalizado BOOLEAN DEFAULT false,
+    zona TEXT DEFAULT 'urbano' CHECK (zona IN ('rural', 'urbano')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

@@ -87,3 +87,34 @@ export async function migrateParticipant(data: any) {
     return { error: error.message || 'Error desconocido en la migración' }
   }
 }
+
+export async function updateParticipantFieldsByCI(ci: string, data: { formalizado?: boolean; zona?: string }) {
+  const supabaseAdmin = createBaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  try {
+    const cleanCI = ci?.trim()
+    if (!cleanCI) throw new Error('El CI no puede estar vacío.')
+
+    // Update fields
+    const { data: updated, error } = await supabaseAdmin
+      .from('participantes')
+      .update(data)
+      .eq('ci', cleanCI)
+      .select()
+
+    if (error) throw error
+    if (!updated || updated.length === 0) {
+      throw new Error(`Participante con CI "${cleanCI}" no encontrado.`)
+    }
+
+    revalidatePath('/dashboard/inscripciones')
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error al actualizar participante por CI:', error.message)
+    return { error: error.message || 'Error al actualizar participante' }
+  }
+}
+
