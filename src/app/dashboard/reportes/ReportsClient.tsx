@@ -1022,8 +1022,9 @@ export default function ReportsClient({
       const calificados = groupData.reduce((acc, curr) => acc + (curr.total_calificados || 0), 0)
       const aprobados = groupData.reduce((acc, curr) => acc + (curr.aprobados || 0), 0)
       const reprobados = groupData.reduce((acc, curr) => acc + (curr.reprobados || 0), 0)
-      const suma_total = groupData.reduce((acc, curr) => acc + (curr.suma_total || 0), 0)
-      const promedio = calificados > 0 ? (suma_total / calificados) : 0
+      const conNota = groupData.reduce((acc, curr) => acc + (curr.total_con_nota || 0), 0)
+      const suma_total_con_nota = groupData.reduce((acc, curr) => acc + (curr.suma_total_con_nota || 0), 0)
+      const promedio = conNota > 0 ? (suma_total_con_nota / conNota) : 0
       return {
         name: key,
         Aprobados: aprobados,
@@ -1972,8 +1973,9 @@ export default function ReportsClient({
                   const totAprobados = filteredGradesSearched.reduce((acc, r) => acc + r.aprobados, 0)
                   const totReprobados = filteredGradesSearched.reduce((acc, r) => acc + r.reprobados, 0)
                   const totAbandonos = filteredGradesSearched.reduce((acc, r) => acc + (r.abandonos || 0), 0)
-                  const sumTotal = filteredGradesSearched.reduce((acc, r) => acc + r.suma_total, 0)
-                  const avgNota = totCalificados > 0 ? sumTotal / totCalificados : 0
+                  const totConNota = filteredGradesSearched.reduce((acc, r) => acc + (r.total_con_nota || 0), 0)
+                  const sumConNota = filteredGradesSearched.reduce((acc, r) => acc + (r.suma_total_con_nota || 0), 0)
+                  const avgNota = totConNota > 0 ? sumConNota / totConNota : 0
                   const overallPassRate = totCalificados > 0 ? (totAprobados / totCalificados) * 100 : 0
                   const overallFailRate = totCalificados > 0 ? (totReprobados / totCalificados) * 100 : 0
                   const overallAbandonRate = totCalificados > 0 ? (totAbandonos / totCalificados) * 100 : 0
@@ -2014,7 +2016,8 @@ export default function ReportsClient({
                   const failRate = row.total_calificados > 0 ? (row.reprobados / row.total_calificados) * 100 : 0
                   const abandonos = row.abandonos || 0
                   const abandonRate = row.total_calificados > 0 ? (abandonos / row.total_calificados) * 100 : 0
-                  const avgRowNota = row.total_calificados > 0 ? row.suma_total / row.total_calificados : 0
+                  const conNota = row.total_con_nota || 0
+                  const avgRowNota = conNota > 0 ? (row.suma_total_con_nota || 0) / conNota : 0
 
                   return (
                     <tr key={idx} className="hover-row">
