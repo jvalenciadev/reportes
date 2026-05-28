@@ -1061,7 +1061,7 @@ export default function ReportsClient({
         <div style={{ display: 'flex', gap: '0.4rem', background: 'var(--surface)', padding: '0.3rem', borderRadius: '0.85rem' }}>
           <TabBtn active={tab === 'resumen'} onClick={() => setTab('resumen')} icon={LayoutDashboard} label="Dashboard" />
           <TabBtn active={tab === 'analisis'} onClick={() => setTab('analisis')} icon={Zap} label="Análisis Estratégico" />
-          <TabBtn active={tab === 'operativo'} onClick={() => setTab('operativo')} icon={Layers} label="Ficha Operativa" />
+          {/* <TabBtn active={tab === 'operativo'} onClick={() => setTab('operativo')} icon={Layers} label="Ficha Operativa" /> */}
           <TabBtn active={tab === 'asistencia_modulos'} onClick={() => setTab('asistencia_modulos')} icon={CheckSquare} label="Asistencia por Módulos" />
           <TabBtn active={tab === 'calificaciones_modulos'} onClick={() => setTab('calificaciones_modulos')} icon={TrendingUp} label="Calificaciones por Módulos" />
           <TabBtn active={tab === 'control_progreso'} onClick={() => setTab('control_progreso')} icon={ClipboardCheck} label="Control de Progreso" />
@@ -1636,94 +1636,9 @@ export default function ReportsClient({
           </div>
         </div>
       ) : tab === 'operativo' ? (
-        /* Ficha Operativa Detallada */
-        <div className="glass card" style={{ padding: 0 }}>
-          <div style={{ padding: '2rem', borderBottom: '1px solid var(--border)', background: 'linear-gradient(to right, var(--surface), transparent)' }}>
-            <h2 style={{ marginBottom: '0.5rem' }}>Estatus Operativo de Grupos</h2>
-            <p style={{ color: 'var(--foreground-3)', fontSize: '0.9rem' }}>Vista granulada para supervisores de campo</p>
-          </div>
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Identificador Grupo</th>
-                  <th>Sede</th>
-                  <th>Preinscritos</th>
-                  <th>Inscritos</th>
-                  <th>Docs (Ins)</th>
-                  <th>Inscripción %</th>
-                  <th>Asistencia Prom.</th>
-                  <th>Score Final</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Header Totals Row */}
-                <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderBottom: '2px solid var(--border-strong)' }}>
-                  <td colSpan={2} style={{ color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Resumen de Selección</td>
-                  <td style={{ fontSize: '1rem' }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_inscritos || 0), 0).toLocaleString()}</td>
-                  <td style={{ fontSize: '1rem', color: COLORS.info }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_confirmados || 0), 0).toLocaleString()}</td>
-                  <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.inscritos_entrego || 0), 0).toLocaleString()}</td>
-                  <td>{metrics.confirmation_rate}%</td>
-                  <td style={{ color: COLORS.success }}>{metrics.avg_per_day}</td>
-                  <td>
-                    <span className="badge" style={{ background: 'var(--primary)', color: 'white' }}>
-                      {metrics.efficiency_score}
-                    </span>
-                  </td>
-                </tr>
-
-                {filteredEnrollment.map((g, i) => {
-                  const gAtt = filteredAttendance.filter(a => a.group_name === g.group_name)
-                  const conf_rate = g.total_inscritos > 0 ? (g.total_confirmados / g.total_inscritos) * 100 : 0
-                  const avg_att = gAtt.length > 0 ? (gAtt.reduce((acc, curr) => acc + curr.asistieron, 0) / gAtt.length) : 0
-                  const score = Math.round(conf_rate * (avg_att / (g.total_confirmados || 1))).toString()
-
-                  return (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 800 }}>{g.group_name}</td>
-                      <td style={{ color: 'var(--foreground-3)' }}>{g.dept_name}</td>
-                      <td style={{ fontWeight: 700 }}>{g.total_inscritos}</td>
-                      <td style={{ color: COLORS.info, fontWeight: 700 }}>{g.total_confirmados}</td>
-                      <td style={{ color: COLORS.purple, fontWeight: 700 }}>{g.inscritos_entrego || 0}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <div style={{ flex: 1, height: '4px', background: 'var(--surface)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${conf_rate}%`, height: '100%', background: COLORS.info }} />
-                          </div>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{Math.round(conf_rate)}%</span>
-                        </div>
-                      </td>
-                      <td style={{ color: COLORS.success, fontWeight: 700 }}>{Math.round(avg_att)}</td>
-                      <td>
-                        <span className="badge" style={{
-                          background: parseFloat(score) > 80 ? 'var(--success-light)' : parseFloat(score) > 50 ? 'var(--warning-light)' : 'var(--danger-light)',
-                          color: parseFloat(score) > 80 ? 'var(--success)' : parseFloat(score) > 50 ? 'var(--warning)' : 'var(--danger)',
-                          fontWeight: 900
-                        }}>
-                          {score}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 10 }}>
-                <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderTop: '2px solid var(--border-strong)' }}>
-                  <td colSpan={2} style={{ textAlign: 'right', color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Totales de Selección</td>
-                  <td style={{ fontSize: '1rem' }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_inscritos || 0), 0).toLocaleString()}</td>
-                  <td style={{ fontSize: '1rem', color: COLORS.info }}>{filteredEnrollment.reduce((acc, g) => acc + (g.total_confirmados || 0), 0).toLocaleString()}</td>
-                  <td style={{ fontSize: '1rem', color: COLORS.purple }}>{filteredEnrollment.reduce((acc, g) => acc + (g.inscritos_entrego || 0), 0).toLocaleString()}</td>
-                  <td>{metrics.confirmation_rate}%</td>
-                  <td style={{ color: COLORS.success }}>{metrics.avg_per_day}</td>
-                  <td>
-                    <span className="badge" style={{ background: 'var(--primary)', color: 'white' }}>
-                      {metrics.efficiency_score}
-                    </span>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+        /* Ficha Operativa — TEMPORALMENTE DESACTIVADA */
+        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--foreground-3)' }}>
+          Sección desactivada temporalmente.
         </div>
       ) : tab === 'asistencia_modulos' ? (
         /* Asistencia por Módulos */
