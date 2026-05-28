@@ -718,7 +718,7 @@ export default function ReportsClient({
   }, [enrollmentData, deptoList])
 
   const getDayLabel = useCallback((dia: number, shortModName?: string) => {
-    const sem = dia <= 2 ? 1 : dia <= 4 ? 2 : 3
+    const sem = dia <= 3 ? 1 : 2
     const isPresencial = dia === 6
     const label = `Sem ${sem} - D${dia}${isPresencial ? ' (Presencial)' : ''}`
     if (shortModName) {
