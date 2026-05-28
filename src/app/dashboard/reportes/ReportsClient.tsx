@@ -1017,11 +1017,16 @@ export default function ReportsClient({
     const data = filteredGrades
     const groupByField = selectedModules.length === 1 ? 'group_name' : 'modulo_name'
     const uniqueKeys = [...new Set(data.map(g => g[groupByField]))].filter(Boolean)
+
+    // Sort keys naturally (e.g. LPZ-G4 before LPZ-G34)
+    uniqueKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+
     return uniqueKeys.map(key => {
       const groupData = data.filter(g => g[groupByField] === key)
       const calificados = groupData.reduce((acc, curr) => acc + (curr.total_calificados || 0), 0)
       const aprobados = groupData.reduce((acc, curr) => acc + (curr.aprobados || 0), 0)
       const reprobados = groupData.reduce((acc, curr) => acc + (curr.reprobados || 0), 0)
+      const abandonos = groupData.reduce((acc, curr) => acc + (curr.abandonos || 0), 0)
       const conNota = groupData.reduce((acc, curr) => acc + (curr.total_con_nota || 0), 0)
       const suma_total_con_nota = groupData.reduce((acc, curr) => acc + (curr.suma_total_con_nota || 0), 0)
       const promedio = conNota > 0 ? (suma_total_con_nota / conNota) : 0
@@ -1029,6 +1034,7 @@ export default function ReportsClient({
         name: key,
         Aprobados: aprobados,
         Reprobados: reprobados,
+        Abandonos: abandonos,
         Calificados: calificados,
         Promedio: Math.round(promedio)
       }
@@ -1227,6 +1233,7 @@ export default function ReportsClient({
                 <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingBottom: '10px' }} />
                 <Bar yAxisId="left" dataKey="Aprobados" name="Aprobados" stackId="g" fill={COLORS.success} barSize={30} />
                 <Bar yAxisId="left" dataKey="Reprobados" name="Reprobados" stackId="g" fill={COLORS.danger} />
+                <Bar yAxisId="left" dataKey="Abandonos" name="Abandonos" stackId="g" fill={COLORS.warning} />
                 <Line yAxisId="right" type="monotone" dataKey="Promedio" name="Nota Promedio" stroke={COLORS.primary} strokeWidth={3} dot={{ r: 5, fill: COLORS.primary }} activeDot={{ r: 7 }} unit="/100" />
               </ComposedChart>
             </ResponsiveContainer>
