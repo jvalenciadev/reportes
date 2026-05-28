@@ -347,15 +347,19 @@ export default function ReportsClient({
   attendanceData = [],
   enrollmentData = [],
   attendanceByModulesData = [],
-  gradesData = []
+  gradesData = [],
+  rawAttendanceData = [],
+  rawGradesData = []
 }: {
   attendanceData: any[],
   enrollmentData: any[],
   attendanceByModulesData?: any[],
-  gradesData?: any[]
+  gradesData?: any[],
+  rawAttendanceData?: any[],
+  rawGradesData?: any[]
 }) {
   const [mounted, setMounted] = useState(false)
-  const [tab, setTab] = useState<'resumen' | 'control_progreso' | 'inscripcion' | 'analisis' | 'operativo' | 'asistencia_modulos' | 'calificaciones_modulos'>('resumen')
+  const [tab, setTab] = useState<'resumen' | 'control_progreso' | 'inscripcion' | 'analisis' | 'operativo' | 'asistencia_modulos' | 'calificaciones_modulos' | 'destacados' | 'riesgo_abandono'>('resumen')
   const [selectedDept, setSelectedDept] = useState('all')
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('all')
   const [selectedDay, setSelectedDay] = useState<'all' | number>('all')
@@ -643,6 +647,222 @@ export default function ReportsClient({
     }
     return data
   }, [controlProgresoData, selectedDept, searchTerm])
+
+
+  // --- INDIVIDUAL STUDENT ANALYTICAL ENGINE ---
+  const studentsAnalysis = useMemo(() => {
+    const map: Record<string, {
+      id: string
+      nombre: string
+      apellido: string
+      ci: string
+      groupName: string
+      deptName: string
+      asistioCount: number
+      atrasoCount: number
+      faltaCount: number
+      permisoCount: number
+      totalAttendanceDays: number
+      attendanceRate: number
+      grades: { moduloId: string; moduloName: string; total: number; fechaInicio: string; fechaFin: string }[]
+      averageGrade: number | null
+      zeroGradesCount: number
+      failingModulesCount: number
+    }> = {}
+
+    // 1. Process attendance granularly
+    rawAttendanceData?.forEach((a: any) => {
+      const studentId = a.participante_id || a.participantes?.id
+      if (!studentId) return
+
+      const participante = a.participantes
+      if (!participante) return
+
+      const programaId = a.programa_modulos?.programa_id
+      const inscripcion = participante.inscripciones?.find(
+        (i: any) => i.programa_id === programaId
+      )
+      if (!inscripcion) return
+      if (inscripcion.estado !== 'inscrito') return
+
+      const group = inscripcion.grupos
+      if (!group) return
+
+      if (!map[studentId]) {
+        map[studentId] = {
+          id: studentId,
+          nombre: participante.nombre || 'S/N',
+          apellido: participante.apellido || 'S/A',
+          ci: participante.ci || 'S/CI',
+          groupName: group.name || 'S/G',
+          deptName: group.departamentos?.name || 'S/D',
+          asistioCount: 0,
+          atrasoCount: 0,
+          faltaCount: 0,
+          permisoCount: 0,
+          totalAttendanceDays: 0,
+          attendanceRate: 0,
+          grades: [],
+          averageGrade: 0,
+          zeroGradesCount: 0,
+          failingModulesCount: 0
+        }
+      }
+
+      const st = map[studentId]
+      const estado = a.estado || 'falta'
+      if (estado === 'asistio') st.asistioCount++
+      else if (estado === 'atraso') st.atrasoCount++
+      else if (estado === 'falta') st.faltaCount++
+      else if (estado === 'permiso') st.permisoCount++
+    })
+
+    // 2. Process grades granularly
+    rawGradesData?.forEach((g: any) => {
+      const studentId = g.participante_id || g.participantes?.id
+      if (!studentId) return
+
+      const participante = g.participantes
+      if (!participante) return
+
+      const programaId = g.programa_modulos?.programa_id
+      const inscripcion = participante.inscripciones?.find(
+        (i: any) => i.programa_id === programaId
+      )
+      if (!inscripcion) return
+      if (inscripcion.estado !== 'inscrito') return
+
+      const group = inscripcion.grupos
+      if (!group) return
+
+      if (!map[studentId]) {
+        map[studentId] = {
+          id: studentId,
+          nombre: participante.nombre || 'S/N',
+          apellido: participante.apellido || 'S/A',
+          ci: participante.ci || 'S/CI',
+          groupName: group.name || 'S/G',
+          deptName: group.departamentos?.name || 'S/D',
+          asistioCount: 0,
+          atrasoCount: 0,
+          faltaCount: 0,
+          permisoCount: 0,
+          totalAttendanceDays: 0,
+          attendanceRate: 0,
+          grades: [],
+          averageGrade: 0,
+          zeroGradesCount: 0,
+          failingModulesCount: 0
+        }
+      }
+
+      const st = map[studentId]
+      const totalNota = Number(g.total || 0)
+      const moduloName = g.programa_modulos?.titulo_modulo || 'S/M'
+      const moduloPrefix = g.programa_modulos?.grupo === 1 ? 'LENGUAJE - ' : g.programa_modulos?.grupo === 2 ? 'MATEMÁTICA - ' : ''
+      const fullModuloName = `${moduloPrefix}${moduloName}`
+      const fechaInicio = g.programa_modulos?.fecha_inicio || ''
+      const fechaFin = g.programa_modulos?.fecha_fin || ''
+
+      // Avoid duplicate grades for the same module
+      if (!st.grades.some(x => x.moduloId === g.modulo_id)) {
+        st.grades.push({
+          moduloId: g.modulo_id,
+          moduloName: fullModuloName,
+          total: totalNota,
+          fechaInicio,
+          fechaFin
+        })
+
+        if (totalNota === 0) st.zeroGradesCount++
+        if (totalNota < 51) st.failingModulesCount++
+      }
+    })
+
+    // 3. Final calculations for each student
+    const studentList = Object.values(map)
+    studentList.forEach(st => {
+      const attended = st.asistioCount + st.atrasoCount
+      const totalDays = st.asistioCount + st.atrasoCount + st.faltaCount + st.permisoCount
+      st.totalAttendanceDays = totalDays
+      st.attendanceRate = totalDays > 0 ? (attended / totalDays) * 100 : 0
+
+      const gradesSum = st.grades.reduce((sum, item) => sum + item.total, 0)
+      st.averageGrade = st.grades.length > 0 ? gradesSum / st.grades.length : null
+    })
+
+    return studentList
+  }, [rawAttendanceData, rawGradesData])
+
+  // --- FILTERED & SORTED LIST FOR DESTACADOS ---
+  const destacadosFiltered = useMemo(() => {
+    // Solo estudiantes con calificaciones registradas
+    let list = studentsAnalysis.filter(st => st.averageGrade !== null)
+
+    if (selectedDept !== 'all') {
+      list = list.filter(st => st.deptName === selectedDept)
+    }
+
+    if (selectedGroupFilter !== 'all') {
+      list = list.filter(st => st.groupName === selectedGroupFilter)
+    }
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      list = list.filter(st =>
+        st.nombre.toLowerCase().includes(term) ||
+        st.apellido.toLowerCase().includes(term) ||
+        st.ci.toLowerCase().includes(term)
+      )
+    }
+
+    const sorted = [...list].sort((a, b) => {
+      const aGrade = a.averageGrade !== null ? a.averageGrade : 0
+      const bGrade = b.averageGrade !== null ? b.averageGrade : 0
+      const gradeComp = bGrade - aGrade
+      if (gradeComp !== 0) return gradeComp
+      return b.attendanceRate - a.attendanceRate
+    })
+
+    return sorted.slice(0, 40)
+  }, [studentsAnalysis, selectedDept, selectedGroupFilter, searchTerm])
+
+  // --- FILTERED & SORTED LIST FOR RIESGO DE ABANDONO ---
+  const riesgoFiltered = useMemo(() => {
+    let list = studentsAnalysis
+
+    // Criterio de riesgo: reprobando (< 51) o asistencia baja (< 60) o calificaciones cero (abandono)
+    list = list.filter(st => (st.averageGrade !== null && st.averageGrade < 51) || st.attendanceRate < 60 || st.zeroGradesCount > 0)
+
+    if (selectedDept !== 'all') {
+      list = list.filter(st => st.deptName === selectedDept)
+    }
+
+    if (selectedGroupFilter !== 'all') {
+      list = list.filter(st => st.groupName === selectedGroupFilter)
+    }
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      list = list.filter(st =>
+        st.nombre.toLowerCase().includes(term) ||
+        st.apellido.toLowerCase().includes(term) ||
+        st.ci.toLowerCase().includes(term)
+      )
+    }
+
+    const sorted = [...list].sort((a, b) => {
+      const zeroComp = b.zeroGradesCount - a.zeroGradesCount
+      if (zeroComp !== 0) return zeroComp
+      const aGrade = a.averageGrade !== null ? a.averageGrade : 100
+      const bGrade = b.averageGrade !== null ? b.averageGrade : 100
+      const gradeComp = aGrade - bGrade
+      if (gradeComp !== 0) return gradeComp
+      return a.attendanceRate - b.attendanceRate
+    })
+
+    return sorted.slice(0, 100)
+  }, [studentsAnalysis, selectedDept, selectedGroupFilter, searchTerm])
 
 
   // --- SENIOR METRICS ENGINE ---
@@ -1045,11 +1265,40 @@ export default function ReportsClient({
     const ws2 = XLSX.utils.json_to_sheet(enrollmentData)
     const ws3 = XLSX.utils.json_to_sheet(attendanceByModulesData)
     const ws4 = XLSX.utils.json_to_sheet(gradesData)
+
+    const destacadosExportData = destacadosFiltered.map((st, idx) => ({
+      Rank: idx + 1,
+      CI: st.ci,
+      Nombre: st.nombre,
+      Apellido: st.apellido,
+      Grupo: st.groupName,
+      Sede: st.deptName,
+      "Calificación Promedio": st.averageGrade !== null ? Math.round(st.averageGrade) : 'S/C',
+      "Asistencia %": Math.round(st.attendanceRate) + '%'
+    }))
+
+    const riesgoExportData = riesgoFiltered.map((st) => ({
+      CI: st.ci,
+      Nombre: st.nombre,
+      Apellido: st.apellido,
+      Grupo: st.groupName,
+      Sede: st.deptName,
+      "Faltas Totales": st.faltaCount,
+      "Asistencia %": Math.round(st.attendanceRate) + '%',
+      "Calificación Promedio": st.averageGrade !== null ? Math.round(st.averageGrade) : "Sin calificaciones",
+      "Módulos y Fechas": st.grades.map(g => `${g.moduloName} (Nota: ${g.total}, Fechas: ${g.fechaInicio} a ${g.fechaFin})`).join(' | ')
+    }))
+
+    const ws5 = XLSX.utils.json_to_sheet(destacadosExportData)
+    const ws6 = XLSX.utils.json_to_sheet(riesgoExportData)
+
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws1, "Asistencias")
     XLSX.utils.book_append_sheet(wb, ws2, "Inscripciones")
     XLSX.utils.book_append_sheet(wb, ws3, "Asistencias por Módulos")
     XLSX.utils.book_append_sheet(wb, ws4, "Calificaciones por Módulos")
+    XLSX.utils.book_append_sheet(wb, ws5, "Estudiantes Destacados")
+    XLSX.utils.book_append_sheet(wb, ws6, "Riesgo de Abandono")
     XLSX.writeFile(wb, `PROFE_Master_Report_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
@@ -1058,13 +1307,15 @@ export default function ReportsClient({
 
       {/* Dynamic Navigation Bar */}
       <div className="glass card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem', padding: '1rem 1.5rem' }}>
-        <div style={{ display: 'flex', gap: '0.4rem', background: 'var(--surface)', padding: '0.3rem', borderRadius: '0.85rem' }}>
+        <div style={{ display: 'flex', gap: '0.4rem', background: 'var(--surface)', padding: '0.3rem', borderRadius: '0.85rem', flexWrap: 'wrap' }}>
           <TabBtn active={tab === 'resumen'} onClick={() => setTab('resumen')} icon={LayoutDashboard} label="Dashboard" />
           <TabBtn active={tab === 'analisis'} onClick={() => setTab('analisis')} icon={Zap} label="Análisis Estratégico" />
           {/* <TabBtn active={tab === 'operativo'} onClick={() => setTab('operativo')} icon={Layers} label="Ficha Operativa" /> */}
           <TabBtn active={tab === 'asistencia_modulos'} onClick={() => setTab('asistencia_modulos')} icon={CheckSquare} label="Asistencia por Módulos" />
           <TabBtn active={tab === 'calificaciones_modulos'} onClick={() => setTab('calificaciones_modulos')} icon={TrendingUp} label="Calificaciones por Módulos" />
           <TabBtn active={tab === 'control_progreso'} onClick={() => setTab('control_progreso')} icon={ClipboardCheck} label="Control de Progreso" />
+          <TabBtn active={tab === 'destacados'} onClick={() => setTab('destacados')} icon={UserCheck} label="Estudiantes Destacados" />
+          <TabBtn active={tab === 'riesgo_abandono'} onClick={() => setTab('riesgo_abandono')} icon={AlertTriangle} label="Riesgo de Abandono" />
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -1990,7 +2241,7 @@ export default function ReportsClient({
             </table>
           </div>
         </div>
-      ) : (
+      ) : tab === 'control_progreso' ? (
         /* Tablero de Control de Progreso y Cumplimiento */
         <div className="glass card animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '0', minHeight: '600px' }}>
           <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -2221,6 +2472,285 @@ export default function ReportsClient({
                   <tr>
                     <td colSpan={5} style={{ textAlign: 'center', padding: '4rem', color: 'var(--foreground-3)' }}>
                       No se encontraron grupos para los criterios de búsqueda o filtros.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : tab === 'destacados' ? (
+        /* Tabla de Estudiantes Destacados (Top 40) */
+        <div className="glass card animate-fade-up" style={{ padding: 0 }}>
+          <div style={{ padding: '2rem', borderBottom: '1px solid var(--border)', background: 'linear-gradient(to right, var(--surface), transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ marginBottom: '0.5rem' }}>Estudiantes Destacados (Top 40)</h2>
+              <p style={{ color: 'var(--foreground-3)', fontSize: '0.9rem' }}>Identificados por alto porcentaje de asistencia y excelentes calificaciones</p>
+              <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--primary)' }}>
+                <Zap size={12} />
+                <span>Muestra de los mejores estudiantes ordenados por promedio de nota y porcentaje de asistencia.</span>
+              </div>
+            </div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary)' }}>
+              Estudiantes en ranking: {destacadosFiltered.length}
+            </div>
+          </div>
+
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: '80px', textAlign: 'center' }}>Puesto</th>
+                  <th>Estudiante</th>
+                  <th>CI</th>
+                  <th>Grupo / Sede</th>
+                  <th style={{ textAlign: 'center' }}>Asistencia %</th>
+                  <th style={{ textAlign: 'center' }}>Clases (Asist / Tardes / Faltas)</th>
+                  <th style={{ textAlign: 'center' }}>Promedio Calificación</th>
+                  <th style={{ textAlign: 'center' }}>Estatus</th>
+                </tr>
+              </thead>
+              <tbody>
+                {destacadosFiltered.map((st, idx) => {
+                  const rankColors = [
+                    'linear-gradient(135deg, #ffd700, #b8860b)', // Oro
+                    'linear-gradient(135deg, #c0c0c0, #808080)', // Plata
+                    'linear-gradient(135deg, #cd7f32, #8b4513)', // Bronce
+                  ]
+
+                  return (
+                    <tr key={st.id} className="hover-row">
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          background: idx < 3 ? rankColors[idx] : 'var(--surface)',
+                          color: idx < 3 ? 'white' : 'var(--foreground-2)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '0 auto',
+                          fontSize: '0.78rem',
+                          fontWeight: 900,
+                          boxShadow: idx < 3 ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
+                        }}>
+                          {idx + 1}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 800, color: 'var(--foreground)' }}>
+                          {st.apellido}, {st.nombre}
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 600, color: 'var(--foreground-2)' }}>{st.ci}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.82rem' }}>{st.groupName}</span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--foreground-3)' }}>📍 {st.deptName}</span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{
+                          background: st.attendanceRate >= 90 ? 'var(--success-light)' : 'var(--primary-light)',
+                          color: st.attendanceRate >= 90 ? COLORS.success : COLORS.primary,
+                          fontWeight: 900,
+                          fontSize: '0.78rem'
+                        }}>
+                          {Math.round(st.attendanceRate)}%
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--foreground-3)' }}>
+                        <b>{st.asistioCount}</b> asis. / <b>{st.atrasoCount}</b> tard. / <span style={{ color: st.faltaCount > 0 ? COLORS.danger : 'inherit' }}>{st.faltaCount} falt.</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{
+                          background: 'rgba(187, 151, 58, 0.15)',
+                          color: 'var(--primary)',
+                          fontWeight: 900,
+                          fontSize: '0.82rem',
+                          border: '1px solid rgba(187, 151, 58, 0.3)'
+                        }}>
+                          {st.averageGrade !== null ? `${Math.round(st.averageGrade)} / 100` : 'S/C'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{
+                          background: 'rgba(16, 217, 139, 0.08)',
+                          color: COLORS.success,
+                          fontWeight: 900
+                        }}>
+                          EXCELENTE
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+
+                {destacadosFiltered.length === 0 && (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '4rem', color: 'var(--foreground-3)' }}>
+                      No se encontraron estudiantes destacados para los filtros o criterios seleccionados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Tabla de Estudiantes en Riesgo de Abandono (Top 100) */
+        <div className="glass card animate-fade-up" style={{ padding: 0 }}>
+          <div style={{ padding: '2rem', borderBottom: '1px solid var(--border)', background: 'linear-gradient(to right, var(--surface), transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <h2 style={{ marginBottom: '0.5rem' }}>Supervisión de Riesgo de Abandono (Top 100)</h2>
+              <p style={{ color: 'var(--foreground-3)', fontSize: '0.9rem' }}>Estudiantes en riesgo académico crítico debido a inasistencia, reprobación o calificaciones en cero (sospecha de abandono)</p>
+              <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: 'var(--danger)' }}>
+                <AlertTriangle size={12} />
+                <span>Ordenados con prioridad por inactividad total (calificaciones cero), promedio reprobatorio y bajo porcentaje de asistencia.</span>
+              </div>
+            </div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--danger)' }}>
+              Estudiantes en riesgo: {riesgoFiltered.length}
+            </div>
+          </div>
+
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Estudiante</th>
+                  <th>CI</th>
+                  <th>Grupo / Sede</th>
+                  <th style={{ width: '400px' }}>Programa Módulo, Fecha Inicio / Fin y Notas</th>
+                  <th style={{ textAlign: 'center' }}>Faltas / Asist. %</th>
+                  <th style={{ textAlign: 'center' }}>Promedio General</th>
+                  <th style={{ textAlign: 'center' }}>Alerta de Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {riesgoFiltered.map((st) => {
+                  const hasZeroGrades = st.zeroGradesCount > 0
+                  const isLowAttendance = st.attendanceRate < 60
+                  const isFailing = st.averageGrade !== null && st.averageGrade < 51
+
+                  let alertText = 'Riesgo Académico'
+                  let alertBg = 'rgba(245, 166, 35, 0.08)'
+                  let alertColor = COLORS.warning
+
+                  if (hasZeroGrades) {
+                    alertText = 'SOSPECHA ABANDONO (Nota 0)'
+                    alertBg = 'rgba(247, 79, 107, 0.08)'
+                    alertColor = COLORS.danger
+                  } else if (isLowAttendance && isFailing) {
+                    alertText = 'RIESGO CRÍTICO'
+                    alertBg = 'rgba(247, 79, 107, 0.08)'
+                    alertColor = COLORS.danger
+                  } else if (isLowAttendance) {
+                    alertText = 'INASISTENCIA CRÍTICA'
+                    alertBg = 'rgba(245, 166, 35, 0.08)'
+                    alertColor = COLORS.warning
+                  } else if (isFailing) {
+                    alertText = 'REPROBANDO'
+                    alertBg = 'rgba(245, 166, 35, 0.08)'
+                    alertColor = COLORS.warning
+                  }
+
+                  return (
+                    <tr key={st.id} className="hover-row">
+                      <td>
+                        <div style={{ fontWeight: 800, color: 'var(--foreground)' }}>
+                          {st.apellido}, {st.nombre}
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 600, color: 'var(--foreground-2)' }}>{st.ci}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.82rem' }}>{st.groupName}</span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--foreground-3)' }}>📍 {st.deptName}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.2rem 0' }}>
+                          {st.grades.map((g, idx) => {
+                            const formattedStart = g.fechaInicio ? new Date(g.fechaInicio).toLocaleDateString('es-ES') : '-'
+                            const formattedEnd = g.fechaFin ? new Date(g.fechaFin).toLocaleDateString('es-ES') : '-'
+                            return (
+                              <div key={idx} style={{
+                                padding: '0.4rem 0.6rem',
+                                borderRadius: '0.4rem',
+                                background: g.total === 0 ? 'rgba(247, 79, 107, 0.06)' : 'var(--surface)',
+                                borderLeft: `3px solid ${g.total === 0 ? COLORS.danger : g.total >= 51 ? COLORS.success : COLORS.warning}`,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.15rem'
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.75rem', fontWeight: 700 }}>
+                                  <span style={{ color: 'var(--foreground-2)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '220px' }} title={g.moduloName}>
+                                    {g.moduloName}
+                                  </span>
+                                  <span style={{ color: g.total >= 51 ? COLORS.success : COLORS.danger, flexShrink: 0 }}>
+                                    Nota: <b>{Math.round(g.total)}</b>
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--foreground-3)', fontWeight: 600 }}>
+                                  <span>📅 {formattedStart} al {formattedEnd}</span>
+                                  {g.total === 0 && <span style={{ color: COLORS.danger, fontWeight: 800 }}>SIN ENTREGAS / 0 PTS</span>}
+                                </div>
+                              </div>
+                            )
+                          })}
+                          {st.grades.length === 0 && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--foreground-3)', fontStyle: 'italic' }}>
+                              Sin calificaciones registradas en ningún módulo
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <span className="badge" style={{
+                            background: st.attendanceRate < 60 ? 'var(--danger-light)' : 'var(--warning-light)',
+                            color: st.attendanceRate < 60 ? COLORS.danger : COLORS.warning,
+                            fontWeight: 900,
+                            fontSize: '0.78rem'
+                          }}>
+                            {Math.round(st.attendanceRate)}%
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--foreground-3)', marginTop: '0.2rem', fontWeight: 600 }}>
+                            {st.faltaCount} faltas de {st.totalAttendanceDays} días
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{
+                          background: st.averageGrade === null ? 'var(--surface)' : st.averageGrade < 51 ? 'var(--danger-light)' : 'var(--warning-light)',
+                          color: st.averageGrade === null ? 'var(--foreground-3)' : st.averageGrade < 51 ? COLORS.danger : COLORS.warning,
+                          fontWeight: 900,
+                          fontSize: '0.82rem'
+                        }}>
+                          {st.averageGrade !== null ? `${Math.round(st.averageGrade)} / 100` : 'S/C'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge" style={{
+                          background: alertBg,
+                          color: alertColor,
+                          fontWeight: 900,
+                          border: `1px solid ${alertColor}30`,
+                          boxShadow: `0 0 8px ${alertColor}15`
+                        }}>
+                          {alertText}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+
+                {riesgoFiltered.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '4rem', color: 'var(--success)' }}>
+                      🎉 Excelente: No se registran estudiantes bajo criterios de abandono o riesgo crítico.
                     </td>
                   </tr>
                 )}

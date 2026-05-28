@@ -29,9 +29,15 @@ export default async function ReportesPage({
         programa_modulos (
           titulo_modulo,
           grupo,
-          programa_id
+          programa_id,
+          fecha_inicio,
+          fecha_fin
         ),
         participantes (
+          id,
+          nombre,
+          apellido,
+          ci,
           inscripciones (
             estado,
             programa_id,
@@ -90,13 +96,19 @@ export default async function ReportesPage({
     const { data, error } = await supabase
       .from('calificaciones')
       .select(`
-        total, modulo_id,
+        participante_id, total, modulo_id,
         programa_modulos (
           titulo_modulo,
           grupo,
-          programa_id
+          programa_id,
+          fecha_inicio,
+          fecha_fin
         ),
         participantes (
+          id,
+          nombre,
+          apellido,
+          ci,
           inscripciones (
             estado,
             programa_id,
@@ -358,6 +370,8 @@ export default async function ReportesPage({
         enrollmentData={flattenedEnrollment}
         attendanceByModulesData={flattenedAttendanceByModules}
         gradesData={flattenedGrades}
+        rawAttendanceData={attendanceData}
+        rawGradesData={gradesData}
       />
     </div>
   )
