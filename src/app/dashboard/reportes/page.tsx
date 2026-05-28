@@ -290,16 +290,26 @@ export default async function ReportesPage({
         total_calificados: 0,
         aprobados: 0,
         reprobados: 0,
-        suma_total: 0
+        abandonos: 0,
+        suma_total: 0,
+        suma_total_con_nota: 0,
+        total_con_nota: 0
       }
     }
 
+    const nota = Number(g.total || 0)
     gradesMap[key].total_calificados++
-    gradesMap[key].suma_total += Number(g.total || 0)
-    if (Number(g.total || 0) >= 51) {
-      gradesMap[key].aprobados++
+    gradesMap[key].suma_total += nota
+    if (nota === 0) {
+      gradesMap[key].abandonos++
     } else {
-      gradesMap[key].reprobados++
+      gradesMap[key].suma_total_con_nota += nota
+      gradesMap[key].total_con_nota++
+      if (nota >= 51) {
+        gradesMap[key].aprobados++
+      } else {
+        gradesMap[key].reprobados++
+      }
     }
   })
 

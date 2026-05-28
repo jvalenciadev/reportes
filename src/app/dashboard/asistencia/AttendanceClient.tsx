@@ -1102,11 +1102,53 @@ export default function AttendanceClient({
           </div>
 
           <div className="card glass" style={{ padding: '1.5rem' }}>
-            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 800, display: 'block', marginBottom: '0.5rem' }}>{userRole === 'facilitador' ? 'Modo Facilitador' : 'Filtro de Grupo'}</label>
-            <select value={selectedGroup} onChange={e => { setSelectedGroup(e.target.value); setSelectedFacilitator(''); }} style={{ width: '100%', padding: '0.6rem', borderRadius: '0.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', fontWeight: 600 }}>
-              <option value="">Seleccionar Grupo</option>
-              {groups.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
+            <label style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 800, display: 'block', marginBottom: '0.5rem' }}>
+              {userRole === 'facilitador' ? 'Modo Facilitador' : 'Filtro de Grupo'}
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {userRole !== 'facilitador' && (
+                <select
+                  value={selectedDepto}
+                  onChange={(e) => {
+                    setSelectedDepto(e.target.value)
+                    setSelectedGroup('')
+                  }}
+                  disabled={!!userDeptId}
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem',
+                    borderRadius: '0.4rem',
+                    background: 'transparent',
+                    border: '1px solid var(--border)',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: 'var(--foreground)'
+                  }}
+                >
+                  <option value="">Seleccionar Sede</option>
+                  {departamentos.map((d: any) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              )}
+              <select
+                value={selectedGroup}
+                onChange={e => { setSelectedGroup(e.target.value); setSelectedFacilitator(''); }}
+                style={{
+                  width: '100%',
+                  padding: '0.4rem',
+                  borderRadius: '0.4rem',
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: 'var(--foreground)'
+                }}
+              >
+                <option value="">Seleccionar Grupo</option>
+                {groups.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/utils/supabase/client'
 import {
   Building2, Users, GraduationCap, ChevronRight, Save,
@@ -902,29 +903,36 @@ ON public.calificaciones FOR ALL USING (
       )}
 
       {/* Save Confirmation Modal */}
-      {showSaveConfirmModal && (
+      {showSaveConfirmModal && typeof window !== 'undefined' && document.body && createPortal(
         <div style={{
           position: 'fixed',
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(3, 4, 11, 0.75)',
+          backdropFilter: 'blur(12px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9999,
+          zIndex: 99999,
+          padding: '1.5rem'
         }}>
-          <div className="card shadow-lg" style={{
+          <div style={{
             position: 'relative',
-            width: '480px',
-            padding: '2.5rem 2rem 2rem 2rem',
-            borderRadius: '1.5rem',
-            border: '1px solid var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--foreground)',
+            width: '460px',
+            maxWidth: '100%',
+            padding: '2.5rem 2rem 2.2rem 2rem',
+            borderRadius: '1.25rem',
+            border: '1px solid var(--border-strong)',
+            background: 'var(--card-solid)',
+            boxShadow: 'var(--shadow-lg), var(--shadow-glow)',
             textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '1.2rem',
+            animation: 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
           }}>
             {/* Close Button */}
             <button
@@ -935,7 +943,7 @@ ON public.calificaciones FOR ALL USING (
                 right: '1.25rem',
                 background: 'transparent',
                 border: 'none',
-                color: 'var(--muted)',
+                color: 'var(--foreground-3)',
                 cursor: 'pointer',
                 padding: '0.25rem',
                 borderRadius: '50%',
@@ -946,10 +954,10 @@ ON public.calificaciones FOR ALL USING (
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = 'var(--foreground)';
-                e.currentTarget.style.background = 'rgba(var(--foreground-rgb), 0.05)';
+                e.currentTarget.style.background = 'var(--surface-hover)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--muted)';
+                e.currentTarget.style.color = 'var(--foreground-3)';
                 e.currentTarget.style.background = 'transparent';
               }}
             >
@@ -958,43 +966,51 @@ ON public.calificaciones FOR ALL USING (
 
             {/* Warning Icon */}
             <div style={{
-              width: '56px',
-              height: '56px',
+              width: '64px',
+              height: '64px',
               borderRadius: '50%',
-              background: 'rgba(245, 158, 11, 0.12)',
-              color: '#d97706',
+              background: 'rgba(187, 151, 58, 0.12)',
+              color: 'var(--primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 1.25rem auto',
             }}>
-              <AlertTriangle size={28} />
+              <AlertTriangle size={32} />
             </div>
 
             {/* Title / Header */}
-            <div style={{ marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--foreground)', marginBottom: '0.6rem' }}>
                 ¿Confirmar Registro de Calificaciones?
               </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--muted)', lineHeight: '1.5', margin: '0 auto' }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--foreground-2)', lineHeight: '1.5', margin: '0' }}>
                 ¿Está seguro de haber completado correctamente las calificaciones de este módulo? Recuerde que la nota de asistencia se debe haber copiado del reporte PDF de asistencia.
               </p>
             </div>
 
             {/* Buttons */}
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1.75rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', width: '100%', marginTop: '0.5rem' }}>
               <button
                 onClick={() => setShowSaveConfirmModal(false)}
-                className="btn btn-ghost"
                 style={{
-                  padding: '0.65rem 1.5rem',
+                  flex: 1,
+                  padding: '0.75rem 1rem',
                   fontSize: '0.85rem',
-                  fontWeight: 800,
+                  fontWeight: 700,
                   borderRadius: '0.75rem',
-                  border: '1px solid var(--border)',
+                  border: '1px solid var(--border-strong)',
                   cursor: 'pointer',
-                  color: 'var(--foreground)',
+                  background: 'var(--surface)',
+                  color: 'var(--foreground-2)',
                   transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--surface-hover)';
+                  e.currentTarget.style.color = 'var(--foreground)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--surface)';
+                  e.currentTarget.style.color = 'var(--foreground-2)';
                 }}
               >
                 Cancelar
@@ -1004,21 +1020,34 @@ ON public.calificaciones FOR ALL USING (
                   setShowSaveConfirmModal(false)
                   saveAllGrades()
                 }}
-                className="btn btn-primary"
                 style={{
-                  padding: '0.65rem 1.5rem',
+                  flex: 1,
+                  padding: '0.75rem 1rem',
                   fontSize: '0.85rem',
-                  fontWeight: 900,
+                  fontWeight: 800,
                   borderRadius: '0.75rem',
+                  border: 'none',
                   cursor: 'pointer',
+                  background: 'var(--primary)',
+                  color: 'white',
+                  boxShadow: '0 4px 12px var(--primary-glow)',
                   transition: 'all 0.2s',
                 }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px var(--primary-glow)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px var(--primary-glow)';
+                }}
               >
-                Sí, Guardar Calificaciones
+                Sí, Guardar Notas
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

@@ -18,6 +18,7 @@ import {
 import * as XLSX from 'xlsx'
 
 // ─── MODULE MULTI-SELECT (Fixed Portal Pattern) ─────────────────────────────
+// ─── MODULE MULTI-SELECT (Fixed Portal Pattern) ─────────────────────────────
 function ModuleMultiSelect({
   moduleList,
   selectedModules,
@@ -30,16 +31,27 @@ function ModuleMultiSelect({
   buttonWidth?: number
 }) {
   const [open, setOpen] = useState(false)
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 220 })
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 380 })
   const btnRef = useRef<HTMLButtonElement>(null)
 
   const updatePosition = useCallback(() => {
     if (btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
+      const dropWidth = Math.max(r.width, 380)
+
+      // Prevent overflowing the right edge of the screen
+      let left = r.left
+      if (typeof window !== 'undefined') {
+        const padding = 16
+        if (left + dropWidth > window.innerWidth - padding) {
+          left = Math.max(padding, window.innerWidth - dropWidth - padding)
+        }
+      }
+
       setDropPos({
         top: r.bottom + 6,
-        left: r.left,
-        width: Math.max(r.width, 260)
+        left,
+        width: dropWidth
       })
     }
   }, [])
@@ -62,24 +74,51 @@ function ModuleMultiSelect({
     }
   }, [open, updatePosition])
 
+  // Helper to format module names creatively and compactly
+  const formatModuleName = (name: string) => {
+    if (!name) return { prefix: 'Módulo', title: '', short: '' }
+    const match = name.match(/Módulo\s*(\d+):?\s*(.*)/i)
+    if (match) {
+      const num = match[1]
+      const rest = match[2]
+      return {
+        prefix: `Módulo ${num}`,
+        title: rest,
+        short: `M${num}: ${rest.length > 18 ? rest.substring(0, 16) + '...' : rest}`
+      }
+    }
+    return {
+      prefix: 'Módulo',
+      title: name,
+      short: name.length > 20 ? name.substring(0, 18) + '...' : name
+    }
+  }
+
   const label = selectedModules.length === 0
     ? 'Todos los Módulos'
     : selectedModules.length === 1
+      ? formatModuleName(selectedModules[0]).short
+      : `${selectedModules.length} Módulos`
+
+  const fullTooltip = selectedModules.length === 0
+    ? 'Todos los Módulos Académicos Seleccionados'
+    : selectedModules.length === 1
       ? selectedModules[0]
-      : `${selectedModules.length} Módulos seleccionados`
+      : selectedModules.join(', ')
 
   return (
     <>
       <button
         ref={btnRef}
         onClick={toggle}
+        title={fullTooltip}
         style={{
           width: '100%',
           background: 'transparent',
           border: 'none',
           outline: 'none',
-          fontSize: '0.85rem',
-          fontWeight: 700,
+          fontSize: '0.8rem',
+          fontWeight: 800,
           color: 'var(--foreground)',
           cursor: 'pointer',
           textAlign: 'left',
@@ -91,12 +130,36 @@ function ModuleMultiSelect({
         }}
       >
         <span
-          style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flex: 1 }}
-          title={label}
+          style={{
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            flex: 1,
+            color: selectedModules.length === 0 ? 'var(--primary)' : 'var(--foreground)'
+          }}
         >
-          {label}
+          {selectedModules.length === 0 ? '✨ ' : ''}{label}
         </span>
-        <span style={{ fontSize: '0.6rem', color: 'var(--primary)', flexShrink: 0 }}>▼</span>
+
+        {/* Sleek Counter Badge */}
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: selectedModules.length === 0 ? 'rgba(187, 151, 58, 0.15)' : 'var(--primary)',
+          color: selectedModules.length === 0 ? 'var(--primary)' : 'white',
+          borderRadius: '2rem',
+          fontSize: '0.62rem',
+          fontWeight: 900,
+          padding: '0.05rem 0.35rem',
+          minWidth: '18px',
+          height: '14px',
+          flexShrink: 0
+        }}>
+          {selectedModules.length === 0 ? 'ALL' : selectedModules.length}
+        </span>
+
+        <span style={{ fontSize: '0.55rem', color: 'var(--muted)', flexShrink: 0, marginLeft: '0.15rem' }}>▼</span>
       </button>
 
       {open && typeof window !== 'undefined' && document.body && createPortal(
@@ -112,88 +175,121 @@ function ModuleMultiSelect({
           />
           {/* Floating dropdown rendered at fixed coordinates */}
           <div
-            className="glass"
             style={{
               position: 'fixed',
               top: dropPos.top,
               left: dropPos.left,
               width: dropPos.width,
-              maxHeight: '280px',
+              maxWidth: 'calc(100vw - 32px)',
+              maxHeight: '320px',
               overflowY: 'auto',
               zIndex: 9999,
-              borderRadius: '0.75rem',
+              borderRadius: '0.85rem',
               border: '1px solid var(--border-strong)',
-              padding: '0.5rem',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+              padding: '0.6rem',
+              boxShadow: 'var(--shadow-lg)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.2rem',
-              background: 'var(--card-solid)'
+              gap: '0.25rem',
+              background: 'var(--card-solid)',
+              backdropFilter: 'blur(16px)'
             }}
           >
+            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--foreground-3)', padding: '0.2rem 0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Selección de Módulo Temático
+            </div>
+
             {/* Todos los módulos */}
             <div
               onClick={() => { setSelectedModules([]); setOpen(false) }}
               style={{
-                padding: '0.45rem 0.7rem',
-                borderRadius: '0.4rem',
+                padding: '0.55rem 0.8rem',
+                borderRadius: '0.5rem',
                 cursor: 'pointer',
                 fontSize: '0.78rem',
                 fontWeight: 800,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
-                background: selectedModules.length === 0 ? 'rgba(187,151,58,0.15)' : 'transparent',
-                color: selectedModules.length === 0 ? 'var(--primary)' : 'var(--foreground-2)'
+                gap: '0.6rem',
+                background: selectedModules.length === 0 ? 'rgba(187, 151, 58, 0.15)' : 'transparent',
+                color: selectedModules.length === 0 ? 'var(--primary)' : 'var(--foreground-2)',
+                border: selectedModules.length === 0 ? '1px solid rgba(187, 151, 58, 0.25)' : '1px solid transparent',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                if (selectedModules.length !== 0) e.currentTarget.style.background = 'var(--surface-hover)'
+              }}
+              onMouseLeave={(e) => {
+                if (selectedModules.length !== 0) e.currentTarget.style.background = 'transparent'
               }}
             >
               <input
                 type="checkbox"
                 checked={selectedModules.length === 0}
                 readOnly
-                style={{ pointerEvents: 'none', accentColor: 'var(--primary)' }}
+                style={{ pointerEvents: 'none', accentColor: 'var(--primary)', width: '14px', height: '14px' }}
               />
-              <span>Todos los Módulos</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                ✨ <span>Todos los Módulos Académicos</span>
+              </span>
             </div>
-            <div style={{ height: '1px', background: 'var(--border)', margin: '0.2rem 0' }} />
-            {moduleList.map(m => {
-              const isSelected = selectedModules.includes(m)
-              return (
-                <div
-                  key={m}
-                  onClick={() => {
-                    if (isSelected) {
-                      setSelectedModules(selectedModules.filter(x => x !== m))
-                    } else {
-                      setSelectedModules([...selectedModules, m])
-                    }
-                  }}
-                  style={{
-                    padding: '0.4rem 0.7rem',
-                    borderRadius: '0.4rem',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    background: isSelected ? 'rgba(187,151,58,0.1)' : 'transparent',
-                    color: isSelected ? 'var(--primary)' : 'var(--foreground-2)',
-                    transition: 'background 0.12s ease'
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    readOnly
-                    style={{ pointerEvents: 'none', accentColor: 'var(--primary)', flexShrink: 0 }}
-                  />
-                  <span style={{ flex: 1 }}>
-                    {m}
-                  </span>
-                </div>
-              )
-            })}
+
+            <div style={{ height: '1px', background: 'var(--border)', margin: '0.3rem 0' }} />
+
+            {/* Modules List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', overflowY: 'auto' }}>
+              {moduleList.map(m => {
+                const isSelected = selectedModules.includes(m)
+                const parsed = formatModuleName(m)
+                return (
+                  <div
+                    key={m}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedModules(selectedModules.filter(x => x !== m))
+                      } else {
+                        setSelectedModules([...selectedModules, m])
+                      }
+                    }}
+                    style={{
+                      padding: '0.5rem 0.8rem',
+                      borderRadius: '0.5rem',
+                      cursor: 'pointer',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'start',
+                      gap: '0.6rem',
+                      background: isSelected ? 'rgba(187, 151, 58, 0.08)' : 'transparent',
+                      color: isSelected ? 'var(--primary)' : 'var(--foreground-2)',
+                      border: isSelected ? '1px solid rgba(187, 151, 58, 0.15)' : '1px solid transparent',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'var(--surface-hover)'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'transparent'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      readOnly
+                      style={{ pointerEvents: 'none', accentColor: 'var(--primary)', marginTop: '2px', width: '13px', height: '13px', flexShrink: 0 }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', minWidth: 0 }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 900, textTransform: 'uppercase', color: isSelected ? 'var(--primary)' : 'var(--muted)' }}>
+                        {parsed.prefix}
+                      </span>
+                      <span style={{ fontSize: '0.76rem', lineHeight: '1.3', color: isSelected ? 'var(--foreground)' : 'var(--foreground-2)', wordBreak: 'break-word' }}>
+                        {parsed.title}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </>,
         document.body
@@ -500,7 +596,7 @@ export default function ReportsClient({
         const totalCalificados = modGrade ? modGrade.total_calificados : 0
 
         const modAtt = groupAttendance.filter(a => a.modulo_name === modName)
-        
+
         // Calcular asistencias por día exacto
         const daysMap: Record<number, { total: number; asistieron: number; atraso: number; falta: number; permiso: number }> = {}
         modAtt.forEach(attRecord => {
@@ -753,11 +849,6 @@ export default function ReportsClient({
     }
   }, [attendanceByModulesData, selectedDept, selectedGroupFilter, selectedModules])
 
-  const funnelData = useMemo(() => [
-    { name: 'Preinscritos', value: metrics.total_inscritos, fill: COLORS.primary, icon: Users },
-    { name: 'Activos', value: metrics.total_confirmados, fill: COLORS.info, icon: TrendingUp },
-    { name: 'Asistencia Prom.', value: metrics.avg_per_day, fill: COLORS.success, icon: CheckSquare }
-  ], [metrics, COLORS])
 
   // --- ANOMALY DETECTION (Senior Feature) ---
   const anomalies = useMemo(() => {
@@ -1074,7 +1165,6 @@ export default function ReportsClient({
 
       {/* Main KPI Dashboard */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
-        <KPI title="Población Total" value={metrics.total_inscritos} icon={Users} color={COLORS.primary} subtitle="Preinscritos registrados" />
         <KPI title="Activos Total" value={metrics.total_confirmados} icon={UserCheck} color={COLORS.success} subtitle="Activos confirmados" />
         <KPI title="Tasa de Inscripción" value={`${metrics.confirmation_rate}%`} icon={Target} color={COLORS.info} subtitle="Compromiso inicial" />
         <KPI title="Docs (Activos)" value={metrics.total_docs_ins} icon={CheckSquare} color={COLORS.success} subtitle="Entregados por activos" />
@@ -1085,48 +1175,6 @@ export default function ReportsClient({
       {tab === 'resumen' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: '2rem' }}>
 
-          {/* Funnel Visualization */}
-          <ChartCard
-            title={`Embudo de Conversión (${selectedDay === 'all' ? 'Promedio' : `Día ${selectedDay}`})`}
-            icon={TrendingUp}
-            extra={
-              <select
-                value={selectedDay}
-                onChange={(e) => setSelectedDay(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
-                style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '6px', background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}
-              >
-                <option value="all">Vista Promedio</option>
-                {dayList.map(d => <option key={d} value={d}>Día {d}</option>)}
-              </select>
-            }
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1rem 0' }}>
-              {funnelData.map((item, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                  <div style={{ width: '80px', fontSize: '0.7rem', fontWeight: 800, color: 'var(--foreground-3)', textAlign: 'right', textTransform: 'uppercase' }}>{item.name}</div>
-                  <div style={{ flex: 1, position: 'relative', height: '40px', background: 'var(--surface)', borderRadius: '8px', overflow: 'hidden' }}>
-                    <div style={{
-                      width: `${(item.value / metrics.total_inscritos) * 100}%`,
-                      height: '100%',
-                      background: `linear-gradient(90deg, ${item.fill}, ${item.fill}88)`,
-                      borderRadius: '8px',
-                      transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
-                    }} />
-                    <div style={{ position: 'absolute', top: '50%', right: '1rem', transform: 'translateY(-50%)', fontWeight: 900, color: 'white', fontSize: '0.9rem', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
-                      {item.value.toLocaleString()}
-                    </div>
-                  </div>
-                  <div style={{ width: '50px', fontSize: '0.8rem', fontWeight: 700, color: item.fill }}>
-                    {i === 0 ? '100%' : `${((item.value / funnelData[i - 1].value) * 100).toFixed(0)}%`}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '12px', fontSize: '0.8rem', color: 'var(--foreground-2)' }}>
-              <Zap size={14} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
-              <b>Análisis Senior:</b> Los porcentajes se calculan sobre el <b>Promedio Diario</b> de asistencia para normalizar el flujo y evitar duplicados por jornadas.
-            </div>
-          </ChartCard>
 
           {/* Daily Trend with Anomaly Highlight */}
           <ChartCard title="Tendencia de Participación Diaria" icon={Activity}>
@@ -1137,8 +1185,7 @@ export default function ReportsClient({
                 <YAxis stroke="var(--chart-text)" fontSize={11} axisLine={false} tickLine={false} label={{ value: 'Cantidad de Asistencias', angle: -90, position: 'insideLeft', style: { fill: 'var(--chart-text)', fontSize: 10, fontWeight: 700 } }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingBottom: '10px' }} />
-                <Line type="monotone" dataKey="Asistieron" name="Asistencias" stroke={COLORS.success} strokeWidth={3} dot={{ r: 4, fill: COLORS.success }} activeDot={{ r: 6 }} />
-                <Line type="monotone" dataKey="Atrasos" name="Atrasos" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 3, fill: COLORS.warning }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="Asistieron" name="Asistencias (incl. Atrasos)" stroke={COLORS.success} strokeWidth={3} dot={{ r: 4, fill: COLORS.success }} activeDot={{ r: 6 }} />
                 <Line type="monotone" dataKey="Faltas" name="Faltas" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3, fill: COLORS.danger }} activeDot={{ r: 5 }} />
                 <Line type="monotone" dataKey="Permisos" name="Permisos" stroke={COLORS.muted} strokeWidth={2} dot={{ r: 3, fill: COLORS.muted }} activeDot={{ r: 5 }} />
                 {selectedDay !== 'all' && dailyTrend
@@ -1751,8 +1798,7 @@ export default function ReportsClient({
                   <th>Sede</th>
                   <th>Módulo</th>
                   <th style={{ textAlign: 'center' }}>Día</th>
-                  <th style={{ textAlign: 'center' }}>Asistió</th>
-                  <th style={{ textAlign: 'center' }}>Atraso</th>
+                  <th style={{ textAlign: 'center' }}>Asistió / Atraso</th>
                   <th style={{ textAlign: 'center' }}>Falta</th>
                   <th style={{ textAlign: 'center' }}>Permiso</th>
                   <th style={{ textAlign: 'center' }}>Total</th>
@@ -1763,17 +1809,17 @@ export default function ReportsClient({
                 {(() => {
                   const totAsistieron = filteredAttendanceByModulesSearched.reduce((acc, r) => acc + r.asistieron, 0)
                   const totAtraso = filteredAttendanceByModulesSearched.reduce((acc, r) => acc + r.atraso, 0)
+                  const totAsistióYAtraso = totAsistieron + totAtraso
                   const totFalta = filteredAttendanceByModulesSearched.reduce((acc, r) => acc + r.falta, 0)
                   const totPermiso = filteredAttendanceByModulesSearched.reduce((acc, r) => acc + r.permiso, 0)
-                  const totExpected = totAsistieron + totAtraso + totFalta + totPermiso
-                  const overallRate = totExpected > 0 ? (totAsistieron / totExpected) * 100 : 0
+                  const totExpected = totAsistióYAtraso + totFalta + totPermiso
+                  const overallRate = totExpected > 0 ? (totAsistióYAtraso / totExpected) * 100 : 0
 
                   return (
                     <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderBottom: '2px solid var(--border-strong)' }}>
                       <td colSpan={3} style={{ color: 'var(--primary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Resumen de Selección</td>
                       <td style={{ textAlign: 'center' }}>-</td>
-                      <td style={{ textAlign: 'center', color: COLORS.success }}>{totAsistieron}</td>
-                      <td style={{ textAlign: 'center', color: COLORS.warning }}>{totAtraso}</td>
+                      <td style={{ textAlign: 'center', color: COLORS.success }}>{totAsistióYAtraso}</td>
                       <td style={{ textAlign: 'center', color: COLORS.danger }}>{totFalta}</td>
                       <td style={{ textAlign: 'center', color: COLORS.muted }}>{totPermiso}</td>
                       <td style={{ textAlign: 'center', fontWeight: 900 }}>{totExpected}</td>
@@ -1792,7 +1838,8 @@ export default function ReportsClient({
 
                 {filteredAttendanceByModulesSearched.map((row, idx) => {
                   const totalRow = row.asistieron + row.atraso + row.falta + row.permiso
-                  const rowRate = totalRow > 0 ? (row.asistieron / totalRow) * 100 : 0
+                  const asistioYAtraso = row.asistieron + row.atraso
+                  const rowRate = totalRow > 0 ? (asistioYAtraso / totalRow) * 100 : 0
 
                   return (
                     <tr key={idx} className="hover-row">
@@ -1802,16 +1849,9 @@ export default function ReportsClient({
                       <td style={{ textAlign: 'center', fontWeight: 700 }}>Día {row.dia}</td>
 
                       <td style={{ textAlign: 'center' }}>
-                        <div style={{ fontWeight: 800, color: COLORS.success }}>{row.asistieron}</div>
+                        <div style={{ fontWeight: 800, color: COLORS.success }}>{asistioYAtraso}</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-                          {totalRow > 0 ? `${Math.round((row.asistieron / totalRow) * 100)}%` : '0%'}
-                        </div>
-                      </td>
-
-                      <td style={{ textAlign: 'center' }}>
-                        <div style={{ fontWeight: 800, color: COLORS.warning }}>{row.atraso}</div>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
-                          {totalRow > 0 ? `${Math.round((row.atraso / totalRow) * 100)}%` : '0%'}
+                          {totalRow > 0 ? `${Math.round((asistioYAtraso / totalRow) * 100)}%` : '0%'}
                         </div>
                       </td>
 
@@ -1922,6 +1962,7 @@ export default function ReportsClient({
                   <th style={{ textAlign: 'center' }}>Total Calificados</th>
                   <th style={{ textAlign: 'center' }}>Aprobados (Nro / %)</th>
                   <th style={{ textAlign: 'center' }}>Reprobados (Nro / %)</th>
+                  <th style={{ textAlign: 'center', color: 'var(--warning)' }}>Abandonos</th>
                   <th style={{ textAlign: 'center' }}>Promedio Módulo</th>
                 </tr>
               </thead>
@@ -1930,9 +1971,12 @@ export default function ReportsClient({
                   const totCalificados = filteredGradesSearched.reduce((acc, r) => acc + r.total_calificados, 0)
                   const totAprobados = filteredGradesSearched.reduce((acc, r) => acc + r.aprobados, 0)
                   const totReprobados = filteredGradesSearched.reduce((acc, r) => acc + r.reprobados, 0)
+                  const totAbandonos = filteredGradesSearched.reduce((acc, r) => acc + (r.abandonos || 0), 0)
                   const sumTotal = filteredGradesSearched.reduce((acc, r) => acc + r.suma_total, 0)
                   const avgNota = totCalificados > 0 ? sumTotal / totCalificados : 0
                   const overallPassRate = totCalificados > 0 ? (totAprobados / totCalificados) * 100 : 0
+                  const overallFailRate = totCalificados > 0 ? (totReprobados / totCalificados) * 100 : 0
+                  const overallAbandonRate = totCalificados > 0 ? (totAbandonos / totCalificados) * 100 : 0
 
                   return (
                     <tr style={{ background: 'var(--card-solid)', fontWeight: 900, borderBottom: '2px solid var(--border-strong)' }}>
@@ -1947,7 +1991,13 @@ export default function ReportsClient({
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ fontWeight: 900, color: COLORS.danger }}>{totReprobados}</div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>
-                          {totCalificados > 0 ? `${Math.round(100 - overallPassRate)}%` : '0%'}
+                          {totCalificados > 0 ? `${Math.round(overallFailRate)}%` : '0%'}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 900, color: COLORS.warning }}>{totAbandonos}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--foreground-3)' }}>
+                          {totCalificados > 0 ? `${Math.round(overallAbandonRate)}%` : '0%'}
                         </div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
@@ -1962,6 +2012,8 @@ export default function ReportsClient({
                 {filteredGradesSearched.map((row, idx) => {
                   const passRate = row.total_calificados > 0 ? (row.aprobados / row.total_calificados) * 100 : 0
                   const failRate = row.total_calificados > 0 ? (row.reprobados / row.total_calificados) * 100 : 0
+                  const abandonos = row.abandonos || 0
+                  const abandonRate = row.total_calificados > 0 ? (abandonos / row.total_calificados) * 100 : 0
                   const avgRowNota = row.total_calificados > 0 ? row.suma_total / row.total_calificados : 0
 
                   return (
@@ -1986,6 +2038,13 @@ export default function ReportsClient({
                       </td>
 
                       <td style={{ textAlign: 'center' }}>
+                        <div style={{ fontWeight: 800, color: COLORS.warning }}>{abandonos}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)' }}>
+                          {Math.round(abandonRate)}%
+                        </div>
+                      </td>
+
+                      <td style={{ textAlign: 'center' }}>
                         <span className="badge" style={{
                           background: avgRowNota >= 70 ? 'rgba(16, 217, 139, 0.1)' : avgRowNota >= 51 ? 'rgba(245, 166, 35, 0.1)' : 'rgba(247, 79, 107, 0.1)',
                           color: avgRowNota >= 70 ? COLORS.success : avgRowNota >= 51 ? COLORS.warning : COLORS.danger,
@@ -2000,7 +2059,7 @@ export default function ReportsClient({
 
                 {filteredGradesSearched.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--foreground-3)' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--foreground-3)' }}>
                       No se encontraron registros de calificaciones para los filtros seleccionados.
                     </td>
                   </tr>
@@ -2159,7 +2218,7 @@ export default function ReportsClient({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center' }}>
                           {row.modulesProgress.map((mod: any, mIdx: number) => {
                             const shortName = getShortModuleName(mod.modulo_name);
-                            
+
                             // Un día de asistencia está "completo" si el total de registros de ese día
                             // es exactamente igual a la cantidad de participantes activos.
                             let completedDaysCount = 0;
@@ -2173,7 +2232,7 @@ export default function ReportsClient({
                                   {[1, 2, 3, 4, 5, 6].map(day => {
                                     const dayData = mod.daysMap[day];
                                     const registeredCount = dayData ? dayData.total : 0;
-                                    
+
                                     const isComplete = registeredCount === row.total_confirmados && row.total_confirmados > 0;
                                     const isPartial = registeredCount > 0 && registeredCount < row.total_confirmados;
 
@@ -2181,7 +2240,7 @@ export default function ReportsClient({
                                       completedDaysCount++;
                                     }
 
-                                    const tooltipText = dayData 
+                                    const tooltipText = dayData
                                       ? `${mod.modulo_name} - Día ${day}\nRegistrados: ${registeredCount} de ${row.total_confirmados} activos\n(Asistió: ${dayData.asistieron}, Atraso: ${dayData.atraso}, Falta: ${dayData.falta}, Permiso: ${dayData.permiso})`
                                       : `${mod.modulo_name} - Día ${day}\nSin registros oficiales (0 de ${row.total_confirmados} activos)`;
 
@@ -2212,12 +2271,12 @@ export default function ReportsClient({
                                     );
                                   })}
                                 </div>
-                                <span 
+                                <span
                                   title={`Días con asistencia completa (${row.total_confirmados}/${row.total_confirmados} alumnos registrados)`}
-                                  style={{ 
-                                    fontSize: '0.68rem', 
-                                    fontWeight: 800, 
-                                    color: completedDaysCount === 6 ? COLORS.success : completedDaysCount > 0 ? COLORS.warning : 'var(--foreground-3)', 
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 800,
+                                    color: completedDaysCount === 6 ? COLORS.success : completedDaysCount > 0 ? COLORS.warning : 'var(--foreground-3)',
                                     width: '40px',
                                     textAlign: 'left'
                                   }}
