@@ -749,11 +749,10 @@ export default function ReportsClient({
           return {
             name: getDayLabel(dia),
             diaNumber: dia,
-            Asistieron: dayData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
-            Atrasos: dayData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
-            Faltas: dayData.reduce((acc, curr) => acc + (curr.falta || 0), 0),
-            Permisos: dayData.reduce((acc, curr) => acc + (curr.permiso || 0), 0),
-            Total: dayData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+            Asistieron: dayData.reduce((acc, curr) => acc + Number(curr.asistieron || 0) + Number(curr.atraso || 0), 0),
+            Faltas: dayData.reduce((acc, curr) => acc + Number(curr.falta || 0), 0),
+            Permisos: dayData.reduce((acc, curr) => acc + Number(curr.permiso || 0), 0),
+            Total: dayData.reduce((acc, curr) => acc + Number(curr.asistieron || 0) + Number(curr.atraso || 0) + Number(curr.falta || 0) + Number(curr.permiso || 0), 0)
           }
         })
       } else {
@@ -792,11 +791,10 @@ export default function ReportsClient({
             name: getDayLabel(combo.dia, shortName),
             diaNumber: combo.dia,
             modulo_name: combo.modulo_name,
-            Asistieron: comboData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
-            Atrasos: comboData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
-            Faltas: comboData.reduce((acc, curr) => acc + (curr.falta || 0), 0),
-            Permisos: comboData.reduce((acc, curr) => acc + (curr.permiso || 0), 0),
-            Total: comboData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+            Asistieron: comboData.reduce((acc, curr) => acc + Number(curr.asistieron || 0) + Number(curr.atraso || 0), 0),
+            Faltas: comboData.reduce((acc, curr) => acc + Number(curr.falta || 0), 0),
+            Permisos: comboData.reduce((acc, curr) => acc + Number(curr.permiso || 0), 0),
+            Total: comboData.reduce((acc, curr) => acc + Number(curr.asistieron || 0) + Number(curr.atraso || 0) + Number(curr.falta || 0) + Number(curr.permiso || 0), 0)
           }
         })
       }
@@ -839,11 +837,10 @@ export default function ReportsClient({
           name: getDayLabel(combo.dia, shortName),
           diaNumber: combo.dia,
           modulo_name: combo.modulo_name,
-          Asistieron: comboData.reduce((acc, curr) => acc + (curr.asistieron || 0), 0),
-          Atrasos: comboData.reduce((acc, curr) => acc + (curr.atraso || 0), 0),
-          Faltas: comboData.reduce((acc, curr) => acc + (curr.falta || 0), 0),
-          Permisos: comboData.reduce((acc, curr) => acc + (curr.permiso || 0), 0),
-          Total: comboData.reduce((acc, curr) => acc + (curr.asistieron + curr.atraso + curr.falta + curr.permiso), 0)
+          Asistieron: comboData.reduce((acc, curr) => acc + Number(curr.asistieron || 0) + Number(curr.atraso || 0), 0),
+          Faltas: comboData.reduce((acc, curr) => acc + Number(curr.falta || 0), 0),
+          Permisos: comboData.reduce((acc, curr) => acc + Number(curr.permiso || 0), 0),
+          Total: comboData.reduce((acc, curr) => acc + Number(curr.asistieron || 0) + Number(curr.atraso || 0) + Number(curr.falta || 0) + Number(curr.permiso || 0), 0)
         }
       })
     }
