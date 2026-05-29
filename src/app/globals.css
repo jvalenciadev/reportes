@@ -18,7 +18,7 @@
   --foreground-2: #475569;
   --foreground-3: #94a3b8;
 
-  --primary: #bb973a;
+  --primary: #C9a751;
   --primary-light: rgba(187, 151, 58, 0.08);
   --primary-glow: rgba(187, 151, 58, 0.15);
 
@@ -71,17 +71,22 @@
   --foreground-2: #94a3b8;
   --foreground-3: #475569;
 
-  --primary: #d5ad42; /* Dorado Ministerio de Educación */
+  --primary: #C9a751;
+  /* Dorado Ministerio de Educación */
   --primary-light: rgba(213, 173, 66, 0.12);
   --primary-glow: rgba(213, 173, 66, 0.25);
 
-  --success: #10b981; /* Emerald */
+  --success: #10b981;
+  /* Emerald */
   --success-light: rgba(16, 185, 129, 0.1);
-  --warning: #f59e0b; /* Amber */
+  --warning: #f59e0b;
+  /* Amber */
   --warning-light: rgba(245, 158, 11, 0.1);
-  --danger: #ef4444; /* Rose */
+  --danger: #ef4444;
+  /* Rose */
   --danger-light: rgba(239, 68, 68, 0.1);
-  --purple: #8b5cf6; /* Violet */
+  --purple: #8b5cf6;
+  /* Violet */
   --purple-light: rgba(139, 92, 246, 0.1);
 
   --border: rgba(255, 255, 255, 0.05);
@@ -113,7 +118,9 @@
 /* ============================================================
    BASE RESET
    ============================================================ */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -267,7 +274,9 @@ p {
 /* ============================================================
    INPUTS & FORMS
    ============================================================ */
-input, select, textarea {
+input,
+select,
+textarea {
   background: var(--input-bg);
   border: 1px solid var(--border);
   padding: 0.75rem 1rem;
@@ -280,7 +289,9 @@ input, select, textarea {
   width: 100%;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   border-color: var(--primary);
   background: var(--primary-light);
   box-shadow: 0 0 0 3px var(--primary-glow);
@@ -453,23 +464,49 @@ tbody tr:hover td {
    ANIMATIONS
    ============================================================ */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--primary-glow); }
-  50% { box-shadow: 0 0 20px 4px var(--primary-glow); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--primary-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 20px 4px var(--primary-glow);
+  }
 }
 
 .animate-fade-up {
@@ -480,7 +517,7 @@ tbody tr:hover td {
   animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-.content > * {
+.content>* {
   animation: fadeUp 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
@@ -488,8 +525,15 @@ tbody tr:hover td {
    STAT NUMBER ANIMATION
    ============================================================ */
 @keyframes countUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .stat-value {
@@ -503,6 +547,7 @@ tbody tr:hover td {
   .dashboard-layout {
     grid-template-columns: 220px 1fr;
   }
+
   .content {
     padding: 1.5rem;
   }
@@ -512,6 +557,7 @@ tbody tr:hover td {
   .dashboard-layout {
     grid-template-columns: 1fr;
   }
+
   .sidebar {
     display: none;
   }

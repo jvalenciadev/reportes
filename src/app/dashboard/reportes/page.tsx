@@ -337,7 +337,7 @@ export default async function ReportesPage({
     const preinscritos_entrego = inscripciones.filter((i: any) => i.estado === 'preinscrito').length
     const inscritos_entrego = activos.length
 
-    const total_formalizados = activos.filter((i: any) => i.participantes?.formalizado === true).length
+    const total_formalizados = inscripciones.filter((i: any) => i.participantes?.formalizado === true).length
     const total_rural = activos.filter((i: any) => i.participantes?.zona === 'rural').length
     const total_urbano = activos.filter((i: any) => i.participantes?.zona === 'urbano').length
 

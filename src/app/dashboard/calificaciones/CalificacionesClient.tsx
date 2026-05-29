@@ -379,7 +379,7 @@ export default function CalificacionesClient({
           pdfDoc.setFontSize(6)
           pdfDoc.setFont('helvetica', 'italic')
           pdfDoc.setTextColor(150, 150, 150)
-          pdfDoc.text(footerText, w / 2, h - 4, { align: 'center' })
+          pdfDoc.text(footerText, w - 14, h - 7, { align: 'right' })
         }
       }
 
@@ -408,7 +408,7 @@ export default function CalificacionesClient({
         const moduleName = (selectedModuleDetails?.grupo === 1 ? 'LENGUAJE - ' : selectedModuleDetails?.grupo === 2 ? 'MATEMÁTICA - ' : '') + (selectedModuleDetails?.titulo_modulo || '')
 
         // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
-        doc.setFillColor(187, 151, 58)
+        doc.setFillColor(201, 167, 81)
         doc.rect(14, 40, pageWidth - 28, 10, 'F')
         doc.setFontSize(12)
         doc.setTextColor(255, 255, 255)
@@ -443,11 +443,11 @@ export default function CalificacionesClient({
           theme: 'plain',
           styles: { fontSize: 7, cellPadding: 1.3, textColor: [40, 40, 40], overflow: 'linebreak' },
           columnStyles: { 0: { cellWidth: 89.5 }, 1: { cellWidth: 89.5 } },
-          margin: { left: 17, right: 14 }
+          margin: { top: 40, left: 17, right: 14 }
         })
 
         const metaFinalY = (doc as any).lastAutoTable.finalY
-        doc.setFillColor(187, 151, 58)
+        doc.setFillColor(201, 167, 81)
         doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
 
         const tableStartY = metaFinalY + 5
@@ -470,8 +470,13 @@ export default function CalificacionesClient({
           head: [['Nro', 'C.I.', 'APELLIDOS, NOMBRES', 'AUT. (40)', 'PRÁC. (20)', 'ASIST. (10)', 'EVAL. (30)', 'TOTAL', 'ESTADO']],
           body: tableData,
           theme: 'grid',
+          willDrawPage: (data) => {
+            if (data.pageNumber > 1) {
+              addPdfBackground(doc)
+            }
+          },
           headStyles: {
-            fillColor: [187, 151, 58],
+            fillColor: [201, 167, 81],
             textColor: 255,
             fontSize: 7,
             halign: 'center',
@@ -492,7 +497,7 @@ export default function CalificacionesClient({
             7: { halign: 'center', cellWidth: 15, fontStyle: 'bold' },
             8: { halign: 'center', cellWidth: 25, fontStyle: 'bold' }
           },
-          margin: { left: 14, right: 14 },
+          margin: { top: 40, left: 14, right: 14 },
           didParseCell: (data: any) => {
             if (data.section === 'body') {
               if (data.column.index === 7) {
@@ -541,7 +546,7 @@ export default function CalificacionesClient({
           body: [
             [
               { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-              { content: 'PROMEDIO TOTAL DE GRUPO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'PROMEDIO TOTAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
               { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
               { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
             ],
@@ -553,8 +558,13 @@ export default function CalificacionesClient({
             ]
           ],
           theme: 'grid',
+          willDrawPage: (data) => {
+            if (data.pageNumber > 1) {
+              addPdfBackground(doc)
+            }
+          },
           styles: { fontSize: 7, cellPadding: 1.3, halign: 'center', lineWidth: 0.1, lineColor: [180, 180, 180], textColor: [0, 0, 0] },
-          margin: { left: 14, right: 14 }
+          margin: { top: 40, left: 14, right: 14 }
         })
 
         const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
@@ -572,21 +582,21 @@ export default function CalificacionesClient({
         doc.setDrawColor(40, 40, 40)
         doc.setLineWidth(0.3)
         doc.line(sigCenterXLeft - 25, signatureY + 12, sigCenterXLeft + 25, signatureY + 12)
-        doc.setFillColor(187, 151, 58)
+        doc.setFillColor(201, 167, 81)
         doc.circle(sigCenterXLeft, signatureY + 12, 1, 'F')
         doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor(187, 151, 58)
+        doc.setTextColor(201, 167, 81)
         doc.text('FACILITADOR(A)', sigCenterXLeft, signatureY + 17, { align: 'center' })
 
         doc.setDrawColor(40, 40, 40)
         doc.setLineWidth(0.3)
         doc.line(sigCenterXRight - 25, signatureY + 12, sigCenterXRight + 25, signatureY + 12)
-        doc.setFillColor(187, 151, 58)
+        doc.setFillColor(201, 167, 81)
         doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
         doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor(187, 151, 58)
+        doc.setTextColor(201, 167, 81)
         doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
         addPdfFooter(doc)
@@ -630,7 +640,7 @@ export default function CalificacionesClient({
         if (gErr) throw gErr
 
         // --- TITULO CONSOLIDADO ---
-        doc.setFillColor(187, 151, 58)
+        doc.setFillColor(201, 167, 81)
         doc.rect(14, 40, pageWidth - 28, 10, 'F')
         doc.setFontSize(12)
         doc.setTextColor(255, 255, 255)
@@ -666,11 +676,11 @@ export default function CalificacionesClient({
           theme: 'plain',
           styles: { fontSize: 7, cellPadding: 1.3, textColor: [40, 40, 40], overflow: 'linebreak' },
           columnStyles: { 0: { cellWidth: (pageWidth - 28) / 2 }, 1: { cellWidth: (pageWidth - 28) / 2 } },
-          margin: { left: 17, right: 14 }
+          margin: { top: 40, left: 17, right: 14 }
         })
 
         const metaFinalY = (doc as any).lastAutoTable.finalY
-        doc.setFillColor(187, 151, 58)
+        doc.setFillColor(201, 167, 81)
         doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
 
         const tableStartY = metaFinalY + 5
@@ -733,8 +743,13 @@ export default function CalificacionesClient({
           head: [headRow],
           body: tableData,
           theme: 'grid',
+          willDrawPage: (data) => {
+            if (data.pageNumber > 1) {
+              addPdfBackground(doc)
+            }
+          },
           headStyles: {
-            fillColor: [187, 151, 58],
+            fillColor: [201, 167, 81],
             textColor: 255,
             fontSize: 7,
             halign: 'center',
@@ -745,7 +760,7 @@ export default function CalificacionesClient({
           alternateRowStyles: { fillColor: [253, 252, 248] },
           styles: { fontSize: 7, cellPadding: 1.3, textColor: [30, 30, 30], lineWidth: 0.05, lineColor: [200, 200, 200] },
           columnStyles: colStyles,
-          margin: { left: 14, right: 14 },
+          margin: { top: 40, left: 14, right: 14 },
           didParseCell: (data: any) => {
             if (data.section === 'body') {
               const avgColIdx = sortedModules.length + 3
@@ -793,12 +808,17 @@ export default function CalificacionesClient({
             ])
           ],
           theme: 'plain',
+          willDrawPage: (data) => {
+            if (data.pageNumber > 1) {
+              addPdfBackground(doc)
+            }
+          },
           styles: { fontSize: 5.5, cellPadding: 0.3 },
           columnStyles: {
             0: { cellWidth: 8 },
             1: { cellWidth: pageWidth - 36 }
           },
-          margin: { left: 14, right: 14 }
+          margin: { top: 40, left: 14, right: 14 }
         })
 
         const legendFinalY = (doc as any).lastAutoTable.finalY || finalY + 12
@@ -821,7 +841,7 @@ export default function CalificacionesClient({
           body: [
             [
               { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-              { content: 'PROMEDIO GENERAL DE GRUPO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+              { content: 'PROMEDIO GENERAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
               { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
               { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
             ],
@@ -833,8 +853,13 @@ export default function CalificacionesClient({
             ]
           ],
           theme: 'grid',
+          willDrawPage: (data) => {
+            if (data.pageNumber > 1) {
+              addPdfBackground(doc)
+            }
+          },
           styles: { fontSize: 7, cellPadding: 1.3, halign: 'center', lineWidth: 0.1, lineColor: [180, 180, 180], textColor: [0, 0, 0] },
-          margin: { left: 14, right: 14 }
+          margin: { top: 40, left: 14, right: 14 }
         })
 
         const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
@@ -852,21 +877,21 @@ export default function CalificacionesClient({
         doc.setDrawColor(40, 40, 40)
         doc.setLineWidth(0.3)
         doc.line(sigCenterXLeft - 25, signatureY + 12, sigCenterXLeft + 25, signatureY + 12)
-        doc.setFillColor(187, 151, 58)
+        doc.setFillColor(201, 167, 81)
         doc.circle(sigCenterXLeft, signatureY + 12, 1, 'F')
         doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor(187, 151, 58)
+        doc.setTextColor(201, 167, 81)
         doc.text('FACILITADOR(A)', sigCenterXLeft, signatureY + 17, { align: 'center' })
 
         doc.setDrawColor(40, 40, 40)
         doc.setLineWidth(0.3)
         doc.line(sigCenterXRight - 25, signatureY + 12, sigCenterXRight + 25, signatureY + 12)
-        doc.setFillColor(187, 151, 58)
+        doc.setFillColor(201, 167, 81)
         doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
         doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor(187, 151, 58)
+        doc.setTextColor(201, 167, 81)
         doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
         addPdfFooter(doc)
@@ -896,7 +921,7 @@ export default function CalificacionesClient({
 
         // Loop through each group to generate a separate PDF as a senior developer
         for (const grp of allowedGroups) {
-          const doc = new jsPDF(orientation, 'mm', 'a4')
+          const doc = new jsPDF(orientation, 'mm', orientation === 'l' ? [279, 216] : [216, 279])
           const pageWidth = doc.internal.pageSize.getWidth()
           const pageHeight = doc.internal.pageSize.getHeight()
 
@@ -927,7 +952,7 @@ export default function CalificacionesClient({
           const grpDeptoName = grp.departamentos?.name || deptoName || 'N/A'
 
           // --- TITULO CONSOLIDADO ---
-          doc.setFillColor(187, 151, 58)
+          doc.setFillColor(201, 167, 81)
           doc.rect(14, 40, pageWidth - 28, 10, 'F')
           doc.setFontSize(12)
           doc.setTextColor(255, 255, 255)
@@ -962,11 +987,11 @@ export default function CalificacionesClient({
             theme: 'plain',
             styles: { fontSize: 7, cellPadding: 1.3, textColor: [40, 40, 40], overflow: 'linebreak' },
             columnStyles: { 0: { cellWidth: (pageWidth - 28) / 2 }, 1: { cellWidth: (pageWidth - 28) / 2 } },
-            margin: { left: 17, right: 14 }
+            margin: { top: 40, left: 17, right: 14 }
           })
 
           const metaFinalY = (doc as any).lastAutoTable.finalY
-          doc.setFillColor(187, 151, 58)
+          doc.setFillColor(201, 167, 81)
           doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
 
           const tableStartY = metaFinalY + 5
@@ -1062,8 +1087,13 @@ export default function CalificacionesClient({
             head: headRows,
             body: tableData,
             theme: 'grid',
+            willDrawPage: (data) => {
+              if (data.pageNumber > 1) {
+                addPdfBackground(doc)
+              }
+            },
             headStyles: {
-              fillColor: [187, 151, 58],
+              fillColor: [201, 167, 81],
               textColor: 255,
               fontSize: 7,
               halign: 'center',
@@ -1074,7 +1104,7 @@ export default function CalificacionesClient({
             alternateRowStyles: { fillColor: [253, 252, 248] },
             styles: { fontSize: 7, cellPadding: 1.3, textColor: [30, 30, 30], lineWidth: 0.05, lineColor: [200, 200, 200] },
             columnStyles: colStyles,
-            margin: { left: 14, right: 14 },
+            margin: { top: 40, left: 14, right: 14 },
             didParseCell: (data: any) => {
               if (data.section === 'body') {
                 const avgColIdx = sortedModules.length + 3
@@ -1137,12 +1167,17 @@ export default function CalificacionesClient({
             startY: finalY + 4,
             body: legendBody,
             theme: 'plain',
+            willDrawPage: (data) => {
+              if (data.pageNumber > 1) {
+                addPdfBackground(doc)
+              }
+            },
             styles: { fontSize: 5.5, cellPadding: 0.3 },
             columnStyles: {
               0: { cellWidth: 8 },
               1: { cellWidth: pageWidth - 36 }
             },
-            margin: { left: 14, right: 14 }
+            margin: { top: 40, left: 14, right: 14 }
           })
 
           const legendFinalY = (doc as any).lastAutoTable.finalY || finalY + 12
@@ -1167,7 +1202,7 @@ export default function CalificacionesClient({
             body: [
               [
                 { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-                { content: 'PROMEDIO GENERAL DE GRUPO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+                { content: 'PROMEDIO GENERAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
                 { content: 'APROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
                 { content: 'REPROBADOS (%)', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
               ],
@@ -1179,8 +1214,13 @@ export default function CalificacionesClient({
               ]
             ],
             theme: 'grid',
+            willDrawPage: (data) => {
+              if (data.pageNumber > 1) {
+                addPdfBackground(doc)
+              }
+            },
             styles: { fontSize: 7, cellPadding: 1.3, halign: 'center', lineWidth: 0.1, lineColor: [180, 180, 180], textColor: [0, 0, 0] },
-            margin: { left: 14, right: 14 }
+            margin: { top: 40, left: 14, right: 14 }
           })
 
           const statsFinalY = (doc as any).lastAutoTable.finalY || statsStartY + 15
@@ -1199,31 +1239,31 @@ export default function CalificacionesClient({
           doc.setDrawColor(40, 40, 40)
           doc.setLineWidth(0.3)
           doc.line(sigCenterXLeft - 25, signatureY + 12, sigCenterXLeft + 25, signatureY + 12)
-          doc.setFillColor(187, 151, 58)
+          doc.setFillColor(201, 167, 81)
           doc.circle(sigCenterXLeft, signatureY + 12, 1, 'F')
           doc.setFontSize(8)
           doc.setFont('helvetica', 'bold')
-          doc.setTextColor(187, 151, 58)
+          doc.setTextColor(201, 167, 81)
           doc.text('FACILITADOR(A)', sigCenterXLeft, signatureY + 17, { align: 'center' })
 
           doc.setDrawColor(40, 40, 40)
           doc.setLineWidth(0.3)
           doc.line(sigCenterXCenter - 25, signatureY + 12, sigCenterXCenter + 25, signatureY + 12)
-          doc.setFillColor(187, 151, 58)
+          doc.setFillColor(201, 167, 81)
           doc.circle(sigCenterXCenter, signatureY + 12, 1, 'F')
           doc.setFontSize(8)
           doc.setFont('helvetica', 'bold')
-          doc.setTextColor(187, 151, 58)
+          doc.setTextColor(201, 167, 81)
           doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXCenter, signatureY + 17, { align: 'center' })
 
           doc.setDrawColor(40, 40, 40)
           doc.setLineWidth(0.3)
           doc.line(sigCenterXRight - 30, signatureY + 12, sigCenterXRight + 30, signatureY + 12)
-          doc.setFillColor(187, 151, 58)
+          doc.setFillColor(201, 167, 81)
           doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
           doc.setFontSize(8)
           doc.setFont('helvetica', 'bold')
-          doc.setTextColor(187, 151, 58)
+          doc.setTextColor(201, 167, 81)
           doc.text('COORDINADOR DE PROGRAMAS EDUCATIVOS', sigCenterXRight, signatureY + 17, { align: 'center' })
           addPdfFooter(doc)
           doc.save(`CALIFICACIONES_CONSOLIDADO_GRUPO_${grp.name.replace(/\s+/g, '_')}.pdf`)
@@ -1835,9 +1875,9 @@ export default function CalificacionesClient({
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.borderColor = '#bb973a';
-                  e.currentTarget.style.background = 'rgba(187, 151, 58, 0.04)';
-                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(187, 151, 58, 0.1), 0 4px 6px -2px rgba(187, 151, 58, 0.05)';
+                  e.currentTarget.style.borderColor = '#C9a751';
+                  e.currentTarget.style.background = 'rgba(201, 167, 81, 0.04)';
+                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(201, 167, 81, 0.1), 0 4px 6px -2px rgba(201, 167, 81, 0.05)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'none';
@@ -1850,8 +1890,8 @@ export default function CalificacionesClient({
                   width: '56px',
                   height: '56px',
                   borderRadius: '50%',
-                  background: 'rgba(187, 151, 58, 0.12)',
-                  color: '#bb973a',
+                  background: 'rgba(201, 167, 81, 0.12)',
+                  color: '#C9a751',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1862,7 +1902,7 @@ export default function CalificacionesClient({
                 <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', marginBottom: '0.25rem' }}>
                   LENGUAJE
                 </h4>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#bb973a', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#C9a751', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                   Grupo de Módulos 1
                 </span>
               </div>
@@ -1887,9 +1927,9 @@ export default function CalificacionesClient({
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.borderColor = '#bb973a';
-                  e.currentTarget.style.background = 'rgba(187, 151, 58, 0.04)';
-                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(187, 151, 58, 0.1), 0 4px 6px -2px rgba(187, 151, 58, 0.05)';
+                  e.currentTarget.style.borderColor = '#C9a751';
+                  e.currentTarget.style.background = 'rgba(201, 167, 81, 0.04)';
+                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(201, 167, 81, 0.1), 0 4px 6px -2px rgba(201, 167, 81, 0.05)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'none';
@@ -1902,8 +1942,8 @@ export default function CalificacionesClient({
                   width: '56px',
                   height: '56px',
                   borderRadius: '50%',
-                  background: 'rgba(187, 151, 58, 0.12)',
-                  color: '#bb973a',
+                  background: 'rgba(201, 167, 81, 0.12)',
+                  color: '#C9a751',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1914,7 +1954,7 @@ export default function CalificacionesClient({
                 <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', marginBottom: '0.25rem' }}>
                   MATEMÁTICA
                 </h4>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#bb973a', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#C9a751', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                   Grupo de Módulos 2
                 </span>
               </div>

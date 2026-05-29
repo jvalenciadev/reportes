@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/utils/supabase/client'
 import {
   Save, Search, UserPlus, CheckCircle, LayoutGrid,
   AlertCircle, Contact, Mail, Phone, MapPin,
-  Calendar, Trash2, UserCheck,
+  Trash2, UserCheck,
   Info,
   FileText
 } from 'lucide-react'
@@ -46,6 +47,32 @@ export default function InscriptionsClient({
   const [reasonModal, setReasonModal] = useState({ show: false, id: '', status: '' })
   const [confirmModal, setConfirmModal] = useState({ show: false, id: '', newGroupId: '', groupName: '' })
   const [statusConfirmModal, setStatusConfirmModal] = useState({ show: false, id: '', currentStatus: '', newStatus: '' })
+  const [welcomeAlert, setWelcomeAlert] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [tutorialStep, setTutorialStep] = useState(0)
+  const tutorialRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Show welcome alert on mount if not seen before
+  useEffect(() => {
+    setMounted(true)
+    const hasSeen = sessionStorage.getItem('inscriptions_alert_seen')
+    if (!hasSeen) {
+      setWelcomeAlert(true)
+    }
+  }, [])
+
+  // Cycle tutorial steps when modal is open
+  useEffect(() => {
+    if (welcomeAlert) {
+      tutorialRef.current = setInterval(() => {
+        setTutorialStep(s => (s + 1) % 4)
+      }, 2000)
+    } else {
+      if (tutorialRef.current) clearInterval(tutorialRef.current)
+      setTutorialStep(0)
+    }
+    return () => { if (tutorialRef.current) clearInterval(tutorialRef.current) }
+  }, [welcomeAlert])
 
   // Load Initial Data
   useEffect(() => {
@@ -205,11 +232,44 @@ export default function InscriptionsClient({
 
       if (error) throw error
 
-      showNotif('success', 'Documento Actualizado', newValue ? 'Documento marcado como entregado.' : 'Documento marcado como no entregado.')
+      let autoFormalizado = false
+      const enrollment = enrolledParticipants.find(p => p.id === id)
+      const participanteId = enrollment?.participante_id
+      const isFormalizado = !!enrollment?.participantes?.formalizado
+
+      if (newValue && !isFormalizado && participanteId) {
+        // Auto-formalize participant in Supabase: document delivery implies formalization!
+        const { error: formalizeError } = await supabase
+          .from('participantes')
+          .update({ formalizado: true })
+          .eq('id', participanteId)
+
+        if (!formalizeError) {
+          autoFormalizado = true
+        } else {
+          console.error('Error al auto-formalizar participante:', formalizeError)
+        }
+      }
+
+      showNotif(
+        'success',
+        'Documento Actualizado',
+        newValue
+          ? (autoFormalizado
+            ? 'Documento marcado como entregado. ¡El participante ha sido formalizado automáticamente!'
+            : 'Documento marcado como entregado.')
+          : 'Documento marcado como no entregado.'
+      )
 
       // Update local state directly for better UX
       setEnrolledParticipants(prev =>
-        prev.map(p => p.id === id ? { ...p, entrego_documento: newValue } : p)
+        prev.map(p => p.id === id ? {
+          ...p,
+          entrego_documento: newValue,
+          participantes: autoFormalizado
+            ? { ...p.participantes, formalizado: true }
+            : p.participantes
+        } : p)
       )
     } catch (err: any) {
       showNotif('error', 'Error al actualizar', err.message)
@@ -276,6 +336,26 @@ export default function InscriptionsClient({
     }
   }
 
+  const updateGenero = async (participanteId: string, currentGenero: number | null) => {
+    // Cycle: null -> 1 (Varón) -> 0 (Mujer) -> null
+    const next = currentGenero === null ? 1 : currentGenero === 1 ? 0 : null
+    try {
+      const { error } = await supabase
+        .from('participantes')
+        .update({ genero: next })
+        .eq('id', participanteId)
+      if (error) throw error
+      setEnrolledParticipants(prev =>
+        prev.map(p => p.participante_id === participanteId ? {
+          ...p,
+          participantes: { ...p.participantes, genero: next }
+        } : p)
+      )
+    } catch (err: any) {
+      showNotif('error', 'Error al actualizar género', err.message)
+    }
+  }
+
   const updateParticipantField = async (participanteId: string, field: 'correo' | 'celular' | 'formalizado' | 'zona', newValue: any) => {
     try {
       const { error } = await supabase
@@ -301,6 +381,49 @@ export default function InscriptionsClient({
 
   return (
     <>
+      <style>{`
+        .gender-btn {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        .gender-btn:hover {
+          transform: scale(1.22) !important;
+          box-shadow: 0 3px 8px rgba(0,0,0,0.3) !important;
+          filter: brightness(1.15);
+        }
+        .gender-btn:active {
+          transform: scale(0.88) !important;
+        }
+        .pill-btn {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important;
+        }
+        .pill-btn:hover {
+          transform: translateY(-1.5px) !important;
+          box-shadow: 0 5px 12px rgba(0,0,0,0.12) !important;
+          filter: brightness(1.08);
+        }
+        .pill-btn:active {
+          transform: translateY(0) !important;
+        }
+        .doc-btn {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        .doc-btn:hover:not(:disabled) {
+          transform: translateY(-1.5px) !important;
+          box-shadow: 0 5px 12px rgba(0,0,0,0.1) !important;
+          filter: brightness(1.08);
+        }
+        .doc-btn:active:not(:disabled) {
+          transform: translateY(0) !important;
+        }
+        .group-select-inline {
+          transition: all 0.2s ease !important;
+        }
+        .group-select-inline:hover {
+          border-color: var(--primary) !important;
+          background: var(--surface-hover) !important;
+        }
+      `}</style>
       <div className="animate-fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }} suppressHydrationWarning>
 
         {/* Global Selectors */}
@@ -467,13 +590,9 @@ export default function InscriptionsClient({
                 <table>
                   <thead>
                     <tr>
-                      <th>Participante</th>
-                      <th>Identidad / Grupo</th>
-                      <th>Contacto</th>
-                      <th>Formalización / Zona</th>
-                      <th>Estado / Obs.</th>
-                      <th style={{ textAlign: 'center' }}>Documentos</th>
-                      <th style={{ textAlign: 'right' }}>Registro</th>
+                      <th style={{ width: '38%' }}>Participante</th>
+                      <th style={{ width: '37%' }}>Contacto &amp; Detalles</th>
+                      <th style={{ width: '25%', textAlign: 'center' }}>Estado &amp; Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -484,194 +603,226 @@ export default function InscriptionsClient({
                         .map((i) => {
                           const isBaja = i.estado === 'baja';
                           const initials = `${i.participantes.nombre?.[0] || ''}${i.participantes.apellido?.[0] || ''}`.toUpperCase();
+                          const genero = i.participantes.genero ?? null
+                          const avatarBg = isBaja ? 'var(--border)' : genero === 1 ? 'rgba(59,130,246,0.13)' : genero === 0 ? 'rgba(236,72,153,0.13)' : 'var(--primary-light)'
+                          const avatarColor = isBaja ? 'var(--muted)' : genero === 1 ? '#3b82f6' : genero === 0 ? '#ec4899' : 'var(--primary)'
 
                           return (
                             <tr key={i.id} style={{
-                              opacity: isBaja ? 0.6 : 1,
-                              background: isBaja ? 'rgba(0,0,0,0.02)' : 'transparent',
-                              transition: 'all 0.3s ease'
+                              opacity: isBaja ? 0.55 : 1,
+                              background: isBaja ? 'rgba(0,0,0,0.015)' : 'transparent',
+                              transition: 'all 0.2s ease'
                             }}>
-                              <td style={{ padding: '1rem 0.75rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                  <div style={{
-                                    width: '38px', height: '38px', borderRadius: '12px',
-                                    background: isBaja ? 'var(--border)' : 'var(--primary-light)',
-                                    color: isBaja ? 'var(--muted)' : 'var(--primary)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '0.85rem', fontWeight: 900,
-                                    border: `1px solid ${isBaja ? 'transparent' : 'rgba(var(--primary-rgb), 0.1)'}`,
-                                    boxShadow: isBaja ? 'none' : '0 4px 10px rgba(0,0,0,0.05)'
-                                  }}>
-                                    {initials}
-                                  </div>
-                                  <div>
+
+                              {/* ── COL 1: Participante ────────────────── */}
+                              <td style={{ padding: '0.85rem 0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+                                  {/* Avatar con micro-badge de género */}
+                                  <div style={{ position: 'relative', flexShrink: 0, marginTop: '2px' }}>
                                     <div style={{
-                                      fontWeight: 800,
-                                      fontSize: '0.95rem',
+                                      width: '40px', height: '40px', borderRadius: '13px',
+                                      background: avatarBg, color: avatarColor,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontSize: '0.88rem', fontWeight: 900,
+                                      boxShadow: isBaja ? 'none' : '0 3px 10px rgba(0,0,0,0.07)',
+                                      border: `1.5px solid ${isBaja ? 'transparent' : genero === 1 ? 'rgba(59,130,246,0.35)' : genero === 0 ? 'rgba(236,72,153,0.35)' : 'var(--border)'}`
+                                    }}>
+                                      {initials}
+                                    </div>
+                                    <button
+                                      onClick={() => updateGenero(i.participante_id, genero)}
+                                      className="gender-btn"
+                                      title={genero === 1 ? 'Varón · Click para cambiar' : genero === 0 ? 'Mujer · Click para cambiar' : 'Sin género · Click para asignar'}
+                                      style={{
+                                        position: 'absolute', bottom: '-5px', right: '-5px',
+                                        width: '22px', height: '22px', borderRadius: '50%',
+                                        border: '2.5px solid var(--bg-3)',
+                                        background: genero === 1 ? '#2563eb' : genero === 0 ? '#db2777' : '#475569',
+                                        color: 'white', fontSize: '0.85rem', fontWeight: 900,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', padding: 0, lineHeight: 1,
+                                        boxShadow: '0 2px 6px rgba(0,0,0,0.35)'
+                                      }}
+                                    >
+                                      {genero === 1 ? '♂' : genero === 0 ? '♀' : '?'}
+                                    </button>
+                                  </div>
+
+                                  {/* Info principal */}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{
+                                      fontWeight: 800, fontSize: '0.92rem',
                                       textDecoration: isBaja ? 'line-through' : 'none',
-                                      color: isBaja ? 'var(--muted)' : 'var(--foreground)'
+                                      color: isBaja ? 'var(--muted)' : 'var(--foreground)',
+                                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                                     }}>
                                       {i.participantes.apellido}, {i.participantes.nombre}
                                     </div>
-                                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}>
-                                      <MapPin size={10} /> {i.participantes.localidad_vive || 'Sin localidad'}
+                                    <div style={{ fontSize: '0.67rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.15rem' }}>
+                                      <MapPin size={9} /> {i.participantes.localidad_vive || 'Sin localidad'}
+                                    </div>
+                                    {/* CI + Grupo en una sola fila */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.45rem', flexWrap: 'wrap' }}>
+                                      <span style={{
+                                        fontFamily: 'monospace', fontSize: '0.7rem',
+                                        background: 'var(--surface)', border: '1px solid var(--border)',
+                                        padding: '0.1rem 0.45rem', borderRadius: '0.4rem',
+                                        color: 'var(--muted)', letterSpacing: '0.02em', fontWeight: 600
+                                      }}>
+                                        {i.participantes.ci}
+                                      </span>
+                                      <select
+                                        value={i.grupo_id}
+                                        onChange={(e) => updateGroup(i.id, e.target.value)}
+                                        className="group-select-inline"
+                                        style={{
+                                          padding: '0.15rem 0.4rem', fontSize: '0.68rem',
+                                          borderRadius: '0.4rem', border: '1px solid var(--border)',
+                                          background: 'var(--primary-light)', color: 'var(--primary)',
+                                          fontWeight: 800, cursor: 'pointer', maxWidth: '110px',
+                                          outline: 'none'
+                                        }}
+                                      >
+                                        {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                      </select>
                                     </div>
                                   </div>
                                 </div>
                               </td>
-                              <td>
-                                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--foreground-2)', marginBottom: '0.4rem' }}>{i.participantes.ci}</div>
-                                <select
-                                  value={i.grupo_id}
-                                  onChange={(e) => updateGroup(i.id, e.target.value)}
-                                  style={{
-                                    padding: '0.3rem 0.5rem',
-                                    fontSize: '0.7rem',
-                                    borderRadius: '0.5rem',
-                                    border: '1px solid var(--border)',
-                                    background: 'var(--surface)',
-                                    color: 'var(--primary)',
-                                    fontWeight: 800,
-                                    width: '100%',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  {groups.map(g => (
-                                    <option key={g.id} value={g.id}>{g.name}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td style={{ width: '220px' }}>
-                                <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                  <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}>
-                                    <Mail size={12} style={{ color: 'var(--muted)' }} />
-                                  </div>
-                                  <input
-                                    type="email"
-                                    defaultValue={i.participantes.correo || ''}
-                                    onBlur={(e) => {
-                                      if (e.target.value !== i.participantes.correo) {
-                                        updateParticipantField(i.participante_id, 'correo', e.target.value);
-                                      }
-                                    }}
-                                    style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid transparent', padding: '0.2rem 0', fontSize: '0.8rem', color: 'var(--foreground)', transition: 'all 0.2s' }}
-                                    placeholder="Sin correo..."
-                                    onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
-                                  />
-                                </div>
-                                <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                  <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)' }}>
-                                    <Phone size={12} style={{ color: 'var(--muted)' }} />
-                                  </div>
-                                  <input
-                                    type="text"
-                                    defaultValue={i.participantes.celular || ''}
-                                    onBlur={(e) => {
-                                      if (e.target.value !== i.participantes.celular) {
-                                        updateParticipantField(i.participante_id, 'celular', e.target.value);
-                                      }
-                                    }}
-                                    style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid transparent', padding: '0.2rem 0', fontSize: '0.8rem', color: 'var(--foreground)', transition: 'all 0.2s' }}
-                                    placeholder="Sin celular..."
-                                    onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
-                                  />
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                  {/* Formalizado Checkbox */}
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600, color: 'var(--foreground-2)' }}>
+
+                              {/* ── COL 2: Contacto & Detalles ─────────── */}
+                              <td style={{ padding: '0.85rem 0.75rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                  {/* Email */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                    <Mail size={11} style={{ color: 'var(--muted)', flexShrink: 0 }} />
                                     <input
-                                      type="checkbox"
-                                      checked={!!i.participantes.formalizado}
-                                      onChange={(e) => updateParticipantField(i.participante_id, 'formalizado', e.target.checked)}
+                                      type="email"
+                                      defaultValue={i.participantes.correo || ''}
+                                      onBlur={(e) => {
+                                        if (e.target.value !== i.participantes.correo)
+                                          updateParticipantField(i.participante_id, 'correo', e.target.value)
+                                        e.target.style.borderBottomColor = 'transparent'
+                                      }}
+                                      onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
+                                      placeholder="Sin correo"
                                       style={{
-                                        width: '14px',
-                                        height: '14px',
-                                        borderRadius: '4px',
-                                        accentColor: 'var(--primary)',
-                                        cursor: 'pointer'
+                                        flex: 1, background: 'transparent', border: 'none',
+                                        borderBottom: '1px solid transparent', padding: '0.1rem 0',
+                                        fontSize: '0.77rem', color: 'var(--foreground)',
+                                        transition: 'all 0.2s', minWidth: 0,
+                                        outline: 'none'
                                       }}
                                     />
-                                    <span>{i.participantes.formalizado ? 'Formalizado' : 'Pendiente'}</span>
-                                  </label>
-                                  {/* Zona Select */}
-                                  <select
-                                    value={i.participantes.zona || 'urbano'}
-                                    onChange={(e) => updateParticipantField(i.participante_id, 'zona', e.target.value)}
+                                  </div>
+                                  {/* Celular */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                    <Phone size={11} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                                    <input
+                                      type="text"
+                                      defaultValue={i.participantes.celular || ''}
+                                      onBlur={(e) => {
+                                        if (e.target.value !== i.participantes.celular)
+                                          updateParticipantField(i.participante_id, 'celular', e.target.value)
+                                        e.target.style.borderBottomColor = 'transparent'
+                                      }}
+                                      onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
+                                      placeholder="Sin celular"
+                                      style={{
+                                        flex: 1, background: 'transparent', border: 'none',
+                                        borderBottom: '1px solid transparent', padding: '0.1rem 0',
+                                        fontSize: '0.77rem', color: 'var(--foreground)',
+                                        transition: 'all 0.2s', outline: 'none'
+                                      }}
+                                    />
+                                  </div>
+                                  {/* Pills clickeables: Zona + Formalizado */}
+                                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.45rem', flexWrap: 'wrap' }}>
+                                    <button
+                                      onClick={() => updateParticipantField(i.participante_id, 'zona', i.participantes.zona === 'urbano' ? 'rural' : 'urbano')}
+                                      className="pill-btn"
+                                      title="Click para cambiar zona"
+                                      style={{
+                                        padding: '0.3rem 0.75rem', borderRadius: '99px',
+                                        fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer',
+                                        background: i.participantes.zona === 'rural' ? 'rgba(34,197,94,0.08)' : 'rgba(59,130,246,0.08)',
+                                        color: i.participantes.zona === 'rural' ? '#16a34a' : '#2563eb',
+                                        border: `1.5px solid ${i.participantes.zona === 'rural' ? '#10b981' : '#3b82f6'}`
+                                      }}
+                                    >
+                                      {i.participantes.zona === 'rural' ? '🌾 Rural' : '🏙 Urbano'}
+                                    </button>
+                                    <button
+                                      onClick={() => updateParticipantField(i.participante_id, 'formalizado', !i.participantes.formalizado)}
+                                      className="pill-btn"
+                                      title="Click para cambiar estado de formalización"
+                                      style={{
+                                        padding: '0.3rem 0.75rem', borderRadius: '99px',
+                                        fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer',
+                                        background: i.participantes.formalizado ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
+                                        color: i.participantes.formalizado ? '#16a34a' : '#d97706',
+                                        border: `1.5px solid ${i.participantes.formalizado ? '#10b981' : '#f59e0b'}`
+                                      }}
+                                    >
+                                      {i.participantes.formalizado ? '✓ Formalizado' : 'Pendiente'}
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* ── COL 3: Estado & Acciones ───────────── */}
+                              <td style={{ padding: '0.85rem 0.75rem', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.55rem' }}>
+                                  {/* Badge de estado */}
+                                  <span style={{
+                                    display: 'inline-block', padding: '0.35rem 0.75rem',
+                                    borderRadius: '0.6rem', fontSize: '0.7rem', fontWeight: 700,
+                                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                                    background: i.estado === 'inscrito' ? 'rgba(34,197,94,0.15)'
+                                      : i.estado === 'preinscrito' ? 'rgba(59,130,246,0.12)'
+                                        : 'var(--border)',
+                                    color: i.estado === 'inscrito' ? '#16a34a'
+                                      : i.estado === 'preinscrito' ? '#3b82f6'
+                                        : 'var(--muted)',
+                                    border: `1px solid ${i.estado === 'inscrito' ? 'rgba(34,197,94,0.25)' : i.estado === 'preinscrito' ? 'rgba(59,130,246,0.2)' : 'transparent'}`
+                                  }}>
+                                    {i.estado === 'inscrito' ? '● Activo' : i.estado === 'preinscrito' ? '○ Preinscrito' : '× Baja'}
+                                  </span>
+                                  {/* Observación */}
+                                  {i.observacion && (
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--danger)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem', maxWidth: '160px', textAlign: 'left' }}>
+                                      <AlertCircle size={9} style={{ flexShrink: 0 }} /> {i.observacion}
+                                    </div>
+                                  )}
+                                  {/* Documento toggle */}
+                                  <button
+                                    onClick={() => i.estado === 'inscrito' && updateDocumento(i.id, !!i.entrego_documento)}
+                                    disabled={i.estado !== 'inscrito'}
+                                    className="doc-btn"
+                                    title={i.estado !== 'inscrito' ? 'Solo habilitado para activos' : i.entrego_documento ? 'Doc. entregado ✓' : 'Falta documento'}
                                     style={{
-                                      padding: '0.25rem 0.5rem',
-                                      borderRadius: '0.5rem',
-                                      fontSize: '0.75rem',
-                                      background: 'var(--surface)',
-                                      border: '1px solid var(--border)',
-                                      color: 'var(--foreground)',
-                                      outline: 'none',
-                                      cursor: 'pointer',
-                                      width: '100px'
+                                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                                      padding: '0.4rem 0.85rem', borderRadius: '0.6rem',
+                                      fontSize: '0.72rem', fontWeight: 800,
+                                      cursor: i.estado === 'inscrito' ? 'pointer' : 'not-allowed',
+                                      opacity: i.estado === 'inscrito' ? 1 : 0.35,
+                                      background: i.entrego_documento
+                                        ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.06)',
+                                      color: i.entrego_documento ? '#16a34a' : '#ef4444',
+                                      border: `1.5px solid ${i.entrego_documento ? '#10b981' : '#f43f5e'}` as any
                                     }}
                                   >
-                                    <option value="urbano">Urbano</option>
-                                    <option value="rural">Rural</option>
-                                  </select>
+                                    <CheckCircle size={13} />
+                                    {i.entrego_documento ? 'Doc. OK' : 'Sin Doc.'}
+                                  </button>
                                 </div>
                               </td>
-                              <td>
-                                {/* Comentado: Cambio de estado de inscripción de preinscrito a activo ya no es editable */}
-                                <span style={{
-                                  display: 'inline-block',
-                                  padding: '0.4rem 0.8rem',
-                                  borderRadius: '0.6rem',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 700,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.05em',
-                                  background: i.estado === 'inscrito' ? 'var(--success)' : (i.estado === 'preinscrito' ? '#3b82f6' : 'var(--border)'),
-                                  color: i.estado === 'inscrito' || i.estado === 'preinscrito' ? 'white' : 'var(--muted)'
-                                }}>
-                                  {i.estado === 'inscrito' ? 'Activo' : (i.estado === 'preinscrito' ? 'Preinscrito' : 'Baja')}
-                                </span>
 
-                                {i.observacion && (
-                                  <div style={{ fontSize: '0.7rem', color: 'var(--danger)', marginTop: '0.5rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                    <AlertCircle size={10} /> {i.observacion}
-                                  </div>
-                                )}
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  onClick={() => i.estado === 'inscrito' && updateDocumento(i.id, !!i.entrego_documento)}
-                                  className={`btn ${i.entrego_documento ? 'btn-primary' : 'btn-ghost'}`}
-                                  disabled={i.estado !== 'inscrito'}
-                                  style={{
-                                    padding: '0.4rem 0.6rem',
-                                    fontSize: '0.75rem',
-                                    borderRadius: '0.5rem',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.3rem',
-                                    border: i.entrego_documento ? 'none' : '1px solid var(--border)',
-                                    opacity: i.estado === 'inscrito' ? 1 : 0.4,
-                                    cursor: i.estado === 'inscrito' ? 'pointer' : 'not-allowed',
-                                    filter: i.estado === 'inscrito' ? 'none' : 'grayscale(1)'
-                                  }}
-                                  title={i.estado !== 'inscrito' ? "Solo habilitado para activos" : (i.entrego_documento ? "Documento entregado" : "Falta documento")}
-                                >
-                                  <CheckCircle size={14} style={{ opacity: i.entrego_documento ? 1 : 0.4 }} />
-                                  {i.entrego_documento ? 'Entregó' : 'Pendiente'}
-                                </button>
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                <div style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
-                                  <Calendar size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                                  {new Date(i.created_at).toLocaleDateString()}
-                                </div>
-                              </td>
                             </tr>
                           );
                         }) : (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                        <td colSpan={3} style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
                           <Search size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
                           <div>No hay participantes activos en este grupo</div>
                         </td>
@@ -717,7 +868,7 @@ export default function InscriptionsClient({
         show={statusConfirmModal.show}
         title="Confirmar Inscripción"
         message="¿Estás seguro de inscribir a este participante? Una vez inscrito, su estado quedará activo y no podrá ser modificado."
-        warningNote="⚠️ ACCIÓN REQUERIDA: Si el programa ya está en curso, los facilitadores deberán registrar manualmente la asistencia de los módulos anteriores como FALTA y la calificación con 0 para este participante."
+        warningNote="ACCIÓN REQUERIDA: Si el programa ya está en curso, los facilitadores deberán registrar manualmente la asistencia de los módulos anteriores como FALTA y la calificación con 0 para este participante."
         loading={saving}
         onConfirm={handleConfirmStatus}
         onCancel={() => {
@@ -725,6 +876,233 @@ export default function InscriptionsClient({
           loadParticipants()
         }}
       />
+
+      {mounted && welcomeAlert && createPortal(
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(3, 4, 11, 0.75)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999999,
+          padding: '1.5rem'
+        }}>
+          <div className="card glass animate-scale-in" style={{
+            maxWidth: '520px',
+            width: '100%',
+            padding: '2.5rem 2rem',
+            borderRadius: '2rem',
+            border: '1.5px solid rgba(213, 173, 66, 0.3)',
+            boxShadow: '0 30px 60px -12px rgba(0,0,0,0.8), 0 0 30px rgba(213, 173, 66, 0.1)',
+            background: 'var(--bg-2)',
+            color: 'var(--foreground)',
+            position: 'relative'
+          }}>
+
+            {/* Icon & Title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginBottom: '1.5rem' }}>
+              <div style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '1.25rem',
+                background: 'rgba(213, 173, 66, 0.15)',
+                border: '1px solid rgba(213, 173, 66, 0.3)',
+                color: 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 6px 15px rgba(213, 173, 66, 0.2)',
+                flexShrink: 0
+              }}>
+                <AlertCircle size={26} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 900, margin: 0, color: 'var(--foreground)', letterSpacing: '-0.03em' }}>
+                  Tutorial de Gestión Rápida
+                </h2>
+                <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Guía visual para reportar con éxito
+                </span>
+              </div>
+            </div>
+
+            {/* ── Animated GIF-like row demo ── */}
+            <style>{`
+              @keyframes tut-pulse {
+                0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.7); }
+                50%      { box-shadow: 0 0 0 8px rgba(99,102,241,0); }
+              }
+              @keyframes tut-bounce {
+                0%,100% { transform: translateY(0); }
+                50%      { transform: translateY(-4px); }
+              }
+              @keyframes tut-arrow {
+                0%,100% { opacity: 0.4; transform: translateX(0); }
+                50%      { opacity: 1;   transform: translateX(4px); }
+              }
+              .tut-highlight {
+                outline: 2.5px solid #6366f1;
+                outline-offset: 3px;
+                border-radius: 6px;
+                animation: tut-pulse 1.2s ease-in-out infinite;
+              }
+              .tut-label {
+                animation: tut-bounce 1.2s ease-in-out infinite;
+              }
+            `}</style>
+
+            {/* Step indicator dots */}
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '0.75rem' }}>
+              {['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'].map((c, i) => (
+                <div key={i} style={{
+                  width: tutorialStep === i ? '22px' : '8px',
+                  height: '8px', borderRadius: '4px',
+                  background: tutorialStep === i ? c : 'rgba(255,255,255,0.15)',
+                  transition: 'all 0.4s cubic-bezier(.4,0,.2,1)'
+                }} />
+              ))}
+            </div>
+
+            {/* Step label */}
+            <div style={{
+              textAlign: 'center', marginBottom: '0.75rem',
+              fontSize: '0.78rem', fontWeight: 700,
+              color: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'][tutorialStep],
+              minHeight: '1.1rem', transition: 'color 0.3s'
+            }}>
+              {['① Haz clic en el género (? → ♂ ♀) en el avatar', '② Haz clic en la zona (Urbano / Rural)', '③ Haz clic en "Sin Doc." para registrar documento', '④ El sistema lo formaliza automáticamente'][tutorialStep]}
+            </div>
+
+            {/* Mini row mockup */}
+            <div style={{
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '12px', padding: '0.65rem 0.85rem',
+              display: 'flex', alignItems: 'center', gap: '0.75rem',
+              marginBottom: '1.25rem', position: 'relative', overflow: 'visible'
+            }}>
+              {/* Avatar + gender badge */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 800, fontSize: '0.95rem', color: '#fff'
+                }}>MA</div>
+                {/* Gender badge */}
+                <div
+                  className={tutorialStep === 0 ? 'tut-highlight tut-label' : ''}
+                  style={{
+                    position: 'absolute', bottom: -4, right: -4,
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: tutorialStep === 0 ? '#2563eb' : 'rgba(30,30,50,0.9)',
+                    border: `2px solid ${tutorialStep === 0 ? '#93c5fd' : 'rgba(255,255,255,0.2)'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '0.72rem', color: '#fff', fontWeight: 900,
+                    transition: 'all 0.3s', cursor: 'pointer', zIndex: 2
+                  }}
+                >{tutorialStep === 0 ? '?' : tutorialStep >= 1 ? '♂' : '?'}</div>
+              </div>
+
+              {/* Center: name + zona */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--foreground)', marginBottom: '0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  AGUILAR DELGADO, MELANY
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--foreground-2)' }}>8540257</span>
+                  <span
+                    className={tutorialStep === 1 ? 'tut-highlight' : ''}
+                    style={{
+                      fontSize: '0.68rem', fontWeight: 700,
+                      background: tutorialStep === 1 ? 'rgba(37,99,235,0.25)' : 'rgba(37,99,235,0.12)',
+                      color: '#60a5fa', borderRadius: '4px', padding: '1px 6px',
+                      border: `1px solid ${tutorialStep === 1 ? '#3b82f6' : 'rgba(37,99,235,0.2)'}`,
+                      transition: 'all 0.3s', cursor: 'pointer'
+                    }}
+                  >🏙 Urbano</span>
+                </div>
+              </div>
+
+              {/* Right: estado + doc btn */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-end', flexShrink: 0 }}>
+                <span style={{
+                  fontSize: '0.68rem', fontWeight: 700,
+                  background: tutorialStep === 3 ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.1)',
+                  color: '#34d399',
+                  border: `1px solid ${tutorialStep === 3 ? '#10b981' : 'rgba(16,185,129,0.2)'}`,
+                  borderRadius: '4px', padding: '2px 7px', transition: 'all 0.4s'
+                }}>
+                  {tutorialStep === 3 ? '✓ Formalizado' : '⏳ Pendiente'}
+                </span>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--foreground-2)', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    ● Activo
+                  </span>
+                  <span
+                    className={tutorialStep === 2 ? 'tut-highlight' : ''}
+                    style={{
+                      fontSize: '0.68rem', fontWeight: 700,
+                      background: tutorialStep >= 2 ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.15)',
+                      color: tutorialStep >= 2 ? '#34d399' : '#f87171',
+                      border: `1px solid ${tutorialStep >= 2 ? '#10b981' : 'rgba(239,68,68,0.3)'}`,
+                      borderRadius: '4px', padding: '2px 7px',
+                      transition: 'all 0.4s', cursor: 'pointer'
+                    }}
+                  >{tutorialStep >= 2 ? '📄 Doc. OK' : '📋 Sin Doc.'}</span>
+                </div>
+              </div>
+
+              {/* Animated arrow pointing at the active zone */}
+              <div style={{
+                position: 'absolute',
+                bottom: '-1.8rem',
+                left: tutorialStep === 0 ? '28px' : tutorialStep === 1 ? '95px' : tutorialStep === 2 ? 'calc(100% - 90px)' : 'calc(100% - 115px)',
+                transition: 'left 0.4s cubic-bezier(.4,0,.2,1)',
+                fontSize: '1rem',
+                animation: 'tut-bounce 1.2s ease-in-out infinite',
+                color: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'][tutorialStep]
+              }}>▲</div>
+            </div>
+
+            {/* Call to action note (highlighted) */}
+            <div style={{
+              background: 'var(--surface)', padding: '0.85rem 1rem', borderRadius: '1rem',
+              borderLeft: '4px solid var(--primary)', fontSize: '0.78rem',
+              color: 'var(--foreground-2)', fontWeight: 600, marginBottom: '1.75rem',
+              lineHeight: 1.5, marginTop: '1.5rem'
+            }}>
+              💡 <strong>¿Por qué es importante?</strong><br />
+              Esto les ayudará a reportar de manera eficiente y rápido directo desde sistema.
+            </div>
+
+            {/* Action Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  sessionStorage.setItem('inscriptions_alert_seen', 'true')
+                  setWelcomeAlert(false)
+                }}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  fontSize: '0.9rem', fontWeight: 800,
+                  borderRadius: '1.25rem',
+                  boxShadow: '0 8px 16px rgba(213, 173, 66, 0.3)',
+                  cursor: 'pointer'
+                }}
+              >
+                Entendido, empezar
+              </button>
+            </div>
+
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }

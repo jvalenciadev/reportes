@@ -746,7 +746,7 @@ export default function AttendanceClient({
         pdfDoc.setFontSize(6)
         pdfDoc.setFont('helvetica', 'italic')
         pdfDoc.setTextColor(150, 150, 150)
-        pdfDoc.text(footerText, w / 2, h - 4, { align: 'center' })
+        pdfDoc.text(footerText, w - 14, h - 7, { align: 'right' })
       }
     }
 
@@ -759,12 +759,12 @@ export default function AttendanceClient({
     const deptoName = departamentos.find(d => d.id === selectedDepto)?.nombre || 'N/A'
 
     // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
-    doc.setFillColor(187, 151, 58) // Dorado institucional #bb973a
+    doc.setFillColor(201, 167, 81) // Dorado institucional #bb973a
     doc.rect(14, 40, pageWidth - 28, 10, 'F')
     doc.setFontSize(12)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.text('REPORTE DE ASISTENCIA CONSOLIDADA', pageWidth / 2, 46.5, { align: 'center' })
+    doc.text('REPORTE DE ASISTENCIA', pageWidth / 2, 46.5, { align: 'center' })
 
     const currentFac = facilitators.find(f => f.name === selectedFacilitator)
     const facilitatorDepto = currentFac?.depto || 'N/A'
@@ -816,13 +816,13 @@ export default function AttendanceClient({
         0: { cellWidth: (pageWidth - 28) / 2 },
         1: { cellWidth: (pageWidth - 28) / 2 }
       },
-      margin: { left: 17, right: 14 }
+      margin: { top: 40, left: 17, right: 14 }
     })
 
     const metaFinalY = (doc as any).lastAutoTable.finalY
 
     // Draw the luxury vertical gold accent bar next to the metadata block
-    doc.setFillColor(187, 151, 58) // dorado institucional #bb973a
+    doc.setFillColor(201, 167, 81) // dorado institucional #bb973a
     doc.rect(14, 53, 1.5, metaFinalY - 53, 'F')
 
     const tableStartY = metaFinalY + 5
@@ -881,8 +881,13 @@ export default function AttendanceClient({
       head: [['Nro', 'C.I.', 'APELLIDOS Y NOMBRES', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'PROM.']],
       body: tableData,
       theme: 'grid',
+      willDrawPage: (data) => {
+        if (data.pageNumber > 1) {
+          addPdfBackground(doc)
+        }
+      },
       headStyles: {
-        fillColor: [187, 151, 58], // Elegant institutional gold
+        fillColor: [201, 167, 81], // Elegant institutional gold
         textColor: 255, // Clean white text
         fontSize: 7,
         halign: 'center',
@@ -910,9 +915,9 @@ export default function AttendanceClient({
         6: { halign: 'center', cellWidth: 12 },
         7: { halign: 'center', cellWidth: 12 },
         8: { halign: 'center', cellWidth: 12 },
-        9: { halign: 'center', cellWidth: 18, fontStyle: 'bold', textColor: [187, 151, 58] }
+        9: { halign: 'center', cellWidth: 18, fontStyle: 'bold', textColor: [201, 167, 81] }
       },
-      margin: { left: 14, right: 14 }
+      margin: { top: 40, left: 14, right: 14 }
     })
 
     const finalY = (doc as any).lastAutoTable.finalY || 150
@@ -988,7 +993,7 @@ export default function AttendanceClient({
         [
           { content: 'TOTAL PARTICIPANTES', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
           { content: 'JORNADAS REGISTRADAS', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
-          { content: 'PROMEDIO GRUPAL DE GRUPO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
+          { content: 'PROMEDIO TOTAL', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
           { content: 'ASISTENCIA PROMEDIO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } },
           { content: 'ESTADO MÓDULO', styles: { fontStyle: 'bold', fillColor: [250, 250, 250] } }
         ],
@@ -1001,6 +1006,11 @@ export default function AttendanceClient({
         ]
       ],
       theme: 'grid',
+      willDrawPage: (data) => {
+        if (data.pageNumber > 1) {
+          addPdfBackground(doc)
+        }
+      },
       styles: {
         fontSize: 7,
         cellPadding: 1.3,
@@ -1009,7 +1019,7 @@ export default function AttendanceClient({
         lineColor: [180, 180, 180],
         textColor: [0, 0, 0]
       },
-      margin: { left: 14, right: 14 }
+      margin: { top: 40, left: 14, right: 14 }
     })
 
     const statsFinalY = (doc as any).lastAutoTable.finalY || finalY + 22
@@ -1031,12 +1041,12 @@ export default function AttendanceClient({
     doc.setLineWidth(0.3)
     doc.line(sigCenterXLeft - 25, signatureY + 12, sigCenterXLeft + 25, signatureY + 12)
 
-    doc.setFillColor(187, 151, 58)
+    doc.setFillColor(201, 167, 81)
     doc.circle(sigCenterXLeft, signatureY + 12, 1, 'F')
 
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(187, 151, 58)
+    doc.setTextColor(201, 167, 81)
     doc.text('FACILITADOR(A)', sigCenterXLeft, signatureY + 17, { align: 'center' })
 
     // Right Signature: RESPONSABLE DEPARTAMENTAL
@@ -1044,12 +1054,12 @@ export default function AttendanceClient({
     doc.setLineWidth(0.3)
     doc.line(sigCenterXRight - 25, signatureY + 12, sigCenterXRight + 25, signatureY + 12)
 
-    doc.setFillColor(187, 151, 58)
+    doc.setFillColor(201, 167, 81)
     doc.circle(sigCenterXRight, signatureY + 12, 1, 'F')
 
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(187, 151, 58)
+    doc.setTextColor(201, 167, 81)
     doc.text('RESPONSABLE DEPARTAMENTAL', sigCenterXRight, signatureY + 17, { align: 'center' })
 
     addPdfFooter(doc)
@@ -1778,7 +1788,7 @@ export default function AttendanceClient({
         .btn-status-asistio { background: #10b981; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
         .btn-status-atraso { background: #f59e0b; color: white; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
         .btn-status-falta { background: #ef4444; color: white; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
-        .btn-status-permiso { background: #bb973a; color: white; box-shadow: 0 4px 12px rgba(187, 151, 58, 0.3); }
+        .btn-status-permiso { background: #bb973a; color: white; box-shadow: 0 4px 12px rgba(201, 167, 81, 0.3); }
         .btn-ghost { 
           background: rgba(0, 0, 0, 0.03); 
           color: var(--muted); 
