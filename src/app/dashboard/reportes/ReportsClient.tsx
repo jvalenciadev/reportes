@@ -1472,27 +1472,30 @@ export default function ReportsClient({
             const totalEnrolled = studentsInItem.length
 
             let rowActivos = 0
-            let rowFormalizados = 0
-            let rowNoFormalizados = 0
             let rowRural = 0
             let rowUrbano = 0
+            let rowMujeres = 0
+            let rowHombres = 0
+            let rowFalta = 0
 
             if (selectedDept !== 'all') {
                 const groupObj = (enrollmentData || []).find(e => e.group_name === name)
                 if (groupObj) {
                     rowActivos = groupObj.total_confirmados || 0
-                    rowFormalizados = groupObj.total_formalizados || 0
-                    rowNoFormalizados = rowActivos - rowFormalizados
                     rowRural = groupObj.total_rural || 0
                     rowUrbano = groupObj.total_urbano || 0
+                    rowMujeres = groupObj.total_mujeres || 0
+                    rowHombres = groupObj.total_hombres || 0
+                    rowFalta = groupObj.total_falta || 0
                 }
             } else {
                 const deptGroups = (enrollmentData || []).filter(e => e.dept_name === name)
                 rowActivos = deptGroups.reduce((sum, g) => sum + (g.total_confirmados || 0), 0)
-                rowFormalizados = deptGroups.reduce((sum, g) => sum + (g.total_formalizados || 0), 0)
-                rowNoFormalizados = rowActivos - rowFormalizados
                 rowRural = deptGroups.reduce((sum, g) => sum + (g.total_rural || 0), 0)
                 rowUrbano = deptGroups.reduce((sum, g) => sum + (g.total_urbano || 0), 0)
+                rowMujeres = deptGroups.reduce((sum, g) => sum + (g.total_mujeres || 0), 0)
+                rowHombres = deptGroups.reduce((sum, g) => sum + (g.total_hombres || 0), 0)
+                rowFalta = deptGroups.reduce((sum, g) => sum + (g.total_falta || 0), 0)
             }
 
             const daysData: any[] = []
@@ -1535,11 +1538,11 @@ export default function ReportsClient({
 
             return [
                 name.toUpperCase(),
-                String(rowFormalizados),
-                String(rowNoFormalizados),
                 String(rowActivos),
                 String(rowRural),
                 String(rowUrbano),
+                String(rowMujeres),
+                String(rowHombres),
                 ...daysData.map(v => String(v)),
                 avgAsist,
                 avgFalta,
@@ -1553,17 +1556,17 @@ export default function ReportsClient({
 
         // Grand Totals Row
         let grandActivos = 0
-        let grandFormalizados = 0
-        let grandNoFormalizados = 0
         let grandRural = 0
         let grandUrbano = 0
+        let grandMujeres = 0
+        let grandHombres = 0
 
         tableBody.forEach(row => {
-            grandFormalizados += Number(row[1])
-            grandNoFormalizados += Number(row[2])
-            grandActivos += Number(row[3])
-            grandRural += Number(row[4])
-            grandUrbano += Number(row[5])
+            grandActivos += Number(row[1])
+            grandRural += Number(row[2])
+            grandUrbano += Number(row[3])
+            grandMujeres += Number(row[4])
+            grandHombres += Number(row[5])
         })
 
         const grandDaysData = Array(24).fill(0)
@@ -1598,11 +1601,11 @@ export default function ReportsClient({
 
         const grandTotalRow = [
             'TOTAL GENERAL',
-            String(grandFormalizados),
-            String(grandNoFormalizados),
             String(grandActivos),
             String(grandRural),
             String(grandUrbano),
+            String(grandMujeres),
+            String(grandHombres),
             ...grandDaysData.map(val => String(val)),
             grandAvgAsist,
             grandAvgFalta,
@@ -1697,25 +1700,30 @@ export default function ReportsClient({
         doc.setFont('helvetica', 'bold')
         doc.text('CONSOLIDADO DE ASISTENCIA — REPORTE RESUMEN', pageWidth / 2, 38, { align: 'center' })
 
-        // Get date metadata
-        const selectedModuleObj = (rawAttendanceData || []).find((a: any) => {
-            const modulo_titulo = a.programa_modulos?.titulo_modulo || 'S/M'
-            const modulo_grupo = a.programa_modulos?.grupo
-            const modulo_prefix = modulo_grupo === 1 ? 'LENGUAJE - ' : modulo_grupo === 2 ? 'MATEMÁTICA - ' : ''
-            const full_modulo_name = `${modulo_prefix}${modulo_titulo}`
-            return full_modulo_name === targetModule
-        })
+        // Subtitle: module name + dept/group filter
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(80, 60, 20)
+        const subtitleLeft = `${targetModule.toUpperCase()}`
+        const subtitleRight = `${deptLabel !== 'Nacional' ? `SEDE: ${deptLabel.toUpperCase()}` : 'FILTRO NACIONAL'}  |  GRUPO: ${groupLabel.toUpperCase()}`
+        doc.text(subtitleLeft, 14, 45)
+        doc.text(subtitleRight, pageWidth - 14, 45, { align: 'right' })
 
-        const tableStartY = 45
+        // Thin separator line
+        doc.setDrawColor(201, 167, 81)
+        doc.setLineWidth(0.4)
+        doc.line(14, 47, pageWidth - 14, 47)
+
+        const tableStartY = 51
 
         // Multi-level Matrix headers — col labels 0-5 are drawn rotated via didDrawCell
         const fixedColLabels = [
             selectedDept !== 'all' ? 'GRUPO' : 'DEPARTAMENTO',
-            'TOTAL FORMALIZADOS',
-            'TOTAL NO FORMALIZADOS',
             'TOTAL ACTIVOS',
             'RURAL',
-            'URBANO'
+            'URBANO',
+            'MUJERES',
+            'HOMBRES'
         ]
         const header1: any[] = [
             { content: '', rowSpan: 2, styles: { halign: 'center' as const, valign: 'middle' as const } },
@@ -1790,8 +1798,18 @@ export default function ReportsClient({
                     if (data.column.index > 0) {
                         data.cell.styles.halign = 'center'
                     }
+                    // Highlight red if gender sum does not match active total
+                    if (data.column.index === 4 || data.column.index === 5) {
+                        const act = Number(data.row.raw[1])
+                        const muj = Number(data.row.raw[4])
+                        const hom = Number(data.row.raw[5])
+                        if (act !== muj + hom) {
+                            data.cell.styles.textColor = [220, 38, 38] // Strong red
+                            data.cell.styles.fontStyle = 'bold'
+                        }
+                    }
                     // Differentiate Total columns visually
-                    const isTotalColumn = [1, 2, 3, 9, 13, 17, 21, 25, 29, 33].includes(data.column.index)
+                    const isTotalColumn = [1, 2, 3, 4, 5, 9, 13, 17, 21, 25, 29, 33].includes(data.column.index)
                     if (isTotalColumn) {
                         data.cell.styles.fillColor = [242, 238, 224] // Soft tinted cream background for totals
                         data.cell.styles.fontStyle = 'bold' // Bold text for totals
@@ -2056,22 +2074,31 @@ export default function ReportsClient({
             const promedio = scoredStudents.length > 0 ? (sumGrades / scoredStudents.length).toFixed(1) : '0.0'
             const tasa = calificados > 0 ? ((aprobados / calificados) * 100).toFixed(0) + '%' : '0%'
 
-            // Enrollment data (activos, rural, urbano)
+            // Enrollment data (activos, rural, urbano, mujeres, hombres, falta)
             let rowActivos = 0
             let rowRural = 0
             let rowUrbano = 0
+            let rowMujeres = 0
+            let rowHombres = 0
+            let rowFalta = 0
             if (selectedDept !== 'all') {
                 const groupObj = (enrollmentData || []).find(e => e.group_name === name)
                 if (groupObj) {
                     rowActivos = groupObj.total_confirmados || 0
                     rowRural = groupObj.total_rural || 0
                     rowUrbano = groupObj.total_urbano || 0
+                    rowMujeres = groupObj.total_mujeres || 0
+                    rowHombres = groupObj.total_hombres || 0
+                    rowFalta = groupObj.total_falta || 0
                 }
             } else {
                 const deptGroups = (enrollmentData || []).filter(e => e.dept_name === name)
                 rowActivos = deptGroups.reduce((sum, g) => sum + (g.total_confirmados || 0), 0)
                 rowRural = deptGroups.reduce((sum, g) => sum + (g.total_rural || 0), 0)
                 rowUrbano = deptGroups.reduce((sum, g) => sum + (g.total_urbano || 0), 0)
+                rowMujeres = deptGroups.reduce((sum, g) => sum + (g.total_mujeres || 0), 0)
+                rowHombres = deptGroups.reduce((sum, g) => sum + (g.total_hombres || 0), 0)
+                rowFalta = deptGroups.reduce((sum, g) => sum + (g.total_falta || 0), 0)
             }
 
             // Attendance aggregates for the 6 days
@@ -2100,6 +2127,8 @@ export default function ReportsClient({
                 String(rowActivos),
                 String(rowRural),
                 String(rowUrbano),
+                String(rowMujeres),
+                String(rowHombres),
                 pctAsist,
                 pctFalta,
                 pctPermiso,
@@ -2118,6 +2147,8 @@ export default function ReportsClient({
         let grandActivos = 0
         let grandRural = 0
         let grandUrbano = 0
+        let grandMujeres = 0
+        let grandHombres = 0
         let grandSumAsist = 0, grandSumFalta = 0, grandSumPermiso = 0
 
         studentRows.forEach(st => {
@@ -2141,6 +2172,8 @@ export default function ReportsClient({
                     grandActivos += groupObj.total_confirmados || 0
                     grandRural += groupObj.total_rural || 0
                     grandUrbano += groupObj.total_urbano || 0
+                    grandMujeres += groupObj.total_mujeres || 0
+                    grandHombres += groupObj.total_hombres || 0
                 }
             })
         } else {
@@ -2149,6 +2182,8 @@ export default function ReportsClient({
                 grandActivos += deptGroups.reduce((sum, g) => sum + (g.total_confirmados || 0), 0)
                 grandRural += deptGroups.reduce((sum, g) => sum + (g.total_rural || 0), 0)
                 grandUrbano += deptGroups.reduce((sum, g) => sum + (g.total_urbano || 0), 0)
+                grandMujeres += deptGroups.reduce((sum, g) => sum + (g.total_mujeres || 0), 0)
+                grandHombres += deptGroups.reduce((sum, g) => sum + (g.total_hombres || 0), 0)
             })
         }
 
@@ -2168,6 +2203,8 @@ export default function ReportsClient({
             String(grandActivos),
             String(grandRural),
             String(grandUrbano),
+            String(grandMujeres),
+            String(grandHombres),
             grandPctAsist,
             grandPctFalta,
             grandPctPermiso,
@@ -2293,8 +2330,9 @@ export default function ReportsClient({
             head: [[
                 selectedDept !== 'all' ? 'GRUPO' : 'DEPARTAMENTO',
                 'ACTIVOS', 'RURAL', 'URBANO',
+                'MUJERES', 'HOMBRES', 'FALTA',
                 '% ASISTIDOS', '% FALTAS', '% PERMISOS',
-                'APROBADOS', 'REPROBADOS', 'ABANDONOS', 'TOTAL'
+                'APROBADOS', 'REPROBADOS', 'ABANDONOS', 'OBSERVACIONES'
             ]],
             body: tableBody,
             theme: 'grid',
@@ -2318,17 +2356,20 @@ export default function ReportsClient({
             styles: { fontSize: 6.5, cellPadding: 1.2, textColor: [30, 30, 30], lineWidth: 0.05, lineColor: [200, 200, 200] },
             tableWidth: pageWidth - 28,
             columnStyles: {
-                0: { fontStyle: 'bold', cellWidth: 52, halign: 'left' },
-                1: { halign: 'center', cellWidth: 18, fillColor: [242, 238, 224], fontStyle: 'bold' },
-                2: { halign: 'center', cellWidth: 18 },
-                3: { halign: 'center', cellWidth: 18 },
-                4: { halign: 'center', cellWidth: 21, textColor: [16, 185, 129], fontStyle: 'bold' },
-                5: { halign: 'center', cellWidth: 21, textColor: [239, 68, 68], fontStyle: 'bold' },
-                6: { halign: 'center', cellWidth: 21, textColor: [167, 139, 250], fontStyle: 'bold' },
-                7: { halign: 'center', cellWidth: 30, textColor: [16, 185, 129], fontStyle: 'bold' },
-                8: { halign: 'center', cellWidth: 30, textColor: [239, 68, 68], fontStyle: 'bold' },
-                9: { halign: 'center', cellWidth: 22, textColor: [100, 100, 100], fontStyle: 'bold' },
-                10: { halign: 'center', cellWidth: 18, fillColor: [242, 238, 224], fontStyle: 'bold' }
+                0: { fontStyle: 'bold', cellWidth: 35, halign: 'left' },
+                1: { halign: 'center', cellWidth: 14, fillColor: [242, 238, 224], fontStyle: 'bold' },
+                2: { halign: 'center', cellWidth: 14 },
+                3: { halign: 'center', cellWidth: 14 },
+                4: { halign: 'center', cellWidth: 14 },
+                5: { halign: 'center', cellWidth: 14 },
+                6: { halign: 'center', cellWidth: 14 },
+                7: { halign: 'center', cellWidth: 20, textColor: [16, 185, 129], fontStyle: 'bold' },
+                8: { halign: 'center', cellWidth: 20, textColor: [239, 68, 68], fontStyle: 'bold' },
+                9: { halign: 'center', cellWidth: 20, textColor: [167, 139, 250], fontStyle: 'bold' },
+                10: { halign: 'center', cellWidth: 25, textColor: [16, 185, 129], fontStyle: 'bold' },
+                11: { halign: 'center', cellWidth: 25, textColor: [239, 68, 68], fontStyle: 'bold' },
+                12: { halign: 'center', cellWidth: 20, textColor: [100, 100, 100], fontStyle: 'bold' },
+                13: { halign: 'center', cellWidth: 18, fillColor: [242, 238, 224], fontStyle: 'bold' }
             },
             margin: { top: 25, left: 14, right: 14 },
             didParseCell: (data: any) => {

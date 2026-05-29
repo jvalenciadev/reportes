@@ -52,12 +52,14 @@ export default function InscriptionsClient({
   const [tutorialStep, setTutorialStep] = useState(0)
   const tutorialRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Show welcome alert on mount if not seen before
+  // Show welcome alert on mount if not seen 3 times yet
   useEffect(() => {
     setMounted(true)
-    const hasSeen = sessionStorage.getItem('inscriptions_alert_seen')
-    if (!hasSeen) {
+    const countStr = localStorage.getItem('inscriptions_tutorial_views_count')
+    const count = countStr ? parseInt(countStr, 10) : 0
+    if (count < 3) {
       setWelcomeAlert(true)
+      localStorage.setItem('inscriptions_tutorial_views_count', (count + 1).toString())
     }
   }, [])
 
@@ -753,12 +755,15 @@ export default function InscriptionsClient({
                                       {i.participantes.zona === 'rural' ? '🌾 Rural' : '🏙 Urbano'}
                                     </button>
                                     <button
-                                      onClick={() => updateParticipantField(i.participante_id, 'formalizado', !i.participantes.formalizado)}
+                                      onClick={() => i.estado === 'inscrito' && updateParticipantField(i.participante_id, 'formalizado', !i.participantes.formalizado)}
+                                      disabled={i.estado !== 'inscrito'}
                                       className="pill-btn"
-                                      title="Click para cambiar estado de formalización"
+                                      title={i.estado !== 'inscrito' ? 'La formalización solo está disponible para alumnos activos' : 'Click para cambiar estado de formalización'}
                                       style={{
                                         padding: '0.3rem 0.75rem', borderRadius: '99px',
-                                        fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer',
+                                        fontSize: '0.72rem', fontWeight: 800,
+                                        cursor: i.estado === 'inscrito' ? 'pointer' : 'not-allowed',
+                                        opacity: i.estado === 'inscrito' ? 1 : 0.55,
                                         background: i.participantes.formalizado ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
                                         color: i.participantes.formalizado ? '#16a34a' : '#d97706',
                                         border: `1.5px solid ${i.participantes.formalizado ? '#10b981' : '#f59e0b'}`
@@ -1082,7 +1087,7 @@ export default function InscriptionsClient({
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => {
-                  sessionStorage.setItem('inscriptions_alert_seen', 'true')
+                  localStorage.setItem('inscriptions_tutorial_views_count', '3')
                   setWelcomeAlert(false)
                 }}
                 className="btn btn-primary"

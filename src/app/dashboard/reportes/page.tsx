@@ -38,6 +38,7 @@ export default async function ReportesPage({
           nombre,
           apellido,
           ci,
+          genero,
           inscripciones (
             estado,
             programa_id,
@@ -79,7 +80,8 @@ export default async function ReportesPage({
         entrego_documento,
         participantes (
           formalizado,
-          zona
+          zona,
+          genero
         )
       )
     `)
@@ -109,6 +111,7 @@ export default async function ReportesPage({
           nombre,
           apellido,
           ci,
+          genero,
           inscripciones (
             estado,
             programa_id,
@@ -341,6 +344,10 @@ export default async function ReportesPage({
     const total_rural = activos.filter((i: any) => i.participantes?.zona === 'rural').length
     const total_urbano = activos.filter((i: any) => i.participantes?.zona === 'urbano').length
 
+    const total_mujeres = activos.filter((i: any) => i.participantes?.genero === 0).length
+    const total_hombres = activos.filter((i: any) => i.participantes?.genero === 1).length
+    const total_falta = activos.filter((i: any) => i.participantes?.genero !== 0 && i.participantes?.genero !== 1).length
+
     return {
       group_name: g.name || 'Grupo sin nombre',
       dept_name: (g.departamentos as any)?.name || 'S/D',
@@ -351,7 +358,10 @@ export default async function ReportesPage({
       inscritos_entrego,
       total_formalizados,
       total_rural,
-      total_urbano
+      total_urbano,
+      total_mujeres,
+      total_hombres,
+      total_falta
     }
   }) || []
 
