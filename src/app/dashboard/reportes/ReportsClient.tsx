@@ -1454,6 +1454,15 @@ export default function ReportsClient({
                 }
             })
 
+        // Identify which days have any records globally for the target module to avoid defaulting empty days to "falta"
+        const filledDays = new Set<number>()
+        for (let d = 1; d <= 6; d++) {
+            const hasRecs = allStudents.some(st => studentDailyAttendance[st.id] && studentDailyAttendance[st.id][d] !== undefined)
+            if (hasRecs) {
+                filledDays.add(d)
+            }
+        }
+
         // Determine aggregation row items (Groups if dept is selected, Depts if Filtro Nacional)
         let items: string[] = []
         if (selectedDept !== 'all') {
@@ -1502,8 +1511,14 @@ export default function ReportsClient({
             let sumAsist = 0
             let sumFalta = 0
             let sumPermiso = 0
+            let filledDaysCount = 0
 
             for (let d = 1; d <= 6; d++) {
+                if (!filledDays.has(d)) {
+                    daysData.push("-", "-", "-", "-")
+                    continue
+                }
+
                 let asist = 0
                 let falta = 0
                 let permiso = 0
@@ -1518,23 +1533,24 @@ export default function ReportsClient({
                 sumAsist += asist
                 sumFalta += falta
                 sumPermiso += permiso
+                filledDaysCount++
 
                 daysData.push(asist, falta, permiso, totalEnrolled)
             }
 
-            const avgAsistVal = Math.round(sumAsist / 6)
-            const avgFaltaVal = Math.round(sumFalta / 6)
-            const avgPermisoVal = Math.round(sumPermiso / 6)
+            const avgAsistVal = filledDaysCount > 0 ? Math.round(sumAsist / filledDaysCount) : 0
+            const avgFaltaVal = filledDaysCount > 0 ? Math.round(sumFalta / filledDaysCount) : 0
+            const avgPermisoVal = filledDaysCount > 0 ? Math.round(sumPermiso / filledDaysCount) : 0
             const avgTotalVal = totalEnrolled
 
-            const avgAsist = String(avgAsistVal)
-            const avgFalta = String(avgFaltaVal)
-            const avgPermiso = String(avgPermisoVal)
-            const avgTotal = String(avgTotalVal)
+            const avgAsist = filledDaysCount > 0 ? String(avgAsistVal) : "-"
+            const avgFalta = filledDaysCount > 0 ? String(avgFaltaVal) : "-"
+            const avgPermiso = filledDaysCount > 0 ? String(avgPermisoVal) : "-"
+            const avgTotal = filledDaysCount > 0 ? String(avgTotalVal) : "-"
 
-            const pctAsist = totalEnrolled > 0 ? Math.round((avgAsistVal / totalEnrolled) * 100) + '%' : '0%'
-            const pctFalta = totalEnrolled > 0 ? Math.round((avgFaltaVal / totalEnrolled) * 100) + '%' : '0%'
-            const pctPermiso = totalEnrolled > 0 ? Math.round((avgPermisoVal / totalEnrolled) * 100) + '%' : '0%'
+            const pctAsist = totalEnrolled > 0 && filledDaysCount > 0 ? Math.round((avgAsistVal / totalEnrolled) * 100) + '%' : '0%'
+            const pctFalta = totalEnrolled > 0 && filledDaysCount > 0 ? Math.round((avgFaltaVal / totalEnrolled) * 100) + '%' : '0%'
+            const pctPermiso = totalEnrolled > 0 && filledDaysCount > 0 ? Math.round((avgPermisoVal / totalEnrolled) * 100) + '%' : '0%'
 
             return [
                 name.toUpperCase(),
@@ -1569,35 +1585,49 @@ export default function ReportsClient({
             grandHombres += Number(row[5])
         })
 
-        const grandDaysData = Array(24).fill(0)
+        const grandDaysData: any[] = Array(24).fill(0)
         tableBody.forEach(row => {
             for (let i = 0; i < 24; i++) {
-                grandDaysData[i] += Number(row[i + 6])
+                const dayNum = Math.floor(i / 4) + 1
+                if (filledDays.has(dayNum)) {
+                    grandDaysData[i] += Number(row[i + 6]) || 0
+                }
             }
         })
+        for (let i = 0; i < 24; i++) {
+            const dayNum = Math.floor(i / 4) + 1
+            if (!filledDays.has(dayNum)) {
+                grandDaysData[i] = '-'
+            }
+        }
 
         let grandSumAsist = 0
         let grandSumFalta = 0
         let grandSumPermiso = 0
+        let grandFilledDaysCount = 0
         for (let i = 0; i < 24; i += 4) {
-            grandSumAsist += grandDaysData[i]
-            grandSumFalta += grandDaysData[i + 1]
-            grandSumPermiso += grandDaysData[i + 2]
+            const dayNum = Math.floor(i / 4) + 1
+            if (filledDays.has(dayNum)) {
+                grandSumAsist += grandDaysData[i]
+                grandSumFalta += grandDaysData[i + 1]
+                grandSumPermiso += grandDaysData[i + 2]
+                grandFilledDaysCount++
+            }
         }
 
-        const grandAvgAsistVal = Math.round(grandSumAsist / 6)
-        const grandAvgFaltaVal = Math.round(grandSumFalta / 6)
-        const grandAvgPermisoVal = Math.round(grandSumPermiso / 6)
+        const grandAvgAsistVal = grandFilledDaysCount > 0 ? Math.round(grandSumAsist / grandFilledDaysCount) : 0
+        const grandAvgFaltaVal = grandFilledDaysCount > 0 ? Math.round(grandSumFalta / grandFilledDaysCount) : 0
+        const grandAvgPermisoVal = grandFilledDaysCount > 0 ? Math.round(grandSumPermiso / grandFilledDaysCount) : 0
         const grandAvgTotalVal = grandActivos
 
-        const grandAvgAsist = String(grandAvgAsistVal)
-        const grandAvgFalta = String(grandAvgFaltaVal)
-        const grandAvgPermiso = String(grandAvgPermisoVal)
-        const grandAvgTotal = String(grandAvgTotalVal)
+        const grandAvgAsist = grandFilledDaysCount > 0 ? String(grandAvgAsistVal) : "-"
+        const grandAvgFalta = grandFilledDaysCount > 0 ? String(grandAvgFaltaVal) : "-"
+        const grandAvgPermiso = grandFilledDaysCount > 0 ? String(grandAvgPermisoVal) : "-"
+        const grandAvgTotal = grandFilledDaysCount > 0 ? String(grandAvgTotalVal) : "-"
 
-        const grandPctAsist = grandActivos > 0 ? Math.round((grandAvgAsistVal / grandActivos) * 100) + '%' : '0%'
-        const grandPctFalta = grandActivos > 0 ? Math.round((grandAvgFaltaVal / grandActivos) * 100) + '%' : '0%'
-        const grandPctPermiso = grandActivos > 0 ? Math.round((grandAvgPermisoVal / grandActivos) * 100) + '%' : '0%'
+        const grandPctAsist = grandActivos > 0 && grandFilledDaysCount > 0 ? Math.round((grandAvgAsistVal / grandActivos) * 100) + '%' : '0%'
+        const grandPctFalta = grandActivos > 0 && grandFilledDaysCount > 0 ? Math.round((grandAvgFaltaVal / grandActivos) * 100) + '%' : '0%'
+        const grandPctPermiso = grandActivos > 0 && grandFilledDaysCount > 0 ? Math.round((grandAvgPermisoVal / grandActivos) * 100) + '%' : '0%'
 
         const grandTotalRow = [
             'TOTAL GENERAL',
@@ -2062,6 +2092,15 @@ export default function ReportsClient({
                 }
             })
 
+        // Identify which days have any records globally for the target module to avoid defaulting empty days to "falta"
+        const calFilledDays = new Set<number>()
+        for (let d = 1; d <= 6; d++) {
+            const hasRecs = Object.values(activeStudentsMap).some(st => calAttDailyMap[st.id] && calAttDailyMap[st.id][d] !== undefined)
+            if (hasRecs) {
+                calFilledDays.add(d)
+            }
+        }
+
         const tableBody = items.map(name => {
             const studentsInItem = studentRows.filter(st => (selectedDept !== 'all' ? st.groupName : st.deptName) === name)
             const calificados = studentsInItem.length
@@ -2101,22 +2140,23 @@ export default function ReportsClient({
                 rowFalta = deptGroups.reduce((sum, g) => sum + (g.total_falta || 0), 0)
             }
 
-            // Attendance aggregates for the 6 days
+            // Attendance aggregates for the filled days
             let sumAsist = 0, sumFalta = 0, sumPermiso = 0
+            let calRowFilledDaysCount = 0
             for (let d = 1; d <= 6; d++) {
-                studentsInItem.forEach(st => {
-                    const status = (calAttDailyMap[st.id] && calAttDailyMap[st.id][d]) || 'falta'
-                    if (status === 'asistio' || status === 'atraso') sumAsist++
-                    else if (status === 'permiso') sumPermiso++
-                    else sumFalta++
-                })
+                if (calFilledDays.has(d)) {
+                    studentsInItem.forEach(st => {
+                        const status = (calAttDailyMap[st.id] && calAttDailyMap[st.id][d]) || 'falta'
+                        if (status === 'asistio' || status === 'atraso') sumAsist++
+                        else if (status === 'permiso') sumPermiso++
+                        else sumFalta++
+                    })
+                    calRowFilledDaysCount++
+                }
             }
-            const avgAsistVal = Math.round(sumAsist / 6)
-            const avgFaltaVal = Math.round(sumFalta / 6)
-            const avgPermisoVal = Math.round(sumPermiso / 6)
-            const pctAsist = calificados > 0 ? Math.round((avgAsistVal / calificados) * 100) + '%' : '0%'
-            const pctFalta = calificados > 0 ? Math.round((avgFaltaVal / calificados) * 100) + '%' : '0%'
-            const pctPermiso = calificados > 0 ? Math.round((avgPermisoVal / calificados) * 100) + '%' : '0%'
+            const pctAsist = calificados > 0 && calRowFilledDaysCount > 0 ? Math.round((sumAsist / (calRowFilledDaysCount * calificados)) * 100) + '%' : '0%'
+            const pctFalta = calificados > 0 && calRowFilledDaysCount > 0 ? Math.round((sumFalta / (calRowFilledDaysCount * calificados)) * 100) + '%' : '0%'
+            const pctPermiso = calificados > 0 && calRowFilledDaysCount > 0 ? Math.round((sumPermiso / (calRowFilledDaysCount * calificados)) * 100) + '%' : '0%'
 
             const pctAprobados = calificados > 0 ? Math.round((aprobados / calificados) * 100) : 0
             const pctReprobados = calificados > 0 ? Math.round((reprobados / calificados) * 100) : 0
@@ -2158,10 +2198,12 @@ export default function ReportsClient({
             else if (st.estado === 'ABANDONO') totalAbandonosAll++
 
             for (let d = 1; d <= 6; d++) {
-                const status = (calAttDailyMap[st.id] && calAttDailyMap[st.id][d]) || 'falta'
-                if (status === 'asistio' || status === 'atraso') grandSumAsist++
-                else if (status === 'permiso') grandSumPermiso++
-                else grandSumFalta++
+                if (calFilledDays.has(d)) {
+                    const status = (calAttDailyMap[st.id] && calAttDailyMap[st.id][d]) || 'falta'
+                    if (status === 'asistio' || status === 'atraso') grandSumAsist++
+                    else if (status === 'permiso') grandSumPermiso++
+                    else grandSumFalta++
+                }
             }
         })
 
@@ -2187,12 +2229,13 @@ export default function ReportsClient({
             })
         }
 
-        const grandAvgAsist = Math.round(grandSumAsist / 6)
-        const grandAvgFalta = Math.round(grandSumFalta / 6)
-        const grandAvgPermiso = Math.round(grandSumPermiso / 6)
-        const grandPctAsist = totalCalificadosAll > 0 ? Math.round((grandAvgAsist / totalCalificadosAll) * 100) + '%' : '0%'
-        const grandPctFalta = totalCalificadosAll > 0 ? Math.round((grandAvgFalta / totalCalificadosAll) * 100) + '%' : '0%'
-        const grandPctPermiso = totalCalificadosAll > 0 ? Math.round((grandAvgPermiso / totalCalificadosAll) * 100) + '%' : '0%'
+        const calGrandFilledDaysCount = calFilledDays.size
+        const grandAvgAsist = calGrandFilledDaysCount > 0 ? Math.round(grandSumAsist / calGrandFilledDaysCount) : 0
+        const grandAvgFalta = calGrandFilledDaysCount > 0 ? Math.round(grandSumFalta / calGrandFilledDaysCount) : 0
+        const grandAvgPermiso = calGrandFilledDaysCount > 0 ? Math.round(grandSumPermiso / calGrandFilledDaysCount) : 0
+        const grandPctAsist = totalCalificadosAll > 0 && calGrandFilledDaysCount > 0 ? Math.round((grandSumAsist / (calGrandFilledDaysCount * totalCalificadosAll)) * 100) + '%' : '0%'
+        const grandPctFalta = totalCalificadosAll > 0 && calGrandFilledDaysCount > 0 ? Math.round((grandSumFalta / (calGrandFilledDaysCount * totalCalificadosAll)) * 100) + '%' : '0%'
+        const grandPctPermiso = totalCalificadosAll > 0 && calGrandFilledDaysCount > 0 ? Math.round((grandSumPermiso / (calGrandFilledDaysCount * totalCalificadosAll)) * 100) + '%' : '0%'
 
         const grandPctAprobados = totalCalificadosAll > 0 ? Math.round((totalAprobadosAll / totalCalificadosAll) * 100) : 0
         const grandPctReprobados = totalCalificadosAll > 0 ? Math.round((totalReprobadosAll / totalCalificadosAll) * 100) : 0
