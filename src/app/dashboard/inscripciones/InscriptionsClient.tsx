@@ -13,6 +13,7 @@ import {
 import StatusModal, { StatusType } from '../components/StatusModal'
 import ReasonModal from '../components/ReasonModal'
 import ConfirmModal from '../components/ConfirmModal'
+import { updateParticipantFieldById } from './actions'
 
 export default function InscriptionsClient({
   departamentos,
@@ -342,11 +343,8 @@ export default function InscriptionsClient({
     // Cycle: null -> 1 (Varón) -> 0 (Mujer) -> null
     const next = currentGenero === null ? 1 : currentGenero === 1 ? 0 : null
     try {
-      const { error } = await supabase
-        .from('participantes')
-        .update({ genero: next })
-        .eq('id', participanteId)
-      if (error) throw error
+      const result = await updateParticipantFieldById(participanteId, { genero: next })
+      if (result.error) throw new Error(result.error)
       setEnrolledParticipants(prev =>
         prev.map(p => p.participante_id === participanteId ? {
           ...p,
@@ -360,12 +358,8 @@ export default function InscriptionsClient({
 
   const updateParticipantField = async (participanteId: string, field: 'correo' | 'celular' | 'formalizado' | 'zona', newValue: any) => {
     try {
-      const { error } = await supabase
-        .from('participantes')
-        .update({ [field]: newValue })
-        .eq('id', participanteId)
-
-      if (error) throw error
+      const result = await updateParticipantFieldById(participanteId, { [field]: newValue })
+      if (result.error) throw new Error(result.error)
 
       showNotif('success', 'Datos Actualizados', `El campo ${field} ha sido actualizado exitosamente.`)
 

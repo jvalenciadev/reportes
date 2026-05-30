@@ -118,3 +118,39 @@ export async function updateParticipantFieldsByCI(ci: string, data: { formalizad
   }
 }
 
+export async function updateParticipantFieldById(
+  id: string,
+  data: {
+    genero?: number | null
+    zona?: string
+    correo?: string
+    celular?: string
+    formalizado?: boolean
+  }
+) {
+  const supabaseAdmin = createBaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  try {
+    if (!id) throw new Error('El ID del participante no puede estar vacío.')
+
+    const { data: updated, error } = await supabaseAdmin
+      .from('participantes')
+      .update(data)
+      .eq('id', id)
+      .select()
+
+    if (error) throw error
+    if (!updated || updated.length === 0) {
+      throw new Error('No se encontró el participante en la base de datos.')
+    }
+
+    revalidatePath('/dashboard/inscripciones')
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error al actualizar participante por ID:', error.message)
+    return { error: error.message || 'Error al actualizar participante' }
+  }
+}
