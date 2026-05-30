@@ -2330,9 +2330,10 @@ export default function ReportsClient({
             head: [[
                 selectedDept !== 'all' ? 'GRUPO' : 'DEPARTAMENTO',
                 'ACTIVOS', 'RURAL', 'URBANO',
-                'MUJERES', 'HOMBRES', 'FALTA',
+                'MUJERES', 'HOMBRES',
                 '% ASISTIDOS', '% FALTAS', '% PERMISOS',
-                'APROBADOS', 'REPROBADOS', 'ABANDONOS', 'OBSERVACIONES'
+                'APROBADOS', 'REPROBADOS', 'ABANDONOS',
+                'EVALUADOS'
             ]],
             body: tableBody,
             theme: 'grid',
@@ -2362,14 +2363,13 @@ export default function ReportsClient({
                 3: { halign: 'center', cellWidth: 14 },
                 4: { halign: 'center', cellWidth: 14 },
                 5: { halign: 'center', cellWidth: 14 },
-                6: { halign: 'center', cellWidth: 14 },
-                7: { halign: 'center', cellWidth: 20, textColor: [16, 185, 129], fontStyle: 'bold' },
-                8: { halign: 'center', cellWidth: 20, textColor: [239, 68, 68], fontStyle: 'bold' },
-                9: { halign: 'center', cellWidth: 20, textColor: [167, 139, 250], fontStyle: 'bold' },
-                10: { halign: 'center', cellWidth: 25, textColor: [16, 185, 129], fontStyle: 'bold' },
-                11: { halign: 'center', cellWidth: 25, textColor: [239, 68, 68], fontStyle: 'bold' },
-                12: { halign: 'center', cellWidth: 20, textColor: [100, 100, 100], fontStyle: 'bold' },
-                13: { halign: 'center', cellWidth: 18, fillColor: [242, 238, 224], fontStyle: 'bold' }
+                6: { halign: 'center', cellWidth: 20, textColor: [16, 185, 129], fontStyle: 'bold' },
+                7: { halign: 'center', cellWidth: 20, textColor: [239, 68, 68], fontStyle: 'bold' },
+                8: { halign: 'center', cellWidth: 20, textColor: [167, 139, 250], fontStyle: 'bold' },
+                9: { halign: 'center', cellWidth: 25, textColor: [16, 185, 129], fontStyle: 'bold' },
+                10: { halign: 'center', cellWidth: 25, textColor: [239, 68, 68], fontStyle: 'bold' },
+                11: { halign: 'center', cellWidth: 20, textColor: [100, 100, 100], fontStyle: 'bold' },
+                12: { halign: 'center', cellWidth: 18, fillColor: [242, 238, 224], fontStyle: 'bold' }
             },
             margin: { top: 25, left: 14, right: 14 },
             didParseCell: (data: any) => {
