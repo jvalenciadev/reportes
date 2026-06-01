@@ -1653,7 +1653,7 @@ export default function ReportsClient({
         const pageHeight = doc.internal.pageSize.getHeight()
 
         // Background Image
-        const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYS5qcGciLCJpYXQiOjE3ODAzNDEyODQsImV4cCI6MTgxMTg3NzI4NH0.1wi-ncSCQeBcaiwzHo7L1-gaiMG3E3gFrPSU3lOf4jY'
+        const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra%20(1).jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYSAoMSkuanBnIiwiaWF0IjoxNzgwMzQ3MDQ1LCJleHAiOjE4MTE4ODMwNDV9.gPvtg_bQJD7JyQ4XXe9qkCGYC-tenmM3VLFMsJ5_2u8'
         let bgBase64 = ''
         let imgWidth = 0
         let imgHeight = 0

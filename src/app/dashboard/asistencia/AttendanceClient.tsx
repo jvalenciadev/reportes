@@ -734,7 +734,7 @@ export default function AttendanceClient({
     const pageHeight = doc.internal.pageSize.getHeight()
 
     // 1. Full Page Background
-    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra_horizontal.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYV9ob3Jpem9udGFsLmpwZyIsImlhdCI6MTc4MDM0MTM1MiwiZXhwIjoxODExODc3MzUyfQ.QTvwvlb1DTDSieAoBReBNE1_aFqCPXmMXwzQzKHMxP8'
+    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra_horizontal%20(1).jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYV9ob3Jpem9udGFsICgxKS5qcGciLCJpYXQiOjE3ODAzNDcwMDMsImV4cCI6MTgxMTg4MzAwM30.hKfpFCOyTe4VDXcnJ-Kqzy00-Uz_9jzgFK9s5JkItwg'
 
     let bgBase64 = ''
     let imgWidth = 0

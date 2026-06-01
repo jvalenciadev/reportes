@@ -317,8 +317,8 @@ export default function CalificacionesClient({
 
       // Full Page Background image (Landscape or Portrait depending on layout)
       const backgroundImage = (orientation === 'l')
-        ? 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYS5qcGciLCJpYXQiOjE3ODAzNDEyODQsImV4cCI6MTgxMTg3NzI4NH0.1wi-ncSCQeBcaiwzHo7L1-gaiMG3E3gFrPSU3lOf4jY'
-        : 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra_horizontal.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYV9ob3Jpem9udGFsLmpwZyIsImlhdCI6MTc4MDM0MTM1MiwiZXhwIjoxODExODc3MzUyfQ.QTvwvlb1DTDSieAoBReBNE1_aFqCPXmMXwzQzKHMxP8'
+        ? 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra%20(1).jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYSAoMSkuanBnIiwiaWF0IjoxNzgwMzQ3MDQ1LCJleHAiOjE4MTE4ODMwNDV9.gPvtg_bQJD7JyQ4XXe9qkCGYC-tenmM3VLFMsJ5_2u8'
+        : 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra_horizontal%20(1).jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYV9ob3Jpem9udGFsICgxKS5qcGciLCJpYXQiOjE3ODAzNDcwMDMsImV4cCI6MTgxMTg4MzAwM30.hKfpFCOyTe4VDXcnJ-Kqzy00-Uz_9jzgFK9s5JkItwg'
 
       let bgBase64 = ''
       let imgWidth = 0
