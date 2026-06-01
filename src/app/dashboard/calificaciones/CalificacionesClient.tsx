@@ -129,12 +129,20 @@ export default function CalificacionesClient({
         .order('orden', { ascending: true })
 
       const sortedData = data || []
-      setModules(sortedData)
+      const todayStr = new Date().toISOString().split('T')[0]
+      // Filtrar para mostrar solo el módulo actual e iniciados anteriormente (ocultar módulos futuros)
+      const visibleData = sortedData.filter(m => todayStr >= m.fecha_inicio)
+      setModules(visibleData)
 
-      if (sortedData.length > 0) {
-        const todayStr = new Date().toISOString().split('T')[0]
-        const currentModule = sortedData.find(m => todayStr >= m.fecha_inicio && todayStr <= m.fecha_fin)
-        setSelectedModule(currentModule ? currentModule.id : sortedData[0].id)
+      if (visibleData.length > 0) {
+        // Seleccionar automáticamente el módulo en curso
+        const currentModule = visibleData.find(m => todayStr >= m.fecha_inicio && todayStr <= m.fecha_fin)
+        if (currentModule) {
+          setSelectedModule(currentModule.id)
+        } else {
+          // Si no hay módulo en curso, seleccionar el más reciente de los iniciados
+          setSelectedModule(visibleData[visibleData.length - 1].id)
+        }
       } else {
         setSelectedModule('')
       }

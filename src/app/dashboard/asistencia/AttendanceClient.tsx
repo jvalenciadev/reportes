@@ -174,12 +174,22 @@ export default function AttendanceClient({
         .order('orden', { ascending: true })
 
       const sortedData = data || []
-      setModules(sortedData)
+      const todayStr = new Date().toISOString().split('T')[0]
+      // Filtrar para mostrar solo el módulo actual e iniciados anteriormente (ocultar módulos futuros)
+      const visibleData = sortedData.filter(m => todayStr >= m.fecha_inicio)
+      setModules(visibleData)
 
-      if (sortedData.length > 0) {
-        const todayStr = new Date().toISOString().split('T')[0]
-        const currentModule = sortedData.find(m => todayStr >= m.fecha_inicio && todayStr <= m.fecha_fin)
-        setSelectedModule(currentModule ? currentModule.id : sortedData[0].id)
+      if (visibleData.length > 0) {
+        // Seleccionar automáticamente el módulo en curso
+        const currentModule = visibleData.find(m => todayStr >= m.fecha_inicio && todayStr <= m.fecha_fin)
+        if (currentModule) {
+          setSelectedModule(currentModule.id)
+        } else {
+          // Si no hay módulo en curso, seleccionar el más reciente de los iniciados
+          setSelectedModule(visibleData[visibleData.length - 1].id)
+        }
+      } else {
+        setSelectedModule('')
       }
     }
     fetchModules()
@@ -644,6 +654,53 @@ export default function AttendanceClient({
     }
     setSaving(false);
   };
+
+  // Helper to check deadline status
+  const checkModuleDeadline = (fechaFinStr: string) => {
+    if (!fechaFinStr) return { isAllowed: true, showWarning: false, daysRemaining: 0, deadlineStr: '' };
+    
+    const fechaFin = new Date(fechaFinStr + 'T00:00:00');
+    const today = new Date();
+    
+    // Set both to midnight to compare only calendar days
+    const d1 = new Date(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate());
+    const d2 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    const diffTime = d2.getTime() - d1.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    // The deadline is 7 days after fecha_fin
+    const deadlineDate = new Date(fechaFin.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const deadlineStr = deadlineDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    
+    const daysRemaining = 7 - diffDays;
+    
+    if (diffDays >= 7) {
+      return {
+        isAllowed: false,
+        showWarning: false,
+        daysRemaining: 0,
+        deadlineStr
+      };
+    } else if (diffDays >= 1) {
+      return {
+        isAllowed: true,
+        showWarning: true,
+        daysRemaining: Math.max(0, daysRemaining),
+        deadlineStr
+      };
+    } else {
+      return {
+        isAllowed: true,
+        showWarning: false,
+        daysRemaining,
+        deadlineStr
+      };
+    }
+  };
+
+  const selectedModuleObj = modules.find(m => m.id === selectedModule);
+  const deadlineStatus = selectedModuleObj ? checkModuleDeadline(selectedModuleObj.fecha_fin) : { isAllowed: true, showWarning: false, daysRemaining: 0, deadlineStr: '' };
 
   // Stats for current session
   // Stats for current session (calculated in every render)
@@ -1166,6 +1223,73 @@ export default function AttendanceClient({
       {selectedGroup ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
+          {/* Deadline Banners */}
+          {selectedModule && deadlineStatus.showWarning && (
+            <div className="animate-fade-in" style={{
+              padding: '1.25rem 1.75rem',
+              borderRadius: '1rem',
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              display: 'flex',
+              gap: '1.25rem',
+              alignItems: 'center',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.15)',
+                color: '#d97706',
+                padding: '0.75rem',
+                borderRadius: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <h4 style={{ fontWeight: 900, color: 'var(--foreground)', fontSize: '0.95rem', margin: '0 0 0.25rem 0' }}>
+                  Plazo de Registro de Asistencia Próximo a Vencer
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--muted)', lineHeight: '1.5' }}>
+                  El plazo límite de gracia para subir o editar la asistencia de este módulo vence el <strong>{deadlineStatus.deadlineStr}</strong>. Quedan <strong>{deadlineStatus.daysRemaining} días</strong> para finalizar el registro.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {selectedModule && !deadlineStatus.isAllowed && (
+            <div className="animate-fade-in" style={{
+              padding: '1.25rem 1.75rem',
+              borderRadius: '1rem',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              display: 'flex',
+              gap: '1.25rem',
+              alignItems: 'center',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: 'var(--danger)',
+                padding: '0.75rem',
+                borderRadius: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <XCircle size={24} />
+              </div>
+              <div>
+                <h4 style={{ fontWeight: 900, color: 'var(--foreground)', fontSize: '0.95rem', margin: '0 0 0.25rem 0' }}>
+                  Plazo de Registro de Asistencia Vencido
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--muted)', lineHeight: '1.5' }}>
+                  El plazo límite de gracia para este módulo venció el <strong>{deadlineStatus.deadlineStr}</strong>. El registro y la edición de asistencia están deshabilitados. Por favor, póngase en contacto con el administrador del departamento para cualquier consulta.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Module Progress / Alert */}
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
@@ -1222,7 +1346,7 @@ export default function AttendanceClient({
               {historyDays.length > 0 && (
                 <button
                   className="btn btn-outline"
-                  disabled={historyDays.length >= 6}
+                  disabled={historyDays.length >= 6 || !deadlineStatus.isAllowed}
                   onClick={() => {
                     const action = () => {
                       const today = new Date().toISOString().split('T')[0];
@@ -1248,9 +1372,10 @@ export default function AttendanceClient({
                     }
                   }}
                   style={{
-                    borderColor: historyDays.length >= 6 ? 'var(--border)' : 'var(--info)',
-                    color: historyDays.length >= 6 ? 'var(--muted)' : 'var(--info)',
-                    opacity: historyDays.length >= 6 ? 0.5 : 1,
+                    borderColor: (historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 'var(--border)' : 'var(--info)',
+                    color: (historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 'var(--muted)' : 'var(--info)',
+                    opacity: (historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 0.5 : 1,
+                    cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed',
                     fontWeight: 700
                   }}
                 >
@@ -1453,12 +1578,21 @@ export default function AttendanceClient({
                                     </span>
                                     <button
                                       className="btn btn-ghost"
+                                      disabled={!deadlineStatus.isAllowed}
                                       onClick={() => {
                                         setEditingRowDia(h.dia);
                                         setEditRowNewDia(h.dia);
                                         setEditRowNewFecha(h.fecha);
                                       }}
-                                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid var(--border)', color: 'var(--info)', fontWeight: 700 }}
+                                      style={{
+                                        padding: '0.4rem 0.8rem',
+                                        fontSize: '0.8rem',
+                                        border: '1px solid var(--border)',
+                                        color: 'var(--info)',
+                                        fontWeight: 700,
+                                        opacity: deadlineStatus.isAllowed ? 1 : 0.5,
+                                        cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
+                                      }}
                                     >
                                       Editar Día
                                     </button>
@@ -1467,6 +1601,7 @@ export default function AttendanceClient({
                                   <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                     <button
                                       className={`btn ${isEditing ? 'btn-primary' : 'btn-ghost'}`}
+                                      disabled={!deadlineStatus.isAllowed}
                                       onClick={() => {
                                         const action = () => {
                                           setDayNumber(h.dia);
@@ -1479,18 +1614,34 @@ export default function AttendanceClient({
                                           action();
                                         }
                                       }}
-                                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: isEditing ? 'none' : '1px solid var(--border)', fontWeight: 700 }}
+                                      style={{
+                                        padding: '0.4rem 0.8rem',
+                                        fontSize: '0.8rem',
+                                        border: isEditing ? 'none' : '1px solid var(--border)',
+                                        fontWeight: 700,
+                                        opacity: deadlineStatus.isAllowed ? 1 : 0.5,
+                                        cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
+                                      }}
                                     >
                                       {isEditing ? 'Editando...' : 'Ver / Editar'}
                                     </button>
                                     <button
                                       className="btn btn-ghost"
+                                      disabled={!deadlineStatus.isAllowed}
                                       onClick={() => {
                                         setEditingRowDia(h.dia);
                                         setEditRowNewDia(h.dia);
                                         setEditRowNewFecha(h.fecha);
                                       }}
-                                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid var(--border)', color: 'var(--info)', fontWeight: 700 }}
+                                      style={{
+                                        padding: '0.4rem 0.8rem',
+                                        fontSize: '0.8rem',
+                                        border: '1px solid var(--border)',
+                                        color: 'var(--info)',
+                                        fontWeight: 700,
+                                        opacity: deadlineStatus.isAllowed ? 1 : 0.5,
+                                        cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
+                                      }}
                                     >
                                       Editar Día
                                     </button>
@@ -1642,6 +1793,7 @@ export default function AttendanceClient({
                               <td key={status} style={{ textAlign: 'center', padding: '0.85rem 0.5rem' }}>
                                 <button
                                   onClick={() => handleStatusChange(p.participante_id, isActive ? '' : status)}
+                                  disabled={!deadlineStatus.isAllowed}
                                   style={{
                                     padding: '0.6rem 1rem',
                                     borderRadius: '0.75rem',
@@ -1650,7 +1802,7 @@ export default function AttendanceClient({
                                     color: isActive ? cfg.activeColor : 'var(--muted)',
                                     fontWeight: isActive ? 800 : 500,
                                     fontSize: '0.75rem',
-                                    cursor: 'pointer',
+                                    cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed',
                                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -1659,7 +1811,8 @@ export default function AttendanceClient({
                                     width: '100%',
                                     minWidth: '100px',
                                     transform: isActive ? 'scale(1.05)' : 'scale(1)',
-                                    boxShadow: isActive ? `0 4px 12px ${cfg.activeBg}` : 'none'
+                                    boxShadow: isActive ? `0 4px 12px ${cfg.activeBg}` : 'none',
+                                    opacity: deadlineStatus.isAllowed ? 1 : 0.6
                                   }}
                                 >
                                   {cfg.label}
@@ -1740,9 +1893,15 @@ export default function AttendanceClient({
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                 <button
                   className="btn btn-primary"
-                  style={{ flex: 2, padding: '1.25rem', fontSize: '1.1rem' }}
+                  style={{
+                    flex: 2,
+                    padding: '1.25rem',
+                    fontSize: '1.1rem',
+                    opacity: deadlineStatus.isAllowed ? 1 : 0.5,
+                    cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
+                  }}
                   onClick={() => setShowConfirm(true)}
-                  disabled={saving || participants.length === 0}
+                  disabled={saving || participants.length === 0 || !deadlineStatus.isAllowed}
                 >
                   {saving ? 'Consolidando...' : <><Save size={20} /> Consolidar Reporte de Asistencia</>}
                 </button>

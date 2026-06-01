@@ -117,9 +117,22 @@ export default function SubirCalificacionClient({
         .eq('programa_id', selectedProgram)
         .order('grupo', { ascending: true })
         .order('orden', { ascending: true })
-      setModules(data || [])
-      if (data && data.length > 0) {
-        setSelectedModule(data[0].id)
+
+      const sortedData = data || []
+      const todayStr = new Date().toISOString().split('T')[0]
+      // Filtrar para mostrar solo el módulo actual e iniciados anteriormente (ocultar módulos futuros)
+      const visibleData = sortedData.filter(m => todayStr >= m.fecha_inicio)
+      setModules(visibleData)
+
+      if (visibleData.length > 0) {
+        // Seleccionar automáticamente el módulo en curso
+        const currentModule = visibleData.find(m => todayStr >= m.fecha_inicio && todayStr <= m.fecha_fin)
+        if (currentModule) {
+          setSelectedModule(currentModule.id)
+        } else {
+          // Si no hay módulo en curso, seleccionar el más reciente de los iniciados
+          setSelectedModule(visibleData[visibleData.length - 1].id)
+        }
       } else {
         setSelectedModule('')
       }
@@ -315,6 +328,53 @@ ON public.calificaciones FOR ALL USING (
     setCopiedSql(true)
     setTimeout(() => setCopiedSql(false), 3000)
   }
+
+  // Helper to check deadline status
+  const checkModuleDeadline = (fechaFinStr: string) => {
+    if (!fechaFinStr) return { isAllowed: true, showWarning: false, daysRemaining: 0, deadlineStr: '' };
+
+    const fechaFin = new Date(fechaFinStr + 'T00:00:00');
+    const today = new Date();
+
+    // Set both to midnight to compare only calendar days
+    const d1 = new Date(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate());
+    const d2 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    const diffTime = d2.getTime() - d1.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    // The deadline is 7 days after fecha_fin
+    const deadlineDate = new Date(fechaFin.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const deadlineStr = deadlineDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const daysRemaining = 7 - diffDays;
+
+    if (diffDays >= 7) {
+      return {
+        isAllowed: false,
+        showWarning: false,
+        daysRemaining: 0,
+        deadlineStr
+      };
+    } else if (diffDays >= 1) {
+      return {
+        isAllowed: true,
+        showWarning: true,
+        daysRemaining: Math.max(0, daysRemaining),
+        deadlineStr
+      };
+    } else {
+      return {
+        isAllowed: true,
+        showWarning: false,
+        daysRemaining,
+        deadlineStr
+      };
+    }
+  };
+
+  const selectedModuleObj = modules.find(m => m.id === selectedModule);
+  const deadlineStatus = selectedModuleObj ? checkModuleDeadline(selectedModuleObj.fecha_fin) : { isAllowed: true, showWarning: false, daysRemaining: 0, deadlineStr: '' };
 
   // Calculate statistics for UI
   const totalStudents = participants.length
@@ -537,6 +597,75 @@ ON public.calificaciones FOR ALL USING (
         </div>
       </div>
 
+      {/* Deadline Banners */}
+      {selectedGroup && selectedModule && !isTableMissing && deadlineStatus.showWarning && (
+        <div className="animate-fade-in" style={{
+          padding: '1.25rem 1.75rem',
+          borderRadius: '1rem',
+          background: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.25)',
+          display: 'flex',
+          gap: '1.25rem',
+          alignItems: 'center',
+          marginBottom: '2rem',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.05)'
+        }}>
+          <div style={{
+            background: 'rgba(245, 158, 11, 0.15)',
+            color: '#d97706',
+            padding: '0.75rem',
+            borderRadius: '0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <AlertTriangle size={24} />
+          </div>
+          <div>
+            <h4 style={{ fontWeight: 900, color: 'var(--foreground)', fontSize: '0.95rem', margin: '0 0 0.25rem 0' }}>
+              Plazo de Calificaciones Próximo a Vencer
+            </h4>
+            <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--muted)', lineHeight: '1.5' }}>
+              El plazo límite de gracia para subir o editar calificaciones de este módulo vence el <strong>{deadlineStatus.deadlineStr}</strong>. Quedan <strong>{deadlineStatus.daysRemaining} días</strong> para finalizar el registro.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {selectedGroup && selectedModule && !isTableMissing && !deadlineStatus.isAllowed && (
+        <div className="animate-fade-in" style={{
+          padding: '1.25rem 1.75rem',
+          borderRadius: '1rem',
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid rgba(239, 68, 68, 0.25)',
+          display: 'flex',
+          gap: '1.25rem',
+          alignItems: 'center',
+          marginBottom: '2rem',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.05)'
+        }}>
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            color: 'var(--danger)',
+            padding: '0.75rem',
+            borderRadius: '0.75rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <X size={24} />
+          </div>
+          <div>
+            <h4 style={{ fontWeight: 900, color: 'var(--foreground)', fontSize: '0.95rem', margin: '0 0 0.25rem 0' }}>
+              Plazo de Registro Vencido
+            </h4>
+            <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--muted)', lineHeight: '1.5' }}>
+              El plazo límite de gracia para este módulo venció el <strong>{deadlineStatus.deadlineStr}</strong>. El registro y edición de calificaciones están deshabilitados. Por favor, póngase en contacto con el administrador del departamento para cualquier consulta.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Main Grid View */}
       {selectedGroup && selectedModule && !isTableMissing && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>
@@ -646,6 +775,7 @@ ON public.calificaciones FOR ALL USING (
                               value={scores.autoformacion ?? ''}
                               onChange={(e) => handleValueChange(p.id, 'autoformacion', e.target.value)}
                               placeholder="0"
+                              disabled={!deadlineStatus.isAllowed}
                               style={{
                                 width: '68px',
                                 padding: '0.4rem',
@@ -655,7 +785,9 @@ ON public.calificaciones FOR ALL USING (
                                 color: 'var(--foreground)',
                                 textAlign: 'center',
                                 fontWeight: 700,
-                                outline: 'none'
+                                outline: 'none',
+                                opacity: deadlineStatus.isAllowed ? 1 : 0.6,
+                                cursor: deadlineStatus.isAllowed ? 'text' : 'not-allowed'
                               }}
                             />
                           </td>
@@ -670,6 +802,7 @@ ON public.calificaciones FOR ALL USING (
                               value={scores.practica_guiada ?? ''}
                               onChange={(e) => handleValueChange(p.id, 'practica_guiada', e.target.value)}
                               placeholder="0"
+                              disabled={!deadlineStatus.isAllowed}
                               style={{
                                 width: '68px',
                                 padding: '0.4rem',
@@ -679,7 +812,9 @@ ON public.calificaciones FOR ALL USING (
                                 color: 'var(--foreground)',
                                 textAlign: 'center',
                                 fontWeight: 700,
-                                outline: 'none'
+                                outline: 'none',
+                                opacity: deadlineStatus.isAllowed ? 1 : 0.6,
+                                cursor: deadlineStatus.isAllowed ? 'text' : 'not-allowed'
                               }}
                             />
                           </td>
@@ -696,6 +831,7 @@ ON public.calificaciones FOR ALL USING (
                                 onChange={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
                                 onBlur={(e) => handleValueChange(p.id, 'asistencia', e.target.value)}
                                 placeholder="0"
+                                disabled={!deadlineStatus.isAllowed}
                                 style={{
                                   width: '68px',
                                   padding: '0.4rem',
@@ -705,7 +841,9 @@ ON public.calificaciones FOR ALL USING (
                                   color: 'var(--foreground)',
                                   textAlign: 'center',
                                   fontWeight: 700,
-                                  outline: 'none'
+                                  outline: 'none',
+                                  opacity: deadlineStatus.isAllowed ? 1 : 0.6,
+                                  cursor: deadlineStatus.isAllowed ? 'text' : 'not-allowed'
                                 }}
                               />
                             </div>
@@ -721,6 +859,7 @@ ON public.calificaciones FOR ALL USING (
                               value={scores.evaluacion ?? ''}
                               onChange={(e) => handleValueChange(p.id, 'evaluacion', e.target.value)}
                               placeholder="0"
+                              disabled={!deadlineStatus.isAllowed}
                               style={{
                                 width: '68px',
                                 padding: '0.4rem',
@@ -730,7 +869,9 @@ ON public.calificaciones FOR ALL USING (
                                 color: 'var(--foreground)',
                                 textAlign: 'center',
                                 fontWeight: 700,
-                                outline: 'none'
+                                outline: 'none',
+                                opacity: deadlineStatus.isAllowed ? 1 : 0.6,
+                                cursor: deadlineStatus.isAllowed ? 'text' : 'not-allowed'
                               }}
                             />
                           </td>
@@ -777,7 +918,7 @@ ON public.calificaciones FOR ALL USING (
                 <button
                   className="btn btn-primary"
                   onClick={() => setShowSaveConfirmModal(true)}
-                  disabled={saving || loading}
+                  disabled={saving || loading || !deadlineStatus.isAllowed}
                   style={{
                     padding: '0.75rem 1.5rem',
                     borderRadius: '0.75rem',
@@ -785,7 +926,9 @@ ON public.calificaciones FOR ALL USING (
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    fontSize: '0.85rem'
+                    fontSize: '0.85rem',
+                    opacity: deadlineStatus.isAllowed ? 1 : 0.5,
+                    cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
                   }}
                 >
                   <Save size={16} />
