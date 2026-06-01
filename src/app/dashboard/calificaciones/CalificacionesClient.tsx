@@ -317,8 +317,8 @@ export default function CalificacionesClient({
 
       // Full Page Background image (Landscape or Portrait depending on layout)
       const backgroundImage = (orientation === 'l')
-        ? 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/escudo.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9lc2N1ZG8uanBnIiwiaWF0IjoxNzc5NDc1Nzg4LCJleHAiOjE4MTEwMTE3ODh9.J80uPhXdt8HjRMba6nT-7f5OIJ4vbiEEyQSiQB_CWFc'
-        : 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
+        ? 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYS5qcGciLCJpYXQiOjE3ODAzNDEyODQsImV4cCI6MTgxMTg3NzI4NH0.1wi-ncSCQeBcaiwzHo7L1-gaiMG3E3gFrPSU3lOf4jY'
+        : 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra_horizontal.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYV9ob3Jpem9udGFsLmpwZyIsImlhdCI6MTc4MDM0MTM1MiwiZXhwIjoxODExODc3MzUyfQ.QTvwvlb1DTDSieAoBReBNE1_aFqCPXmMXwzQzKHMxP8'
 
       let bgBase64 = ''
       let imgWidth = 0

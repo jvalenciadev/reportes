@@ -1653,7 +1653,7 @@ export default function ReportsClient({
         const pageHeight = doc.internal.pageSize.getHeight()
 
         // Background Image
-        const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/escudo.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9lc2N1ZG8uanBnIiwiaWF0IjoxNzc5NDc1Nzg4LCJleHAiOjE4MTEwMTE3ODh9.J80uPhXdt8HjRMba6nT-7f5OIJ4vbiEEyQSiQB_CWFc'
+        const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYS5qcGciLCJpYXQiOjE3ODAzNDEyODQsImV4cCI6MTgxMTg3NzI4NH0.1wi-ncSCQeBcaiwzHo7L1-gaiMG3E3gFrPSU3lOf4jY'
         let bgBase64 = ''
         let imgWidth = 0
         let imgHeight = 0
@@ -2264,7 +2264,7 @@ export default function ReportsClient({
         const pageHeight = doc.internal.pageSize.getHeight()
 
         // Background
-        const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/escudo.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9lc2N1ZG8uanBnIiwiaWF0IjoxNzc5NDc1Nzg4LCJleHAiOjE4MTEwMTE3ODh9.J80uPhXdt8HjRMba6nT-7f5OIJ4vbiEEyQSiQB_CWFc'
+        const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYS5qcGciLCJpYXQiOjE3ODAzNDEyODQsImV4cCI6MTgxMTg3NzI4NH0.1wi-ncSCQeBcaiwzHo7L1-gaiMG3E3gFrPSU3lOf4jY'
         let bgBase64 = ''
         let imgWidth = 0
         let imgHeight = 0

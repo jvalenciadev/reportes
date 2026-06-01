@@ -658,23 +658,23 @@ export default function AttendanceClient({
   // Helper to check deadline status
   const checkModuleDeadline = (fechaFinStr: string) => {
     if (!fechaFinStr) return { isAllowed: true, showWarning: false, daysRemaining: 0, deadlineStr: '' };
-    
+
     const fechaFin = new Date(fechaFinStr + 'T00:00:00');
     const today = new Date();
-    
+
     // Set both to midnight to compare only calendar days
     const d1 = new Date(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate());
     const d2 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    
+
     const diffTime = d2.getTime() - d1.getTime();
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
+
     // The deadline is 7 days after fecha_fin
     const deadlineDate = new Date(fechaFin.getTime() + 7 * 24 * 60 * 60 * 1000);
     const deadlineStr = deadlineDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    
+
     const daysRemaining = 7 - diffDays;
-    
+
     if (diffDays >= 7) {
       return {
         isAllowed: false,
@@ -734,7 +734,7 @@ export default function AttendanceClient({
     const pageHeight = doc.internal.pageSize.getHeight()
 
     // 1. Full Page Background
-    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/fondo_doc.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9mb25kb19kb2MuanBnIiwiaWF0IjoxNzc4NjgyNjkzLCJleHAiOjE4MTAyMTg2OTN9.Z6qEHAgrqYN04OWtGdZHdwZ0D10xrm1bVulbk-MWTxM'
+    const backgroundImage = 'https://czdeexmxosivvpwwatsq.supabase.co/storage/v1/object/sign/logos/hojas--muestra_horizontal.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZTAwNzJkNC00ZTNjLTQ1ZjMtYjZhNC0yZWJmZThkNGNkM2EiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJsb2dvcy9ob2phcy0tbXVlc3RyYV9ob3Jpem9udGFsLmpwZyIsImlhdCI6MTc4MDM0MTM1MiwiZXhwIjoxODExODc3MzUyfQ.QTvwvlb1DTDSieAoBReBNE1_aFqCPXmMXwzQzKHMxP8'
 
     let bgBase64 = ''
     let imgWidth = 0
