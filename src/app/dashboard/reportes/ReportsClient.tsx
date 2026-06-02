@@ -1548,9 +1548,27 @@ export default function ReportsClient({
             const avgPermiso = filledDaysCount > 0 ? String(avgPermisoVal) : "-"
             const avgTotal = filledDaysCount > 0 ? String(avgTotalVal) : "-"
 
-            const pctAsist = totalEnrolled > 0 && filledDaysCount > 0 ? Math.round((avgAsistVal / totalEnrolled) * 100) + '%' : '0%'
-            const pctFalta = totalEnrolled > 0 && filledDaysCount > 0 ? Math.round((avgFaltaVal / totalEnrolled) * 100) + '%' : '0%'
-            const pctPermiso = totalEnrolled > 0 && filledDaysCount > 0 ? Math.round((avgPermisoVal / totalEnrolled) * 100) + '%' : '0%'
+            let pctAsist = '0.0%'
+            let pctFalta = '0.0%'
+            let pctPermiso = '0.0%'
+
+            if (totalEnrolled > 0 && filledDaysCount > 0) {
+                const totalPossible = totalEnrolled * filledDaysCount
+                const pAsist = (sumAsist / totalPossible) * 100
+                const pPermiso = (sumPermiso / totalPossible) * 100
+
+                const rAsist = Math.round(pAsist * 10) / 10
+                const rPermiso = Math.round(pPermiso * 10) / 10
+                let rFalta = (1000 - Math.round(rAsist * 10) - Math.round(rPermiso * 10)) / 10
+
+                if (rFalta < 0) {
+                    rFalta = 0
+                }
+
+                pctAsist = rAsist.toFixed(1) + '%'
+                pctFalta = rFalta.toFixed(1) + '%'
+                pctPermiso = rPermiso.toFixed(1) + '%'
+            }
 
             return [
                 name.toUpperCase(),
@@ -1625,9 +1643,27 @@ export default function ReportsClient({
         const grandAvgPermiso = grandFilledDaysCount > 0 ? String(grandAvgPermisoVal) : "-"
         const grandAvgTotal = grandFilledDaysCount > 0 ? String(grandAvgTotalVal) : "-"
 
-        const grandPctAsist = grandActivos > 0 && grandFilledDaysCount > 0 ? Math.round((grandAvgAsistVal / grandActivos) * 100) + '%' : '0%'
-        const grandPctFalta = grandActivos > 0 && grandFilledDaysCount > 0 ? Math.round((grandAvgFaltaVal / grandActivos) * 100) + '%' : '0%'
-        const grandPctPermiso = grandActivos > 0 && grandFilledDaysCount > 0 ? Math.round((grandAvgPermisoVal / grandActivos) * 100) + '%' : '0%'
+        let grandPctAsist = '0.0%'
+        let grandPctFalta = '0.0%'
+        let grandPctPermiso = '0.0%'
+
+        if (grandActivos > 0 && grandFilledDaysCount > 0) {
+            const grandTotalPossible = grandActivos * grandFilledDaysCount
+            const gpAsist = (grandSumAsist / grandTotalPossible) * 100
+            const gpPermiso = (grandSumPermiso / grandTotalPossible) * 100
+
+            const grAsist = Math.round(gpAsist * 10) / 10
+            const grPermiso = Math.round(gpPermiso * 10) / 10
+            let grFalta = (1000 - Math.round(grAsist * 10) - Math.round(grPermiso * 10)) / 10
+
+            if (grFalta < 0) {
+                grFalta = 0
+            }
+
+            grandPctAsist = grAsist.toFixed(1) + '%'
+            grandPctFalta = grFalta.toFixed(1) + '%'
+            grandPctPermiso = grPermiso.toFixed(1) + '%'
+        }
 
         const grandTotalRow = [
             'TOTAL GENERAL',
