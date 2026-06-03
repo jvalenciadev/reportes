@@ -343,13 +343,13 @@ ON public.calificaciones FOR ALL USING (
     const diffTime = d2.getTime() - d1.getTime();
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-    // The deadline is 14 days after fecha_fin
-    const deadlineDate = new Date(fechaFin.getTime() + 14 * 24 * 60 * 60 * 1000);
+    // The deadline is 15 days after fecha_fin
+    const deadlineDate = new Date(fechaFin.getTime() + 15 * 24 * 60 * 60 * 1000);
     const deadlineStr = deadlineDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    const daysRemaining = 14 - diffDays;
+    const daysRemaining = 15 - diffDays;
 
-    if (diffDays >= 14) {
+    if (diffDays >= 15) {
       return {
         isAllowed: false,
         showWarning: false,
