@@ -16,6 +16,7 @@ const navItems = [
   { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2, adminOnly: true, reportesHidden: true },
   { href: '/dashboard/inscripciones', label: 'Inscripciones', icon: Users, reportesHidden: true },
   { href: '/dashboard/asistencia', label: 'Asistencia', icon: CheckSquare, reportesHidden: true },
+  { href: '/dashboard/tutores', label: 'Asistencia Tutores', icon: ClipboardCheck, reportesHidden: true },
   { href: '/dashboard/calificaciones/subir', label: 'Subir Calificación', icon: ClipboardCheck, reportesHidden: true },
   { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: Award, reportesHidden: true },
   { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3, adminOnly: true },

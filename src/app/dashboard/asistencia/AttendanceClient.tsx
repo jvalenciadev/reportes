@@ -669,13 +669,13 @@ export default function AttendanceClient({
     const diffTime = d2.getTime() - d1.getTime();
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-    // The deadline is 16 days after fecha_fin
-    const deadlineDate = new Date(fechaFin.getTime() + 16 * 24 * 60 * 60 * 1000);
+    // The deadline is 8 days after fecha_fin
+    const deadlineDate = new Date(fechaFin.getTime() + 8 * 24 * 60 * 60 * 1000);
     const deadlineStr = deadlineDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    const daysRemaining = 16 - diffDays;
+    const daysRemaining = 8 - diffDays;
 
-    if (diffDays >= 16) {
+    if (diffDays >= 8) {
       return {
         isAllowed: false,
         showWarning: false,
