@@ -700,7 +700,16 @@ export default function AttendanceClient({
   };
 
   const selectedModuleObj = modules.find(m => m.id === selectedModule);
-  const deadlineStatus = selectedModuleObj ? checkModuleDeadline(selectedModuleObj.fecha_fin) : { isAllowed: true, showWarning: false, daysRemaining: 0, deadlineStr: '' };
+
+  // Real deadline status
+  const realDeadlineStatus = selectedModuleObj
+    ? checkModuleDeadline(selectedModuleObj.fecha_fin)
+    : { isAllowed: true, showWarning: false, daysRemaining: 0, deadlineStr: '' };
+
+  // Effective deadline status (bypassed for admins)
+  const deadlineStatus = userRole === 'administrador'
+    ? { isAllowed: true, showWarning: false, daysRemaining: 0, deadlineStr: realDeadlineStatus.deadlineStr }
+    : realDeadlineStatus;
 
   // Stats for current session
   // Stats for current session (calculated in every render)
@@ -1224,6 +1233,38 @@ export default function AttendanceClient({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
           {/* Deadline Banners */}
+          {userRole === 'administrador' && selectedModule && (!realDeadlineStatus.isAllowed || realDeadlineStatus.showWarning) && (
+            <div className="animate-fade-in" style={{
+              padding: '1.25rem 1.75rem',
+              borderRadius: '1rem',
+              background: 'rgba(59, 130, 246, 0.08)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              display: 'flex',
+              gap: '1.25rem',
+              alignItems: 'center',
+              boxShadow: '0 8px 30px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.15)',
+                color: '#3b82f6',
+                padding: '0.75rem',
+                borderRadius: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Info size={24} />
+              </div>
+              <div>
+                <h4 style={{ fontWeight: 900, color: 'var(--foreground)', fontSize: '0.95rem', margin: '0 0 0.25rem 0' }}>
+                  Modo Administrador: Plazo Ampliado
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--muted)', lineHeight: '1.5' }}>
+                  El plazo oficial de gracia para registrar asistencia de este módulo {!realDeadlineStatus.isAllowed ? 'venció' : 'vence'} el <strong>{realDeadlineStatus.deadlineStr}</strong>. Al tener rol de administrador, puedes registrar y editar la asistencia sin restricciones de fecha.
+                </p>
+              </div>
+            </div>
+          )}
           {selectedModule && deadlineStatus.showWarning && (
             <div className="animate-fade-in" style={{
               padding: '1.25rem 1.75rem',

@@ -449,12 +449,13 @@ export default function TutorsAttendanceClient({
     const deptName = departamentos.find(d => d.id === selectedDepto)?.name || 'N/A'
 
     // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
+    const areaText = currentModuleObj?.grupo === 1 ? 'LENGUAJE' : currentModuleObj?.grupo === 2 ? 'MATEMÁTICA' : ''
     doc.setFillColor(201, 167, 81) // Dorado institucional #bb973a
     doc.rect(14, 40, pageWidth - 28, 10, 'F')
     doc.setFontSize(12)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.text('REPORTE DE ASISTENCIA DE TUTORES', pageWidth / 2, 46.5, { align: 'center' })
+    doc.text(`REPORTE DE ASISTENCIA DE TUTORES${areaText ? ' - ' + areaText : ''}`, pageWidth / 2, 46.5, { align: 'center' })
 
     // --- BLOQUE DE METADATOS (TABLA DINÁMICA - AUTO AJUSTABLE) ---
     autoTable(doc, {
@@ -465,7 +466,7 @@ export default function TutorsAttendanceClient({
           { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `TIPO DE REPORTE: MÓDULO (DÍAS 1 AL 6)`, styles: { fontStyle: 'bold' } }
+          { content: `TIPO DE REPORTE: MÓDULO (DÍAS 1 AL 6)${areaText ? ' - ' + areaText : ''}`, styles: { fontStyle: 'bold' } }
         ],
         [
           { content: `PROGRAMA: ${progText.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -610,7 +611,8 @@ export default function TutorsAttendanceClient({
 
     addPdfFooter(doc)
 
-    const cleanFilename = `Asistencia_Tutores_${deptName.replace(/\s+/g, '_')}_${modText.substring(0, 15).replace(/\s+/g, '_')}.pdf`
+    const areaFilenameText = currentModuleObj?.grupo === 1 ? 'Lenguaje' : currentModuleObj?.grupo === 2 ? 'Matematica' : ''
+    const cleanFilename = `Asistencia_Tutores_${areaFilenameText ? areaFilenameText + '_' : ''}${deptName.replace(/\s+/g, '_')}_${modText.substring(0, 15).replace(/\s+/g, '_')}.pdf`
     doc.save(cleanFilename)
     setLoading(false)
   }
@@ -686,12 +688,13 @@ export default function TutorsAttendanceClient({
     const deptName = departamentos.find(d => d.id === selectedDepto)?.name || 'N/A'
 
     // --- TITULO PRINCIPAL (BANNER INSTITUCIONAL) ---
+    const areaText = currentModuleObj?.grupo === 1 ? 'LENGUAJE' : currentModuleObj?.grupo === 2 ? 'MATEMÁTICA' : ''
     doc.setFillColor(201, 167, 81) // Dorado institucional #bb973a
     doc.rect(14, 40, pageWidth - 28, 10, 'F')
     doc.setFontSize(12)
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
-    doc.text('REPORTE GENERAL DE ASISTENCIA DE TUTORES', pageWidth / 2, 46.5, { align: 'center' })
+    doc.text(`REPORTE GENERAL DE ASISTENCIA DE TUTORES${areaText ? ' - ' + areaText : ''}`, pageWidth / 2, 46.5, { align: 'center' })
 
     // --- BLOQUE DE METADATOS (TABLA DINÁMICA - AUTO AJUSTABLE) ---
     autoTable(doc, {
@@ -702,7 +705,7 @@ export default function TutorsAttendanceClient({
           { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
         ],
         [
-          { content: `TIPO DE REPORTE: CONSOLIDADO GENERAL DE MÓDULOS`, styles: { fontStyle: 'bold' } }
+          { content: `TIPO DE REPORTE: CONSOLIDADO GENERAL DE MÓDULOS${areaText ? ' - ' + areaText : ''}`, styles: { fontStyle: 'bold' } }
         ],
         [
           { content: `PROGRAMA: ${progText.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -846,7 +849,8 @@ export default function TutorsAttendanceClient({
 
     addPdfFooter(doc)
 
-    const cleanFilename = `Asistencia_General_Tutores_${deptName.replace(/\s+/g, '_')}.pdf`
+    const areaFilenameText = currentModuleObj?.grupo === 1 ? 'Lenguaje' : currentModuleObj?.grupo === 2 ? 'Matematica' : ''
+    const cleanFilename = `Asistencia_General_Tutores_${areaFilenameText ? areaFilenameText + '_' : ''}${deptName.replace(/\s+/g, '_')}.pdf`
     doc.save(cleanFilename)
     setLoading(false)
   }
@@ -876,7 +880,9 @@ export default function TutorsAttendanceClient({
             <select value={selectedModule} onChange={e => setSelectedModule(e.target.value)} disabled={loading || saving || !selectedProgram}>
               <option value="">Seleccionar...</option>
               {modules.map(m => (
-                <option key={m.id} value={m.id}>{m.titulo_modulo}</option>
+                <option key={m.id} value={m.id}>
+                  {m.titulo_modulo} {m.grupo === 1 ? '(Lenguaje)' : m.grupo === 2 ? '(Matemática)' : ''}
+                </option>
               ))}
             </select>
           </div>
@@ -995,7 +1001,7 @@ export default function TutorsAttendanceClient({
                   <FileText size={16} /> PDF Módulo
                 </button>
                 <button className="btn btn-outline" onClick={generateGeneralPDF} disabled={loading || saving || visibleTutors.length === 0} style={{ padding: '0.5rem 1rem' }}>
-                  <FileText size={16} /> PDF General
+                  <FileText size={16} /> {currentModuleObj?.grupo === 1 ? 'PDF Lenguaje' : currentModuleObj?.grupo === 2 ? 'PDF Matemática' : 'PDF General'}
                 </button>
                 <button
                   className={`btn ${isDirty ? 'btn-primary' : 'btn-outline'}`}

@@ -25,6 +25,48 @@ export async function createSystemUser(formData: FormData) {
     const departamento_id = formData.get('departamento_id') as string
     const role_name = formData.get('role') as string
 
+    // 1. Obtener ID del rol
+    const { data: roleData } = await supabaseAdmin
+      .from('roles')
+      .select('id')
+      .eq('name', role_name)
+      .single()
+
+    // 2. Verificar si el usuario ya existe en profiles
+    const { data: existingProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (existingProfile) {
+      // Actualizar metadatos y contraseña en Auth
+      const updatePayload: any = {
+        user_metadata: { full_name: full_name || `${nombre} ${apellidos}`, nombre, apellidos, ci }
+      }
+      if (password) {
+        updatePayload.password = password
+      }
+      await supabaseAdmin.auth.admin.updateUserById(existingProfile.id, updatePayload)
+
+      // Actualizar perfil
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .update({
+          full_name: full_name || `${nombre} ${apellidos}`,
+          nombre, apellidos, ci, correo, email, departamento_id,
+          role_id: roleData?.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingProfile.id)
+
+      if (profileError) return { error: profileError.message }
+
+      revalidatePath('/dashboard/usuarios')
+      return { success: true }
+    }
+
+    // Si no existe, crear nuevo usuario
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -33,12 +75,6 @@ export async function createSystemUser(formData: FormData) {
     })
 
     if (authError) return { error: authError.message }
-
-    const { data: roleData } = await supabaseAdmin
-      .from('roles')
-      .select('id')
-      .eq('name', role_name)
-      .single()
 
     const { error: profileError } = await supabaseAdmin
       .from('profiles')

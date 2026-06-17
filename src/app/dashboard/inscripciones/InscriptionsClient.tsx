@@ -773,20 +773,52 @@ export default function InscriptionsClient({
                               <td style={{ padding: '0.85rem 0.75rem', textAlign: 'center' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.55rem' }}>
                                   {/* Badge de estado */}
-                                  <span style={{
-                                    display: 'inline-block', padding: '0.35rem 0.75rem',
-                                    borderRadius: '0.6rem', fontSize: '0.7rem', fontWeight: 700,
-                                    textTransform: 'uppercase', letterSpacing: '0.06em',
-                                    background: i.estado === 'inscrito' ? 'rgba(34,197,94,0.15)'
-                                      : i.estado === 'preinscrito' ? 'rgba(59,130,246,0.12)'
-                                        : 'var(--border)',
-                                    color: i.estado === 'inscrito' ? '#16a34a'
-                                      : i.estado === 'preinscrito' ? '#3b82f6'
-                                        : 'var(--muted)',
-                                    border: `1px solid ${i.estado === 'inscrito' ? 'rgba(34,197,94,0.25)' : i.estado === 'preinscrito' ? 'rgba(59,130,246,0.2)' : 'transparent'}`
-                                  }}>
-                                    {i.estado === 'inscrito' ? '● Activo' : i.estado === 'preinscrito' ? '○ Preinscrito' : '× Baja'}
-                                  </span>
+                                  {userRole === 'administrador' ? (
+                                    <select
+                                      value={i.estado}
+                                      onChange={(e) => handleStatusChange(i, e.target.value)}
+                                      style={{
+                                        display: 'inline-block', padding: '0.35rem 1.5rem 0.35rem 0.75rem',
+                                        borderRadius: '0.6rem', fontSize: '0.7rem', fontWeight: 700,
+                                        textTransform: 'uppercase', letterSpacing: '0.06em',
+                                        background: i.estado === 'inscrito' ? 'rgba(34,197,94,0.15)'
+                                          : i.estado === 'preinscrito' ? 'rgba(59,130,246,0.12)'
+                                            : 'var(--border)',
+                                        color: i.estado === 'inscrito' ? '#16a34a'
+                                          : i.estado === 'preinscrito' ? '#3b82f6'
+                                            : 'var(--muted)',
+                                        border: `1px solid ${i.estado === 'inscrito' ? 'rgba(34,197,94,0.25)' : i.estado === 'preinscrito' ? 'rgba(59,130,246,0.2)' : 'var(--border)'}`,
+                                        cursor: 'pointer',
+                                        outline: 'none',
+                                        WebkitAppearance: 'none',
+                                        MozAppearance: 'none',
+                                        appearance: 'none',
+                                        backgroundImage: 'url("data:image/svg+xml;utf8,<svg fill=\'currentColor\' height=\'24\' viewBox=\'0 0 24 24\' width=\'24\' xmlns=\'http://www.w3.org/2000/svg\'><path d=\'M7 10l5 5 5-5z\'/></svg>")',
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundPosition: 'right 0.25rem center',
+                                        backgroundSize: '1.2rem'
+                                      }}
+                                    >
+                                      <option value="preinscrito" style={{ color: '#3b82f6', background: 'var(--bg-2)' }}>○ Preinscrito</option>
+                                      <option value="inscrito" style={{ color: '#16a34a', background: 'var(--bg-2)' }}>● Activo</option>
+                                      <option value="baja" style={{ color: 'var(--muted)', background: 'var(--bg-2)' }}>× Baja</option>
+                                    </select>
+                                  ) : (
+                                    <span style={{
+                                      display: 'inline-block', padding: '0.35rem 0.75rem',
+                                      borderRadius: '0.6rem', fontSize: '0.7rem', fontWeight: 700,
+                                      textTransform: 'uppercase', letterSpacing: '0.06em',
+                                      background: i.estado === 'inscrito' ? 'rgba(34,197,94,0.15)'
+                                        : i.estado === 'preinscrito' ? 'rgba(59,130,246,0.12)'
+                                          : 'var(--border)',
+                                      color: i.estado === 'inscrito' ? '#16a34a'
+                                        : i.estado === 'preinscrito' ? '#3b82f6'
+                                          : 'var(--muted)',
+                                      border: `1px solid ${i.estado === 'inscrito' ? 'rgba(34,197,94,0.25)' : i.estado === 'preinscrito' ? 'rgba(59,130,246,0.2)' : 'transparent'}`
+                                    }}>
+                                      {i.estado === 'inscrito' ? '● Activo' : i.estado === 'preinscrito' ? '○ Preinscrito' : '× Baja'}
+                                    </span>
+                                  )}
                                   {/* Observación */}
                                   {i.observacion && (
                                     <div style={{ fontSize: '0.65rem', color: 'var(--danger)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem', maxWidth: '160px', textAlign: 'left' }}>

@@ -41,32 +41,30 @@ export async function migrateTutor(data: {
       throw new Error(`Grupo "${groupName}" no encontrado en el sistema.`)
     }
 
-    // 2. Obtener ID del rol 'tutor'
-    const { data: roleData, error: rErr } = await supabaseAdmin
+    // 2. Obtener ID del rol corresponding (tutor, tutor-mate, tutor-lenguaje, etc.)
+    let roleData = null
+    const { data: existingRole, error: rErr } = await supabaseAdmin
       .from('roles')
       .select('id')
-      .eq('name', 'tutor')
-      .single()
+      .eq('name', rawRole)
+      .maybeSingle()
 
-    if (rErr || !roleData) {
-      throw new Error('Rol "tutor" no encontrado en la base de datos.')
+    if (existingRole) {
+      roleData = existingRole
+    } else {
+      // Si el rol no existe, lo insertamos automáticamente
+      const { data: newRole, error: insErr } = await supabaseAdmin
+        .from('roles')
+        .insert({ name: rawRole })
+        .select('id')
+        .single()
+      if (insErr || !newRole) {
+        throw new Error(`Rol "${rawRole}" no existe en la base de datos y no pudo ser creado automáticamente: ${insErr?.message}`)
+      }
+      roleData = newRole
     }
 
-    // 3. Determinar el correo electrónico
-    // Si no se provee, autogeneramos uno único y consistente
-    let email = data.correo?.trim()
-    if (!email) {
-      const sanitizedName = nombre.toLowerCase().replace(/[^a-z0-9]/g, '')
-      const sanitizedLastName = apellido.toLowerCase().replace(/[^a-z0-9]/g, '')
-      // Añadimos un hash aleatorio/corto para evitar colisiones
-      const randomSuffix = Math.floor(100 + Math.random() * 900)
-      email = `${sanitizedName}.${sanitizedLastName}.${randomSuffix}@tutor.profe.gob.bo`
-    }
-
-    // Determinar contraseña por defecto si no se provee
-    const password = data.password || `Tutor${ci ? ci.replace(/[^0-9]/g, '') : '123'}*`
-
-    // 4. Buscar si ya existe un perfil con el mismo CI o correo
+    // 3. Buscar si ya existe un perfil con el mismo CI o correo
     let existingProfile: any = null
 
     if (ci) {
@@ -78,6 +76,7 @@ export async function migrateTutor(data: {
       existingProfile = profileByCI
     }
 
+    let email = data.correo?.trim()
     if (!existingProfile && email) {
       const { data: profileByEmail } = await supabaseAdmin
         .from('profiles')
@@ -87,26 +86,60 @@ export async function migrateTutor(data: {
       existingProfile = profileByEmail
     }
 
+    // Si ya existe el perfil, usamos su correo actual si no se proveyó uno nuevo
+    if (existingProfile && !email) {
+      email = existingProfile.email || existingProfile.correo
+    }
+
+    // Si no se provee ni se encuentra en el perfil existente, lo autogeneramos
+    if (!email) {
+      const sanitizedName = nombre.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const sanitizedLastName = apellido.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const randomSuffix = Math.floor(100 + Math.random() * 900)
+      email = `${sanitizedName}.${sanitizedLastName}.${randomSuffix}@tutor.profe.gob.bo`
+    }
+
+    // Determinar contraseña por defecto si no se provee
+    const password = data.password || `Tutor${ci ? ci.replace(/[^0-9]/g, '') : '123'}*`
+
     let userId: string
 
     if (existingProfile) {
-      // Si el perfil ya existe, actualizamos su rol a 'tutor'
+      // Si el perfil ya existe, actualizamos su rol y datos en Auth y Profiles
       userId = existingProfile.id
+
+      const authUpdatePayload: any = {
+        user_metadata: {
+          full_name: `${nombre} ${apellido}`,
+          nombre,
+          apellidos: apellido,
+          ci
+        }
+      }
+      if (password) {
+        authUpdatePayload.password = password
+      }
+
+      // Sincronizar en Auth
+      await supabaseAdmin.auth.admin.updateUserById(userId, authUpdatePayload)
+
       const { error: profileUpdateErr } = await supabaseAdmin
         .from('profiles')
-        .update({
+        .upsert({
+          id: userId,
           nombre,
           apellidos: apellido,
           full_name: `${nombre} ${apellido}`,
           role_id: roleData.id,
           ci: ci || existingProfile.ci,
+          correo: email || existingProfile.correo || existingProfile.email,
+          email: email || existingProfile.email || existingProfile.correo,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', userId)
+        }, { onConflict: 'id' })
 
       if (profileUpdateErr) throw new Error(profileUpdateErr.message)
     } else {
-      // Si no existe, creamos el usuario en Auth y se creará automáticamente el perfil
+      // Si no existe, creamos el usuario en Auth
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -119,15 +152,42 @@ export async function migrateTutor(data: {
         }
       })
 
-      if (authError) throw new Error(authError.message)
-      if (!authData.user) throw new Error('No se pudo crear el usuario en Auth.')
+      if (authError) {
+        // Si el usuario ya existe en Auth, intentamos recuperarlo y actualizarlo
+        const errMsg = authError.message.toLowerCase()
+        if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('conflict')) {
+          const { data: listData } = await supabaseAdmin.auth.admin.listUsers()
+          const matchedUser = listData?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+          if (matchedUser) {
+            userId = matchedUser.id
+            const authUpdatePayload: any = {
+              user_metadata: {
+                full_name: `${nombre} ${apellido}`,
+                nombre,
+                apellidos: apellido,
+                ci
+              }
+            }
+            if (password) {
+              authUpdatePayload.password = password
+            }
+            await supabaseAdmin.auth.admin.updateUserById(userId, authUpdatePayload)
+          } else {
+            throw new Error(`El usuario ya existe en Auth, pero no se pudo obtener sus detalles: ${authError.message}`)
+          }
+        } else {
+          throw new Error(authError.message)
+        }
+      } else {
+        if (!authData.user) throw new Error('No se pudo crear el usuario en Auth.')
+        userId = authData.user.id
+      }
 
-      userId = authData.user.id
-
-      // Forzar actualización del perfil recién creado para asegurar el rol_id correcto y campos
+      // Forzar upsert del perfil recién creado/asociado para asegurar el rol_id correcto y campos
       const { error: profileUpdateErr } = await supabaseAdmin
         .from('profiles')
-        .update({
+        .upsert({
+          id: userId,
           nombre,
           apellidos: apellido,
           full_name: `${nombre} ${apellido}`,
@@ -136,12 +196,9 @@ export async function migrateTutor(data: {
           email,
           role_id: roleData.id,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', userId)
+        }, { onConflict: 'id' })
 
       if (profileUpdateErr) {
-        // Revertir creación de usuario si falla la actualización del perfil
-        await supabaseAdmin.auth.admin.deleteUser(userId)
         throw new Error(`Error al configurar perfil del tutor: ${profileUpdateErr.message}`)
       }
     }
@@ -222,8 +279,21 @@ export async function updateTutorProfile(
 
 export async function getTutorsAttendanceSession(deptoId: string, moduloId: string, dayNumber: number, userRole?: string, allowedGroupIds?: string[]) {
   try {
-    // 1. Obtener grupos para el departamento
+    // 0. Obtener información del módulo (fecha_inicio y grupo: 1 = Lenguaje, 2 = Matemática)
+    const { data: modData } = await supabaseAdmin
+      .from('programa_modulos')
+      .select('fecha_inicio, grupo')
+      .eq('id', moduloId)
+      .single()
+
+    const moduloGrupo = modData?.grupo
+    const fechaInicio = modData?.fecha_inicio || new Date().toISOString().split('T')[0]
+
+    // 1. Obtener grupos para el departamento (filtrado si es facilitador)
     let query = supabaseAdmin.from('grupos').select('id, name').eq('departamento_id', deptoId)
+    if (userRole === 'facilitador' && allowedGroupIds && allowedGroupIds.length > 0) {
+      query = query.in('id', allowedGroupIds)
+    }
     const { data: groups, error: gErr } = await query
 
     if (gErr) throw new Error(gErr.message)
@@ -233,22 +303,50 @@ export async function getTutorsAttendanceSession(deptoId: string, moduloId: stri
       return { tutors: [], attendance: [], facilitators: [], groups: groups || [] }
     }
 
-    // 2. Obtener tutores vinculados a estos grupos
+    // 2. Obtener tutores vinculados a estos grupos (incluyendo su rol de profile)
     const { data: links, error: lErr } = await supabaseAdmin
       .from('tutor_grupos')
-      .select('grupo_id, grupos(name), profiles(id, nombre, apellidos, ci, correo, email)')
+      .select(`
+        grupo_id, 
+        grupos(name), 
+        profiles(
+          id, 
+          nombre, 
+          apellidos, 
+          ci, 
+          correo, 
+          email,
+          role_id,
+          roles:roles(name)
+        )
+      `)
       .in('grupo_id', groupIds)
 
     if (lErr) throw new Error(lErr.message)
 
-    const tutors = links?.map((l: any) => {
+    let tutors = links?.map((l: any) => {
       if (!l.profiles) return null
+      const roleName = l.profiles.roles?.name || ''
       return {
         ...l.profiles,
         grupo_id: l.grupo_id,
-        grupo_name: l.grupos?.name || 'N/A'
+        grupo_name: l.grupos?.name || 'N/A',
+        role_name: roleName
       }
     }).filter(Boolean) || []
+
+    // Filtrar tutores según el área del módulo (grupo 1 = Lenguaje -> tutor-lenguaje, grupo 2 = Matemática -> tutor-mate / tutor-matematica)
+    if (moduloGrupo === 1) {
+      tutors = tutors.filter((t: any) => {
+        const r = t.role_name?.trim()?.toLowerCase() || ''
+        return r.includes('lenguaje')
+      })
+    } else if (moduloGrupo === 2) {
+      tutors = tutors.filter((t: any) => {
+        const r = t.role_name?.trim()?.toLowerCase() || ''
+        return r.includes('mate') || r.includes('matematica')
+      })
+    }
 
     const tutorIds = tutors.map((t: any) => t.id)
 
@@ -285,15 +383,6 @@ export async function getTutorsAttendanceSession(deptoId: string, moduloId: stri
       const registeredDays = Array.from(new Set(attendance.map((a: any) => a.dia))).filter(d => d >= 1 && d <= 6)
       const missingRecords: any[] = []
       const daysToSyncDates: { dia: number; chosenDate: string }[] = []
-
-      // Obtener fecha de inicio del módulo para calcular fechas automáticas
-      const { data: modData } = await supabaseAdmin
-        .from('programa_modulos')
-        .select('fecha_inicio')
-        .eq('id', moduloId)
-        .single()
-
-      const fechaInicio = modData?.fecha_inicio || new Date().toISOString().split('T')[0]
 
       const getAutoDateForDayLocal = (day: number) => {
         try {
