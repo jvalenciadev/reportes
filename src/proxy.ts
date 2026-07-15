@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Only apply logic to dashboard routes
@@ -82,3 +82,5 @@ export const config = {
   // Match all dashboard routes (excluding static assets and API routes)
   matcher: ['/dashboard/:path*'],
 }
+
+export default proxy;
