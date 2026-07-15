@@ -10,7 +10,7 @@ import Link from 'next/link'
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  // Redirect 'reportes' role straight to the reports page
+  // Redirect 'reportes' and 'visualizador' roles straight to their pages
   const { data: { user } } = await supabase.auth.getUser()
   if (user) {
     const { data: profile } = await supabase
@@ -21,6 +21,9 @@ export default async function DashboardPage() {
     const role = (profile as any)?.roles?.name
     if (role === 'reportes') {
       return redirect('/dashboard/reportes')
+    }
+    if (role === 'visualizador') {
+      return redirect('/dashboard/inscripciones')
     }
   }
 

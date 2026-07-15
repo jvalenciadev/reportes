@@ -60,6 +60,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // ─── ROLE: visualizador ────────────────────────────────────────────────────
+  // Allowed routes: inscripciones, asistencia, tutores, calificaciones, reportes
+  const VISUALIZADOR_ALLOWED = [
+    '/dashboard/inscripciones',
+    '/dashboard/asistencia',
+    '/dashboard/tutores',
+    '/dashboard/calificaciones',
+    '/dashboard/reportes',
+  ]
+  if (role === 'visualizador' && !VISUALIZADOR_ALLOWED.some(p => pathname.startsWith(p))) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard/inscripciones'
+    return NextResponse.redirect(url)
+  }
+
   return response
 }
 

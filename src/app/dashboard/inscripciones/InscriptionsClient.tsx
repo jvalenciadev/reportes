@@ -13,7 +13,7 @@ import {
 import StatusModal, { StatusType } from '../components/StatusModal'
 import ReasonModal from '../components/ReasonModal'
 import ConfirmModal from '../components/ConfirmModal'
-import { updateParticipantFieldById } from './actions'
+import { updateParticipantFieldById, transferParticipantsGroup } from './actions'
 
 export default function InscriptionsClient({
   departamentos,
@@ -27,6 +27,7 @@ export default function InscriptionsClient({
   facilitadorGroups?: any[]
 }) {
   const supabase = createClient()
+  const isReadOnly = userRole === 'visualizador'
 
   // Notification State
   const [notif, setNotif] = useState({ show: false, type: 'info' as StatusType, title: '', message: '' })
@@ -287,18 +288,19 @@ export default function InscriptionsClient({
   const handleConfirmGroup = async () => {
     setSaving(true)
     try {
-      const { data, error } = await supabase
-        .from('inscripciones')
-        .update({ grupo_id: confirmModal.newGroupId })
-        .eq('id', confirmModal.id)
-        .select()
+      const enrollment = enrolledParticipants.find(p => p.id === confirmModal.id)
+      if (!enrollment) throw new Error('No se encontró la inscripción del participante.')
 
-      if (error) throw error
+      const res = await transferParticipantsGroup({
+        participantIds: [enrollment.participante_id],
+        targetGroupId: confirmModal.newGroupId,
+        programaId: selectedProgram
+      })
 
-      if (!data || data.length === 0) throw new Error('No se pudo actualizar el grupo.')
+      if (res.error) throw new Error(res.error)
 
       setConfirmModal({ show: false, id: '', newGroupId: '', groupName: '' })
-      showNotif('success', 'Grupo Cambiado', 'El participante ha sido movido de grupo exitosamente.')
+      showNotif('success', 'Grupo Cambiado', 'El participante ha sido movido de grupo y sus fechas de asistencia han sido sincronizadas.')
       loadParticipants()
     } catch (err: any) {
       showNotif('error', 'Error al cambiar grupo', err.message)
@@ -626,9 +628,10 @@ export default function InscriptionsClient({
                                       {initials}
                                     </div>
                                     <button
-                                      onClick={() => updateGenero(i.participante_id, genero)}
+                                      onClick={() => !isReadOnly && updateGenero(i.participante_id, genero)}
+                                      disabled={isReadOnly}
                                       className="gender-btn"
-                                      title={genero === 1 ? 'Varón · Click para cambiar' : genero === 0 ? 'Mujer · Click para cambiar' : 'Sin género · Click para asignar'}
+                                      title={isReadOnly ? 'Sólo lectura' : (genero === 1 ? 'Varón · Click para cambiar' : genero === 0 ? 'Mujer · Click para cambiar' : 'Sin género · Click para asignar')}
                                       style={{
                                         position: 'absolute', bottom: '-5px', right: '-5px',
                                         width: '22px', height: '22px', borderRadius: '50%',
@@ -636,8 +639,9 @@ export default function InscriptionsClient({
                                         background: genero === 1 ? '#2563eb' : genero === 0 ? '#db2777' : '#475569',
                                         color: 'white', fontSize: '0.85rem', fontWeight: 900,
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        cursor: 'pointer', padding: 0, lineHeight: 1,
-                                        boxShadow: '0 2px 6px rgba(0,0,0,0.35)'
+                                        cursor: isReadOnly ? 'not-allowed' : 'pointer', padding: 0, lineHeight: 1,
+                                        boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+                                        opacity: isReadOnly ? 0.75 : 1
                                       }}
                                     >
                                       {genero === 1 ? '♂' : genero === 0 ? '♀' : '?'}
@@ -670,13 +674,15 @@ export default function InscriptionsClient({
                                       <select
                                         value={i.grupo_id}
                                         onChange={(e) => updateGroup(i.id, e.target.value)}
+                                        disabled={isReadOnly}
                                         className="group-select-inline"
                                         style={{
                                           padding: '0.15rem 0.4rem', fontSize: '0.68rem',
                                           borderRadius: '0.4rem', border: '1px solid var(--border)',
                                           background: 'var(--primary-light)', color: 'var(--primary)',
-                                          fontWeight: 800, cursor: 'pointer', maxWidth: '110px',
-                                          outline: 'none'
+                                          fontWeight: 800, cursor: isReadOnly ? 'not-allowed' : 'pointer', maxWidth: '110px',
+                                          outline: 'none',
+                                          opacity: isReadOnly ? 0.7 : 1
                                         }}
                                       >
                                         {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -695,19 +701,21 @@ export default function InscriptionsClient({
                                     <input
                                       type="email"
                                       defaultValue={i.participantes.correo || ''}
+                                      disabled={isReadOnly}
                                       onBlur={(e) => {
                                         if (e.target.value !== i.participantes.correo)
                                           updateParticipantField(i.participante_id, 'correo', e.target.value)
                                         e.target.style.borderBottomColor = 'transparent'
                                       }}
                                       onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
-                                      placeholder="Sin correo"
+                                      placeholder={isReadOnly ? "" : "Sin correo"}
                                       style={{
                                         flex: 1, background: 'transparent', border: 'none',
                                         borderBottom: '1px solid transparent', padding: '0.1rem 0',
                                         fontSize: '0.77rem', color: 'var(--foreground)',
                                         transition: 'all 0.2s', minWidth: 0,
-                                        outline: 'none'
+                                        outline: 'none',
+                                        cursor: isReadOnly ? 'default' : 'text'
                                       }}
                                     />
                                   </div>
@@ -717,47 +725,51 @@ export default function InscriptionsClient({
                                     <input
                                       type="text"
                                       defaultValue={i.participantes.celular || ''}
+                                      disabled={isReadOnly}
                                       onBlur={(e) => {
                                         if (e.target.value !== i.participantes.celular)
                                           updateParticipantField(i.participante_id, 'celular', e.target.value)
                                         e.target.style.borderBottomColor = 'transparent'
                                       }}
                                       onFocus={(e) => e.target.style.borderBottomColor = 'var(--primary)'}
-                                      placeholder="Sin celular"
+                                      placeholder={isReadOnly ? "" : "Sin celular"}
                                       style={{
                                         flex: 1, background: 'transparent', border: 'none',
                                         borderBottom: '1px solid transparent', padding: '0.1rem 0',
                                         fontSize: '0.77rem', color: 'var(--foreground)',
-                                        transition: 'all 0.2s', outline: 'none'
+                                        transition: 'all 0.2s', outline: 'none',
+                                        cursor: isReadOnly ? 'default' : 'text'
                                       }}
                                     />
                                   </div>
                                   {/* Pills clickeables: Zona + Formalizado */}
                                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.45rem', flexWrap: 'wrap' }}>
                                     <button
-                                      onClick={() => updateParticipantField(i.participante_id, 'zona', i.participantes.zona === 'urbano' ? 'rural' : 'urbano')}
+                                      onClick={() => !isReadOnly && updateParticipantField(i.participante_id, 'zona', i.participantes.zona === 'urbano' ? 'rural' : 'urbano')}
+                                      disabled={isReadOnly}
                                       className="pill-btn"
-                                      title="Click para cambiar zona"
+                                      title={isReadOnly ? "Sólo lectura" : "Click para cambiar zona"}
                                       style={{
                                         padding: '0.3rem 0.75rem', borderRadius: '99px',
-                                        fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer',
+                                        fontSize: '0.72rem', fontWeight: 800, cursor: isReadOnly ? 'not-allowed' : 'pointer',
                                         background: i.participantes.zona === 'rural' ? 'rgba(34,197,94,0.08)' : 'rgba(59,130,246,0.08)',
                                         color: i.participantes.zona === 'rural' ? '#16a34a' : '#2563eb',
-                                        border: `1.5px solid ${i.participantes.zona === 'rural' ? '#10b981' : '#3b82f6'}`
+                                        border: `1.5px solid ${i.participantes.zona === 'rural' ? '#10b981' : '#3b82f6'}`,
+                                        opacity: isReadOnly ? 0.7 : 1
                                       }}
                                     >
                                       {i.participantes.zona === 'rural' ? '🌾 Rural' : '🏙 Urbano'}
                                     </button>
                                     <button
-                                      onClick={() => i.estado === 'inscrito' && updateParticipantField(i.participante_id, 'formalizado', !i.participantes.formalizado)}
-                                      disabled={i.estado !== 'inscrito'}
+                                      onClick={() => !isReadOnly && i.estado === 'inscrito' && updateParticipantField(i.participante_id, 'formalizado', !i.participantes.formalizado)}
+                                      disabled={i.estado !== 'inscrito' || isReadOnly}
                                       className="pill-btn"
-                                      title={i.estado !== 'inscrito' ? 'La formalización solo está disponible para alumnos activos' : 'Click para cambiar estado de formalización'}
+                                      title={isReadOnly ? "Sólo lectura" : (i.estado !== 'inscrito' ? 'La formalización solo está disponible para alumnos activos' : 'Click para cambiar estado de formalización')}
                                       style={{
                                         padding: '0.3rem 0.75rem', borderRadius: '99px',
                                         fontSize: '0.72rem', fontWeight: 800,
-                                        cursor: i.estado === 'inscrito' ? 'pointer' : 'not-allowed',
-                                        opacity: i.estado === 'inscrito' ? 1 : 0.55,
+                                        cursor: (i.estado === 'inscrito' && !isReadOnly) ? 'pointer' : 'not-allowed',
+                                        opacity: (i.estado === 'inscrito' && !isReadOnly) ? 1 : 0.55,
                                         background: i.participantes.formalizado ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)',
                                         color: i.participantes.formalizado ? '#16a34a' : '#d97706',
                                         border: `1.5px solid ${i.participantes.formalizado ? '#10b981' : '#f59e0b'}`
@@ -827,16 +839,16 @@ export default function InscriptionsClient({
                                   )}
                                   {/* Documento toggle */}
                                   <button
-                                    onClick={() => i.estado === 'inscrito' && updateDocumento(i.id, !!i.entrego_documento)}
-                                    disabled={i.estado !== 'inscrito'}
+                                    onClick={() => !isReadOnly && i.estado === 'inscrito' && updateDocumento(i.id, !!i.entrego_documento)}
+                                    disabled={i.estado !== 'inscrito' || isReadOnly}
                                     className="doc-btn"
-                                    title={i.estado !== 'inscrito' ? 'Solo habilitado para activos' : i.entrego_documento ? 'Doc. entregado ✓' : 'Falta documento'}
+                                    title={isReadOnly ? 'Sólo lectura' : (i.estado !== 'inscrito' ? 'Solo habilitado para activos' : i.entrego_documento ? 'Doc. entregado ✓' : 'Falta documento')}
                                     style={{
                                       display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
                                       padding: '0.4rem 0.85rem', borderRadius: '0.6rem',
                                       fontSize: '0.72rem', fontWeight: 800,
-                                      cursor: i.estado === 'inscrito' ? 'pointer' : 'not-allowed',
-                                      opacity: i.estado === 'inscrito' ? 1 : 0.35,
+                                      cursor: (i.estado === 'inscrito' && !isReadOnly) ? 'pointer' : 'not-allowed',
+                                      opacity: (i.estado === 'inscrito' && !isReadOnly) ? 1 : 0.35,
                                       background: i.entrego_documento
                                         ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.06)',
                                       color: i.entrego_documento ? '#16a34a' : '#ef4444',

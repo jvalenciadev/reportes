@@ -38,6 +38,7 @@ export default function TutorsAttendanceClient({
   currentUser: string
 }) {
   const supabase = createClient()
+  const isReadOnly = userRole === 'visualizador'
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     setMounted(true)
@@ -1006,8 +1007,8 @@ export default function TutorsAttendanceClient({
                 <button
                   className={`btn ${isDirty ? 'btn-primary' : 'btn-outline'}`}
                   onClick={saveAttendance}
-                  disabled={loading || saving || !isDirty}
-                  style={{ padding: '0.5rem 1.25rem', fontWeight: 800 }}
+                  disabled={loading || saving || !isDirty || isReadOnly}
+                  style={{ padding: '0.5rem 1.25rem', fontWeight: 800, opacity: isReadOnly ? 0.5 : 1, cursor: isReadOnly ? 'not-allowed' : 'pointer' }}
                 >
                   <Save size={16} /> Guardar
                 </button>
@@ -1056,16 +1057,18 @@ export default function TutorsAttendanceClient({
                               <button
                                 className={`btn btn-sm ${currentStatus === 'asistio' ? 'btn-success' : ''}`}
                                 onClick={() => handleStatusChange(t.id, 'asistio')}
+                                disabled={isReadOnly}
                                 title="Asistió"
                                 style={{
                                   borderRadius: '50%', width: '36px', height: '36px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 500,
                                   background: currentStatus === 'asistio' ? 'var(--success)' : 'transparent',
                                   color: currentStatus === 'asistio' ? '#fff' : 'var(--foreground)',
                                   border: currentStatus === 'asistio' ? 'none' : '2px solid var(--border)',
-                                  opacity: currentStatus && currentStatus !== 'asistio' ? 0.4 : 1,
+                                  opacity: isReadOnly ? 0.6 : (currentStatus && currentStatus !== 'asistio' ? 0.4 : 1),
                                   transform: currentStatus === 'asistio' ? 'scale(1.15)' : 'scale(1)',
                                   boxShadow: currentStatus === 'asistio' ? '0 4px 12px rgba(34,197,94,0.4)' : 'none',
-                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  cursor: isReadOnly ? 'not-allowed' : 'pointer'
                                 }}
                               >
                                 A
@@ -1073,16 +1076,18 @@ export default function TutorsAttendanceClient({
                               <button
                                 className={`btn btn-sm ${currentStatus === 'atraso' ? 'btn-warning' : ''}`}
                                 onClick={() => handleStatusChange(t.id, 'atraso')}
+                                disabled={isReadOnly}
                                 title="Atraso"
                                 style={{
                                   borderRadius: '50%', width: '36px', height: '36px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 500,
                                   background: currentStatus === 'atraso' ? 'var(--warning)' : 'transparent',
                                   color: currentStatus === 'atraso' ? '#fff' : 'var(--foreground)',
                                   border: currentStatus === 'atraso' ? 'none' : '2px solid var(--border)',
-                                  opacity: currentStatus && currentStatus !== 'atraso' ? 0.4 : 1,
+                                  opacity: isReadOnly ? 0.6 : (currentStatus && currentStatus !== 'atraso' ? 0.4 : 1),
                                   transform: currentStatus === 'atraso' ? 'scale(1.15)' : 'scale(1)',
                                   boxShadow: currentStatus === 'atraso' ? '0 4px 12px rgba(234,179,8,0.4)' : 'none',
-                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  cursor: isReadOnly ? 'not-allowed' : 'pointer'
                                 }}
                               >
                                 AT
@@ -1090,16 +1095,18 @@ export default function TutorsAttendanceClient({
                               <button
                                 className={`btn btn-sm ${currentStatus === 'falta' ? 'btn-danger' : ''}`}
                                 onClick={() => handleStatusChange(t.id, 'falta')}
+                                disabled={isReadOnly}
                                 title="Falta"
                                 style={{
                                   borderRadius: '50%', width: '36px', height: '36px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 500,
                                   background: currentStatus === 'falta' ? 'var(--danger)' : 'transparent',
                                   color: currentStatus === 'falta' ? '#fff' : 'var(--foreground)',
                                   border: currentStatus === 'falta' ? 'none' : '2px solid var(--border)',
-                                  opacity: currentStatus && currentStatus !== 'falta' ? 0.4 : 1,
+                                  opacity: isReadOnly ? 0.6 : (currentStatus && currentStatus !== 'falta' ? 0.4 : 1),
                                   transform: currentStatus === 'falta' ? 'scale(1.15)' : 'scale(1)',
                                   boxShadow: currentStatus === 'falta' ? '0 4px 12px rgba(239,68,68,0.4)' : 'none',
-                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  cursor: isReadOnly ? 'not-allowed' : 'pointer'
                                 }}
                               >
                                 F
@@ -1107,16 +1114,18 @@ export default function TutorsAttendanceClient({
                               <button
                                 className={`btn btn-sm ${currentStatus === 'permiso' ? '' : ''}`}
                                 onClick={() => handleStatusChange(t.id, 'permiso')}
+                                disabled={isReadOnly}
                                 title="Permiso"
                                 style={{
                                   borderRadius: '50%', width: '36px', height: '36px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 500,
                                   background: currentStatus === 'permiso' ? '#6366f1' : 'transparent',
                                   color: currentStatus === 'permiso' ? '#fff' : 'var(--foreground)',
                                   border: currentStatus === 'permiso' ? 'none' : '2px solid var(--border)',
-                                  opacity: currentStatus && currentStatus !== 'permiso' ? 0.4 : 1,
+                                  opacity: isReadOnly ? 0.6 : (currentStatus && currentStatus !== 'permiso' ? 0.4 : 1),
                                   transform: currentStatus === 'permiso' ? 'scale(1.15)' : 'scale(1)',
                                   boxShadow: currentStatus === 'permiso' ? '0 4px 12px rgba(99,102,241,0.4)' : 'none',
-                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  cursor: isReadOnly ? 'not-allowed' : 'pointer'
                                 }}
                               >
                                 P
@@ -1135,7 +1144,8 @@ export default function TutorsAttendanceClient({
                                   correo: t.correo || t.email || ''
                                 })
                               }}
-                              style={{ padding: '0.25rem', color: 'var(--foreground-3)' }}
+                              disabled={isReadOnly}
+                              style={{ padding: '0.25rem', color: 'var(--foreground-3)', opacity: isReadOnly ? 0.5 : 1, cursor: isReadOnly ? 'not-allowed' : 'pointer' }}
                               title="Editar datos"
                             >
                               <Edit2 size={14} />

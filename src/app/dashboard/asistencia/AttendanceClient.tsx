@@ -41,6 +41,7 @@ export default function AttendanceClient({
   currentUser: string
 }) {
   const supabase = createClient()
+  const isReadOnly = userRole === 'visualizador'
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     setMounted(true)
@@ -1384,10 +1385,10 @@ export default function AttendanceClient({
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <History size={20} color={historyDays.length >= 6 ? 'var(--success)' : 'var(--info)'} /> Jornadas Registradas para {groups.find(g => g.id === selectedGroup)?.name}
               </h3>
-              {historyDays.length > 0 && (
+              {historyDays.length > 0 && !isReadOnly && (
                 <button
                   className="btn btn-outline"
-                  disabled={historyDays.length >= 6 || !deadlineStatus.isAllowed}
+                  disabled={isReadOnly || historyDays.length >= 6 || !deadlineStatus.isAllowed}
                   onClick={() => {
                     const action = () => {
                       const today = new Date().toISOString().split('T')[0];
@@ -1413,10 +1414,10 @@ export default function AttendanceClient({
                     }
                   }}
                   style={{
-                    borderColor: (historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 'var(--border)' : 'var(--info)',
-                    color: (historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 'var(--muted)' : 'var(--info)',
-                    opacity: (historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 0.5 : 1,
-                    cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed',
+                    borderColor: (isReadOnly || historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 'var(--border)' : 'var(--info)',
+                    color: (isReadOnly || historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 'var(--muted)' : 'var(--info)',
+                    opacity: (isReadOnly || historyDays.length >= 6 || !deadlineStatus.isAllowed) ? 0.5 : 1,
+                    cursor: (isReadOnly || !deadlineStatus.isAllowed) ? 'not-allowed' : 'pointer',
                     fontWeight: 700
                   }}
                 >
@@ -1617,32 +1618,34 @@ export default function AttendanceClient({
                                     <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700, fontStyle: 'italic', paddingRight: '0.5rem' }}>
                                       Borrador
                                     </span>
-                                    <button
-                                      className="btn btn-ghost"
-                                      disabled={!deadlineStatus.isAllowed}
-                                      onClick={() => {
-                                        setEditingRowDia(h.dia);
-                                        setEditRowNewDia(h.dia);
-                                        setEditRowNewFecha(h.fecha);
-                                      }}
-                                      style={{
-                                        padding: '0.4rem 0.8rem',
-                                        fontSize: '0.8rem',
-                                        border: '1px solid var(--border)',
-                                        color: 'var(--info)',
-                                        fontWeight: 700,
-                                        opacity: deadlineStatus.isAllowed ? 1 : 0.5,
-                                        cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
-                                      }}
-                                    >
-                                      Editar Día
-                                    </button>
+                                    {!isReadOnly && (
+                                      <button
+                                        className="btn btn-ghost"
+                                        disabled={!deadlineStatus.isAllowed}
+                                        onClick={() => {
+                                          setEditingRowDia(h.dia);
+                                          setEditRowNewDia(h.dia);
+                                          setEditRowNewFecha(h.fecha);
+                                        }}
+                                        style={{
+                                          padding: '0.4rem 0.8rem',
+                                          fontSize: '0.8rem',
+                                          border: '1px solid var(--border)',
+                                          color: 'var(--info)',
+                                          fontWeight: 700,
+                                          opacity: deadlineStatus.isAllowed ? 1 : 0.5,
+                                          cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
+                                        }}
+                                      >
+                                        Editar Día
+                                      </button>
+                                    )}
                                   </div>
                                 ) : (
                                   <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                     <button
                                       className={`btn ${isEditing ? 'btn-primary' : 'btn-ghost'}`}
-                                      disabled={!deadlineStatus.isAllowed}
+                                      disabled={!deadlineStatus.isAllowed && !isReadOnly}
                                       onClick={() => {
                                         const action = () => {
                                           setDayNumber(h.dia);
@@ -1660,32 +1663,34 @@ export default function AttendanceClient({
                                         fontSize: '0.8rem',
                                         border: isEditing ? 'none' : '1px solid var(--border)',
                                         fontWeight: 700,
-                                        opacity: deadlineStatus.isAllowed ? 1 : 0.5,
-                                        cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
+                                        opacity: (deadlineStatus.isAllowed || isReadOnly) ? 1 : 0.5,
+                                        cursor: (deadlineStatus.isAllowed || isReadOnly) ? 'pointer' : 'not-allowed'
                                       }}
                                     >
-                                      {isEditing ? 'Editando...' : 'Ver / Editar'}
+                                      {isEditing ? (isReadOnly ? 'Viendo' : 'Editando...') : (isReadOnly ? 'Ver' : 'Ver / Editar')}
                                     </button>
-                                    <button
-                                      className="btn btn-ghost"
-                                      disabled={!deadlineStatus.isAllowed}
-                                      onClick={() => {
-                                        setEditingRowDia(h.dia);
-                                        setEditRowNewDia(h.dia);
-                                        setEditRowNewFecha(h.fecha);
-                                      }}
-                                      style={{
-                                        padding: '0.4rem 0.8rem',
-                                        fontSize: '0.8rem',
-                                        border: '1px solid var(--border)',
-                                        color: 'var(--info)',
-                                        fontWeight: 700,
-                                        opacity: deadlineStatus.isAllowed ? 1 : 0.5,
-                                        cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
-                                      }}
-                                    >
-                                      Editar Día
-                                    </button>
+                                    {!isReadOnly && (
+                                      <button
+                                        className="btn btn-ghost"
+                                        disabled={!deadlineStatus.isAllowed}
+                                        onClick={() => {
+                                          setEditingRowDia(h.dia);
+                                          setEditRowNewDia(h.dia);
+                                          setEditRowNewFecha(h.fecha);
+                                        }}
+                                        style={{
+                                          padding: '0.4rem 0.8rem',
+                                          fontSize: '0.8rem',
+                                          border: '1px solid var(--border)',
+                                          color: 'var(--info)',
+                                          fontWeight: 700,
+                                          opacity: deadlineStatus.isAllowed ? 1 : 0.5,
+                                          cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
+                                        }}
+                                      >
+                                        Editar Día
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -1834,7 +1839,7 @@ export default function AttendanceClient({
                               <td key={status} style={{ textAlign: 'center', padding: '0.85rem 0.5rem' }}>
                                 <button
                                   onClick={() => handleStatusChange(p.participante_id, isActive ? '' : status)}
-                                  disabled={!deadlineStatus.isAllowed}
+                                  disabled={isReadOnly || !deadlineStatus.isAllowed}
                                   style={{
                                     padding: '0.6rem 1rem',
                                     borderRadius: '0.75rem',
@@ -1843,7 +1848,7 @@ export default function AttendanceClient({
                                     color: isActive ? cfg.activeColor : 'var(--muted)',
                                     fontWeight: isActive ? 800 : 500,
                                     fontSize: '0.75rem',
-                                    cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed',
+                                    cursor: (isReadOnly || !deadlineStatus.isAllowed) ? 'not-allowed' : 'pointer',
                                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -1853,7 +1858,7 @@ export default function AttendanceClient({
                                     minWidth: '100px',
                                     transform: isActive ? 'scale(1.05)' : 'scale(1)',
                                     boxShadow: isActive ? `0 4px 12px ${cfg.activeBg}` : 'none',
-                                    opacity: deadlineStatus.isAllowed ? 1 : 0.6
+                                    opacity: (isReadOnly || !deadlineStatus.isAllowed) ? 0.6 : 1
                                   }}
                                 >
                                   {cfg.label}
@@ -1938,11 +1943,11 @@ export default function AttendanceClient({
                     flex: 2,
                     padding: '1.25rem',
                     fontSize: '1.1rem',
-                    opacity: deadlineStatus.isAllowed ? 1 : 0.5,
-                    cursor: deadlineStatus.isAllowed ? 'pointer' : 'not-allowed'
+                    opacity: (isReadOnly || !deadlineStatus.isAllowed) ? 0.5 : 1,
+                    cursor: (isReadOnly || !deadlineStatus.isAllowed) ? 'not-allowed' : 'pointer'
                   }}
                   onClick={() => setShowConfirm(true)}
-                  disabled={saving || participants.length === 0 || !deadlineStatus.isAllowed}
+                  disabled={isReadOnly || saving || participants.length === 0 || !deadlineStatus.isAllowed}
                 >
                   {saving ? 'Consolidando...' : <><Save size={20} /> Consolidar Reporte de Asistencia</>}
                 </button>

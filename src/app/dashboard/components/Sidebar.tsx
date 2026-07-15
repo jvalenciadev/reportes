@@ -10,19 +10,19 @@ import {
 import { signOut } from '@/app/login/actions'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, reportesHidden: true },
-  { href: '/dashboard/programas', label: 'Programas', icon: GraduationCap, adminOnly: true, reportesHidden: true },
-  { href: '/dashboard/departamentos', label: 'Departamentos', icon: Building2, adminOnly: true, reportesHidden: true },
-  { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2, adminOnly: true, reportesHidden: true },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, reportesHidden: true, visualizadorHidden: true },
+  { href: '/dashboard/programas', label: 'Programas', icon: GraduationCap, adminOnly: true, reportesHidden: true, visualizadorHidden: true },
+  { href: '/dashboard/departamentos', label: 'Departamentos', icon: Building2, adminOnly: true, reportesHidden: true, visualizadorHidden: true },
+  { href: '/dashboard/grupos', label: 'Grupos', icon: UserSquare2, adminOnly: true, reportesHidden: true, visualizadorHidden: true },
   { href: '/dashboard/inscripciones', label: 'Inscripciones', icon: Users, reportesHidden: true },
   { href: '/dashboard/asistencia', label: 'Asistencia', icon: CheckSquare, reportesHidden: true },
   { href: '/dashboard/tutores', label: 'Asistencia Tutores', icon: ClipboardCheck, reportesHidden: true },
-  { href: '/dashboard/calificaciones/subir', label: 'Subir Calificación', icon: ClipboardCheck, reportesHidden: true },
+  { href: '/dashboard/calificaciones/subir', label: 'Subir Calificación', icon: ClipboardCheck, reportesHidden: true, visualizadorHidden: true },
   { href: '/dashboard/calificaciones', label: 'Calificaciones', icon: Award, reportesHidden: true },
-  { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3, adminOnly: true },
-  { href: '/dashboard/facilitadores', label: 'Facilitadores', icon: UserPlus, adminOnly: true, reportesHidden: true },
-  { href: '/dashboard/usuarios', label: 'Usuarios', icon: UserCog, adminOnly: true, reportesHidden: true },
-  { href: '/dashboard/migracion', label: 'Migración', icon: Database, adminOnly: true, reportesHidden: true },
+  { href: '/dashboard/reportes', label: 'Reportes', icon: BarChart3, adminOnly: true, visualizadorShow: true },
+  { href: '/dashboard/facilitadores', label: 'Facilitadores', icon: UserPlus, adminOnly: true, reportesHidden: true, visualizadorHidden: true },
+  { href: '/dashboard/usuarios', label: 'Usuarios', icon: UserCog, adminOnly: true, reportesHidden: true, visualizadorHidden: true },
+  { href: '/dashboard/migracion', label: 'Migración', icon: Database, adminOnly: true, reportesHidden: true, visualizadorHidden: true },
 ]
 
 export default function Sidebar({ role, departamentoId }: { role?: string; departamentoId?: string }) {
@@ -49,7 +49,7 @@ export default function Sidebar({ role, departamentoId }: { role?: string; depar
               PROFE
             </div>
             <div style={{ fontSize: '0.65rem', color: 'var(--foreground-3)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              {role === 'reportes' ? 'Reportes' : 'Admin Panel'}
+              {role === 'reportes' ? 'Reportes' : role === 'visualizador' ? 'Visualizador' : 'Admin Panel'}
             </div>
           </div>
         </div>
@@ -63,10 +63,13 @@ export default function Sidebar({ role, departamentoId }: { role?: string; depar
         {navItems.map((item) => {
           const isFacilitador = role === 'facilitador'
           const isReportes = role === 'reportes'
+          const isVisualizador = role === 'visualizador'
           // Reportes role: only show the Reportes link
           if (isReportes && item.reportesHidden) return null
-          // Admin-only pages are hidden for facilitadores
-          if (item.adminOnly && isFacilitador) return null
+          // Visualizador role: only show allowed pages
+          if (isVisualizador && (item as any).visualizadorHidden) return null
+          // Admin-only pages are hidden for facilitadores and visualizadores, unless they have visualizadorShow
+          if (item.adminOnly && (isFacilitador || (isVisualizador && !item.visualizadorShow))) return null
           // Departmental restrictions
           if (departamentoId && (item.href === '/dashboard/usuarios' || item.href === '/dashboard/departamentos')) return null
 

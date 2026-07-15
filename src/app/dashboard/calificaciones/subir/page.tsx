@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import SubirCalificacionClient from './SubirCalificacionClient'
+import { redirect } from 'next/navigation'
 
 export const metadata = {
   title: 'Subir Calificaciones | PROFE v2.1',
@@ -18,6 +19,9 @@ export default async function SubirCalificacionPage() {
     .single()
 
   const userRole: string = profile?.roles?.name || ''
+  if (userRole === 'visualizador') {
+    redirect('/dashboard/calificaciones')
+  }
   const isFacilitador = userRole === 'facilitador'
 
   // 2. Get assigned groups

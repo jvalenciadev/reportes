@@ -154,3 +154,143 @@ export async function updateParticipantFieldById(
     return { error: error.message || 'Error al actualizar participante' }
   }
 }
+
+export async function transferParticipantsGroup({
+  participantIds,
+  targetGroupId,
+  programaId
+}: {
+  participantIds: string[]
+  targetGroupId: string
+  programaId: string
+}) {
+  const supabaseAdmin = createBaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  try {
+    if (!participantIds || participantIds.length === 0) {
+      throw new Error('Debe seleccionar al menos un participante.')
+    }
+    if (!targetGroupId) {
+      throw new Error('Debe seleccionar un grupo de destino.')
+    }
+    if (!programaId) {
+      throw new Error('Debe especificar el programa académico.')
+    }
+
+    // 1. Actualizar grupo_id en inscripciones
+    const { data: updatedInscriptions, error: updateInsError } = await supabaseAdmin
+      .from('inscripciones')
+      .update({ grupo_id: targetGroupId })
+      .in('participante_id', participantIds)
+      .eq('programa_id', programaId)
+      .select()
+
+    if (updateInsError) throw updateInsError
+
+    // 2. Obtener las fechas de asistencia del grupo destino para este programa
+    // Para esto, buscamos otros participantes en el grupo destino
+    const { data: targetEnrolled } = await supabaseAdmin
+      .from('inscripciones')
+      .select('participante_id')
+      .eq('grupo_id', targetGroupId)
+      .eq('programa_id', programaId)
+      .not('participante_id', 'in', `(${participantIds.join(',')})`)
+
+    const targetParticipantIds = targetEnrolled?.map(e => e.participante_id) || []
+
+    if (targetParticipantIds.length > 0) {
+      // Obtener los modulo_id del programa
+      const { data: targetModuleIds } = await supabaseAdmin
+        .from('programa_modulos')
+        .select('id')
+        .eq('programa_id', programaId)
+
+      const moduleIds = targetModuleIds?.map(m => m.id) || []
+
+      if (moduleIds.length > 0) {
+        // Obtener asistencias de los participantes pre-existentes en el grupo destino
+        const { data: targetAsistencias, error: getAttError } = await supabaseAdmin
+          .from('asistencias')
+          .select('modulo_id, dia, fecha')
+          .in('participante_id', targetParticipantIds)
+          .in('modulo_id', moduleIds)
+
+        if (getAttError) throw getAttError
+
+        if (targetAsistencias && targetAsistencias.length > 0) {
+          // Calcular la fecha consenso por cada (modulo_id, dia)
+          const dateCountsMap: Record<string, Record<string, number>> = {}
+
+          targetAsistencias.forEach(a => {
+            const key = `${a.modulo_id}_${a.dia}`
+            if (!dateCountsMap[key]) {
+              dateCountsMap[key] = {}
+            }
+            dateCountsMap[key][a.fecha] = (dateCountsMap[key][a.fecha] || 0) + 1
+          })
+
+          const consensusDates: Record<string, string> = {}
+          Object.entries(dateCountsMap).forEach(([key, dateCounts]) => {
+            let maxCount = 0
+            let chosenDate = ''
+            Object.entries(dateCounts).forEach(([dateStr, count]) => {
+              if (count > maxCount) {
+                maxCount = count
+                chosenDate = dateStr
+              }
+            })
+            consensusDates[key] = chosenDate
+          })
+
+          // Obtener las asistencias actuales de los participantes trasladados para este programa
+          const { data: sourceAsistencias, error: getSrcAttError } = await supabaseAdmin
+            .from('asistencias')
+            .select('*')
+            .in('participante_id', participantIds)
+            .in('modulo_id', moduleIds)
+
+          if (getSrcAttError) throw getSrcAttError
+
+          if (sourceAsistencias && sourceAsistencias.length > 0) {
+            // Actualizar la fecha para cada registro de asistencia que tenga fecha consenso diferente
+            for (const att of sourceAsistencias) {
+              const key = `${att.modulo_id}_${att.dia}`
+              const consensusDate = consensusDates[key]
+              if (consensusDate && att.fecha !== consensusDate) {
+                // Para evitar duplicaciones (por si acaso el participante ya tiene una asistencia en esa fecha consensus)
+                // Primero eliminamos cualquier duplicidad potencial en la fecha destino para ese participante/módulo
+                await supabaseAdmin
+                  .from('asistencias')
+                  .delete()
+                  .eq('participante_id', att.participante_id)
+                  .eq('modulo_id', att.modulo_id)
+                  .eq('fecha', consensusDate)
+
+                // Actualizar la asistencia del día actual a la fecha consenso
+                const { error: updAttError } = await supabaseAdmin
+                  .from('asistencias')
+                  .update({ fecha: consensusDate })
+                  .eq('id', att.id)
+
+                if (updAttError) {
+                  console.error(`Error actualizando fecha de asistencia para ${att.participante_id} modulo ${att.modulo_id} dia ${att.dia}:`, updAttError)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    revalidatePath('/dashboard/inscripciones')
+    revalidatePath('/dashboard/asistencia')
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error al transferir participantes:', error.message)
+    return { error: error.message || 'Error al realizar la unificación' }
+  }
+}
+
