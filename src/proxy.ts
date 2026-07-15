@@ -5,16 +5,27 @@ import type { NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Only apply logic to dashboard routes
-  if (!pathname.startsWith('/dashboard')) {
-    return NextResponse.next()
+  // ─── MAINTENANCE MODE ────────────────────────────────────────────────────────
+  const isMaintenanceMode =
+    process.env.MAINTENANCE_MODE === 'true' ||
+    process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true'
+
+  if (isMaintenanceMode) {
+    const isStaticAsset =
+      pathname.startsWith('/_next') ||
+      pathname.includes('.') ||
+      pathname === '/favicon.ico'
+
+    if (pathname !== '/mantenimiento' && !isStaticAsset) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/mantenimiento'
+      return NextResponse.rewrite(url)
+    }
   }
 
-  // Build a Supabase client that can read cookies from the request
-  const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+  // ─── SESSION REFRESH (required for Supabase Server Components) ───────────────
+  let response = NextResponse.next({
+    request: { headers: request.headers },
   })
 
   const supabase = createServerClient(
@@ -26,6 +37,10 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+          response = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           )
@@ -34,53 +49,57 @@ export async function proxy(request: NextRequest) {
     }
   )
 
+  // Refresh session if expired
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    // Not authenticated — let the layout handle the redirect to /login
-    return response
-  }
+  // ─── ROLE-BASED ROUTING (only for /dashboard routes) ─────────────────────────
+  if (pathname.startsWith('/dashboard') && user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('roles(name)')
+      .eq('id', user.id)
+      .single()
 
-  // Fetch the role for this user
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('roles(name)')
-    .eq('id', user.id)
-    .single()
+    const role = (profile as any)?.roles?.name as string | undefined
 
-  const role = (profile as any)?.roles?.name as string | undefined
+    // ROLE: reportes — allowed ONLY on /dashboard/reportes
+    if (role === 'reportes' && !pathname.startsWith('/dashboard/reportes')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard/reportes'
+      return NextResponse.redirect(url)
+    }
 
-  // ─── ROLE: reportes ────────────────────────────────────────────────────────
-  // This role is allowed ONLY on /dashboard/reportes (and its sub-paths)
-  if (role === 'reportes' && !pathname.startsWith('/dashboard/reportes')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard/reportes'
-    return NextResponse.redirect(url)
-  }
-
-  // ─── ROLE: visualizador ────────────────────────────────────────────────────
-  // Allowed routes: inscripciones, asistencia, tutores, calificaciones, reportes
-  const VISUALIZADOR_ALLOWED = [
-    '/dashboard/inscripciones',
-    '/dashboard/asistencia',
-    '/dashboard/tutores',
-    '/dashboard/calificaciones',
-    '/dashboard/reportes',
-  ]
-  if (role === 'visualizador' && !VISUALIZADOR_ALLOWED.some(p => pathname.startsWith(p))) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard/inscripciones'
-    return NextResponse.redirect(url)
+    // ROLE: visualizador — allowed routes only
+    const VISUALIZADOR_ALLOWED = [
+      '/dashboard/inscripciones',
+      '/dashboard/asistencia',
+      '/dashboard/tutores',
+      '/dashboard/calificaciones',
+      '/dashboard/reportes',
+    ]
+    if (
+      role === 'visualizador' &&
+      !VISUALIZADOR_ALLOWED.some((p) => pathname.startsWith(p))
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard/inscripciones'
+      return NextResponse.redirect(url)
+    }
   }
 
   return response
 }
 
 export const config = {
-  // Match all dashboard routes (excluding static assets and API routes)
-  matcher: ['/dashboard/:path*'],
+  matcher: [
+    /*
+     * Match all request paths except static files and images.
+     * Covers: maintenance mode (all routes) + session refresh + role routing.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }
 
-export default proxy;
+export default proxy
