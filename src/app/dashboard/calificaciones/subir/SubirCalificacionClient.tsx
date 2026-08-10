@@ -344,12 +344,12 @@ ON public.calificaciones FOR ALL USING (
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
     // The deadline is 8 days after fecha_fin (inclusive: day 8 is still allowed)
-    const deadlineDate = new Date(fechaFin.getTime() + 11 * 24 * 60 * 60 * 1000);
+    const deadlineDate = new Date(fechaFin.getTime() + 16 * 24 * 60 * 60 * 1000);
     const deadlineStr = deadlineDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    const daysRemaining = 11 - diffDays;
+    const daysRemaining = 16 - diffDays;
 
-    if (diffDays > 11) {
+    if (diffDays > 16) {
       return {
         isAllowed: false,
         showWarning: false,
