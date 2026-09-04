@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/utils/supabase/client'
 import {
   Building2, Users, GraduationCap, ChevronRight, Download,
@@ -41,6 +42,11 @@ export default function CalificacionesClient({
   const [selectedModule, setSelectedModule] = useState('')
   const [selectedModuleGroup, setSelectedModuleGroup] = useState<string>('1')
   const [showModuleGroupModal, setShowModuleGroupModal] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Facilitators for PDF Signature Selection
   const [facilitators, setFacilitators] = useState<{ name: string, depto: string }[]>([])
@@ -1796,23 +1802,35 @@ export default function CalificacionesClient({
         </div>
       )}
       {/* Modal para selección de Grupo de Módulos (al exportar PDF Grupo) */}
-      {showModuleGroupModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-        }}>
+      {mounted && showModuleGroupModal && typeof document !== 'undefined' && createPortal(
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowModuleGroupModal(false)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '1.5rem',
+            boxSizing: 'border-box'
+          }}
+        >
           <div style={{
             position: 'relative',
-            width: '580px',
+            width: '100%',
+            maxWidth: '560px',
             padding: '2.5rem 2rem 2.25rem 2rem',
             borderRadius: '1.5rem',
             border: '1px solid #e5e7eb',
@@ -1862,7 +1880,7 @@ export default function CalificacionesClient({
             </div>
 
             {/* Cards Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
               {/* Card 1: Lenguaje */}
               <div
                 onClick={() => {
@@ -1996,7 +2014,8 @@ export default function CalificacionesClient({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>
