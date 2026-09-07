@@ -976,7 +976,47 @@ export default function CalificacionesClient({
           const firstModuleDate = sortedModules.length > 0 ? sortedModules[0].fecha_inicio : ''
           const lastModuleDate = sortedModules.length > 0 ? sortedModules[sortedModules.length - 1].fecha_fin : ''
 
+          // Fetch facilitators for this group
+          const { data: grpFacs } = await supabase
+            .from('facilitador_grupos')
+            .select('profiles(full_name)')
+            .eq('grupo_id', grp.id)
+
+          const fetchedNames = grpFacs
+            ?.map((f: any) => f.profiles?.full_name?.trim())
+            .filter(Boolean) || []
+
+          const facNames = fetchedNames.length > 0
+            ? fetchedNames
+            : (grp.id === selectedGroup && facilitators.length > 0
+              ? facilitators.map((f: any) => f.name?.trim()).filter(Boolean)
+              : [])
+
+          // --- Facilitator metadata with precise alignment ---
+          // Build the cell content with \n placeholders so autoTable sizes the row correctly,
+          // then override the rendering via hooks to draw names at the exact x-offset.
+          const hasManyFac = facNames.length >= 2
+          let facCellContent: string
+          if (hasManyFac) {
+            // All names joined with \n — autoTable sizes cell height for all lines
+            facCellContent = facNames.map((n: string, i: number) =>
+              i === 0 ? `FACILITADORES: ${n.toUpperCase()}` : n.toUpperCase()
+            ).join('\n')
+          } else if (facNames.length === 1) {
+            facCellContent = `FACILITADOR(A): ${facNames[0].toUpperCase()}`
+          } else {
+            facCellContent = `FACILITADOR(A): ${(selectedFacilitator || currentUser || 'N/A').toUpperCase()}`
+          }
+
+          // Measure "FACILITADORES: " width in mm for alignment
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          const facLabelWidthMm = doc.getStringUnitWidth('FACILITADORES: ') * 7 / doc.internal.scaleFactor
+          // Line height in mm: fontSize(pt) × lineHeightFactor / scaleFactor(pt-per-mm)
+          const facLineHeightMm = 7 * 1.15 / doc.internal.scaleFactor
+
           // Metadata block
+          const colW = (pageWidth - 31) / 2
           autoTable(doc, {
             startY: 53,
             body: [
@@ -985,7 +1025,7 @@ export default function CalificacionesClient({
                 { content: `PERIODO: I/2026`, styles: { fontStyle: 'bold' } }
               ],
               [
-                { content: `FACILITADOR(A): ${(selectedFacilitator || currentUser || 'N/A').toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
+                { content: facCellContent, colSpan: 2, styles: { fontStyle: 'bold', overflow: 'linebreak' } }
               ],
               [
                 { content: `GRUPO: ${grp.name.toUpperCase()}`, colSpan: 2, styles: { fontStyle: 'bold' } }
@@ -1000,8 +1040,32 @@ export default function CalificacionesClient({
             ],
             theme: 'plain',
             styles: { fontSize: 7, cellPadding: 1.3, textColor: [40, 40, 40], overflow: 'linebreak' },
-            columnStyles: { 0: { cellWidth: (pageWidth - 28) / 2 }, 1: { cellWidth: (pageWidth - 28) / 2 } },
-            margin: { top: 40, left: 17, right: 14 }
+            columnStyles: { 0: { cellWidth: colW }, 1: { cellWidth: colW } },
+            margin: { top: 40, left: 17, right: 14 },
+            // Suppress default text rendering for the facilitator row when multi-fac
+            willDrawCell: (data: any) => {
+              if (hasManyFac && data.row.index === 1 && data.column.index === 0) {
+                data.cell.text = []
+              }
+            },
+            // Draw facilitator names manually with precise x-alignment
+            didDrawCell: (data: any) => {
+              if (hasManyFac && data.row.index === 1 && data.column.index === 0) {
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7)
+                doc.setTextColor(40, 40, 40)
+                const CELL_PAD = 1.3  // matches styles.cellPadding
+                const baseX = data.cell.x + CELL_PAD
+                // cap height ≈ fontSize(pt) × 0.72 × mm/pt  (Helvetica metrics)
+                const baseY = data.cell.y + CELL_PAD + (7 * 0.352778 * 0.72)
+                // Line 0: "FACILITADORES: NOMBRE1"
+                doc.text(`FACILITADORES: ${facNames[0].toUpperCase()}`, baseX, baseY)
+                // Lines 1+: remaining names aligned under NOMBRE1
+                facNames.slice(1).forEach((name: string, i: number) => {
+                  doc.text(name.toUpperCase(), baseX + facLabelWidthMm, baseY + facLineHeightMm * (i + 1))
+                })
+              }
+            }
           })
 
           const metaFinalY = (doc as any).lastAutoTable.finalY
@@ -1803,7 +1867,7 @@ export default function CalificacionesClient({
       )}
       {/* Modal para selección de Grupo de Módulos (al exportar PDF Grupo) */}
       {mounted && showModuleGroupModal && typeof document !== 'undefined' && createPortal(
-        <div 
+        <div
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowModuleGroupModal(false)
           }}
