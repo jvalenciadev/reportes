@@ -130,7 +130,7 @@ export default function MigrationClient({
       while (hasMoreInsc) {
         let q = supabase
           .from('inscripciones')
-          .select('participante_id, grupo_id, grupos(id, name, departamento_id, departamentos(name)), participantes(id, nombre, apellido, ci)')
+          .select('participante_id, grupo_id, grupos(id, name, departamento_id, departamentos(name)), participantes(id, nombre, apellido, ci, genero)')
           .eq('programa_id', exportSelectedProgram)
           .eq('estado', 'inscrito')
           .range(fromInsc, fromInsc + 999)
@@ -226,10 +226,14 @@ export default function MigrationClient({
         const p = (insc as any).participantes
         const g = (insc as any).grupos
 
+        const generoVal = p?.genero
+        const generoLabel = generoVal === 1 ? 'Varón' : generoVal === 0 ? 'Mujer' : 'Sin asignar'
+
         const row: any = {
           'CI': p?.ci || '',
           'Nombre': p?.nombre || '',
           'Apellido': p?.apellido || '',
+          'Género': generoLabel,
           'Grupo': g?.name || '',
           'Área/Depto': (g as any)?.departamentos?.name || '',
         }
