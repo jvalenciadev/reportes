@@ -670,7 +670,7 @@ export default function MigrationClient({
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                 {(exportPreview.length > 0
                   ? Object.keys(exportPreview[0])
-                  : ['CI', 'Nombre', 'Apellido', 'Grupo', 'Área/Depto', 'Módulos (Notas/Asistencias)', 'Promedio Final', 'Asistencia General %', 'Área']
+                  : ['CI', 'Nombre', 'Apellido', 'Género', 'Grupo', 'Área/Depto', 'Módulos (Notas/Asistencias)', 'Promedio Final', 'Asistencia General %', 'Área']
                 ).map((col, i) => (
                   <span key={i} style={{ fontSize: '0.72rem', padding: '0.25rem 0.65rem', background: 'var(--surface)', borderRadius: '0.5rem', border: '1px solid var(--border)', color: 'var(--foreground-2)', fontWeight: 600 }}>
                     {col}
